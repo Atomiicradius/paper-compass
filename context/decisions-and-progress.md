@@ -49,10 +49,11 @@ Update after each task: what's done, what's next, blockers.
 - Status: not started
 
 ### Person 2: Database and retrieval (then evidence and RAG)
-- Status: in progress (week-1 foundation, branch `db/foundation`, not pushed)
-- Done: Postgres 16.15 + pgvector 0.8.7 and Neo4j 5.26.32 containers (`db/`); schema from the contracts loaded verbatim via `db/init.sql`; mock data in `db/mock/`; format proposals in `db/proposals/` (for Person 1 to accept or change).
-- Next: schema tests, then the loader and a run on the mock data. Embeddings stay NULL until open decision O3 is settled.
-- Blockers / notes: none. Neo4j container is running with credentials from the local `db/.env` (not committed); share them with Person 3 outside git.
+- Status: week-1 foundation done (branch `db/foundation`).
+- Done: schema and containers (Postgres 16.15 + pgvector 0.8.7, Neo4j 5.26.32; schema from the contracts loaded verbatim via `db/init.sql`); 76 tests passing; loader (vocabulary, papers, extractions, refresh, load-all) done and run on the mock data in `db/mock/`; proposals for the paper metadata and vocabulary formats written in `db/proposals/`, awaiting Person 1's confirmation.
+- Proposed: decision #19 (Postgres built from `db/Dockerfile`), awaiting teammates.
+- Next: embeddings and hybrid search, blocked on O3 (embedding model decision). Embedding columns stay NULL until then.
+- Notes: Neo4j credentials are in the local `db/.env` (not committed); share them with Person 3 outside git.
 
 ### Person 3: Graph and analysis (then scoring and API)
 - Status: not started
