@@ -15,8 +15,9 @@ Files:
   (unknown method, unknown dataset, paper not in `papers.jsonl`).
 
 Deliberate edge cases:
-- an author with no `external_id` on two papers
-- an author whose institution differs between two papers (conflict to be logged)
+- an author with no `external_id` on two papers, spelled with different case and spacing, and with a
+  different institution on each (must merge by normalized name and log an institution conflict)
+- an author with an `external_id` whose institution differs between two papers (conflict to be logged)
 - a paper with no venue and no DOI
 - a reference to a paper that is not in the file (`MOCK_P404`)
 - a vocabulary alias used in an extraction row (method, dataset and task)
