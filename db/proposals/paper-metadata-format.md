@@ -34,8 +34,8 @@ JSON Lines (`.jsonl`), UTF-8, one JSON object per line, one paper per object.
 | `doi` | no | `null` allowed. Unique across the database, so no two papers may share a DOI. |
 | `venue` | no | Venue name as text. `null` allowed. |
 | `venue_type` | no | One of `conference`, `journal`, `workshop`, `preprint`, `other`. **Added by Person 2, not in the original request.** If missing, the loader would use `other`. Needed because `venue` is unique on (name, type) and a NULL type would allow duplicate venues. |
-| `authors` | yes (may be `[]`) | List of objects, see below. |
-| `references` | yes (may be `[]`) | List of `paper_id` values this paper cites. |
+| `authors` | no | List of objects, see below. Missing is treated as `[]`. |
+| `references` | no | List of `paper_id` values this paper cites. Missing is treated as `[]`. |
 
 Author object:
 

@@ -5,6 +5,7 @@ The main database (POSTGRES_DB) is never touched. Connection settings come from 
 (or the same variable names in the environment). The Postgres container must be running.
 """
 import os
+import sys
 import uuid
 from pathlib import Path
 
@@ -12,6 +13,7 @@ import psycopg
 import pytest
 
 DB_DIR = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(DB_DIR))  # so tests can import the `loaders` package
 
 
 def _settings():
@@ -49,8 +51,11 @@ def test_db_conninfo():
 
 @pytest.fixture
 def conn(test_db_conninfo):
-    """A connection to the throwaway database with every table emptied first."""
+    """A connection to the throwaway database with every table emptied first.
+    Materialized views are refreshed too, so no test sees the contents left by an earlier test."""
     with psycopg.connect(test_db_conninfo, autocommit=True) as c:
         tables = [r[0] for r in c.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")]
         c.execute("TRUNCATE " + ", ".join(tables) + " RESTART IDENTITY CASCADE")
+        for (view,) in c.execute("SELECT matviewname FROM pg_matviews WHERE schemaname = 'public'").fetchall():
+            c.execute(f"REFRESH MATERIALIZED VIEW {view}")
         yield c

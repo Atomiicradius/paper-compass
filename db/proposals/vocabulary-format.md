@@ -30,8 +30,8 @@ JSON Lines (`.jsonl`), UTF-8, one JSON object per line, one vocabulary entry per
 
 ## Rules the loader would apply
 
-- Aliases are unique **per type** (the alias tables have `alias` as the primary key). An alias that already points to a different canonical name of the same type is rejected with a reason.
-- Matching of extraction values to the vocabulary is exact. Whether it should ignore case or surrounding whitespace is **not decided**; the loader would trim whitespace only, unless Person 1 says otherwise.
+- Aliases are unique **per type** (the alias tables have `alias` as the primary key). An alias that already points to a different entry of the same type (or equals another entry's canonical name) is **ignored with a warning**; the entry itself is still loaded.
+- Matching of names and aliases, both when loading the vocabulary and when matching extraction values, **ignores case and whitespace differences** (case-folded, runs of whitespace collapsed, ends trimmed). So `"low-resource"` and `"Low-Resource "` are the same value, but `"low-resource"` and `"low resource"` are not.
 - An alias may equal its own `canonical_name`. That is harmless and ignored.
 - Loading is idempotent: re-running adds nothing.
 - The vocabulary file is **deliberately** edited by the extraction owner. The loader never adds vocabulary from extraction output; unknown values are written to `db/rejects/` with a reason.
