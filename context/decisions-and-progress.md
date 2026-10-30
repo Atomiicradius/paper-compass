@@ -39,6 +39,7 @@ Edit only your own section under "Progress" to avoid merge conflicts. Decisions 
 | 16 | 2026-10-30 | Same-universe rule for expected counts; subset count views and `mv_universe_size` added | Mixed universes inflate expected counts and create false sparsity | Locked |
 | 17 | 2026-10-30 | `experiment` uniqueness uses `NULLS NOT DISTINCT`; PostgreSQL 15+ required | Prevent duplicate extractions with missing fields | Locked |
 | 18 | 2026-10-30 | Values outside the controlled vocabulary go to a review queue, never create entities | Keep the vocabulary controlled | Locked |
+| 19 | 2026-10-30 | Postgres container is built from `db/Dockerfile` (`postgres:16` pinned by digest, plus apt `postgresql-16-pgvector` pinned) instead of the `pgvector/pgvector` image, because that image fails with `exec format error` on Person 2's Docker setup; one identical image for everyone | Reproducible environment | Proposed, teammates to confirm |
 
 ## Progress
 
@@ -48,7 +49,10 @@ Update after each task: what's done, what's next, blockers.
 - Status: not started
 
 ### Person 2: Database and retrieval (then evidence and RAG)
-- Status: not started
+- Status: in progress (week-1 foundation, branch `db/foundation`, not pushed)
+- Done: Postgres 16.15 + pgvector 0.8.7 and Neo4j 5.26.32 containers (`db/`); schema from the contracts loaded verbatim via `db/init.sql`; mock data in `db/mock/`; format proposals in `db/proposals/` (for Person 1 to accept or change).
+- Next: schema tests, then the loader and a run on the mock data. Embeddings stay NULL until open decision O3 is settled.
+- Blockers / notes: none. Neo4j container is running with credentials from the local `db/.env` (not committed); share them with Person 3 outside git.
 
 ### Person 3: Graph and analysis (then scoring and API)
 - Status: not started
