@@ -121,6 +121,16 @@ embeddings\.venv\Scripts\python.exe -m retrieval search --vector-file q.npy --to
 embeddings\.venv\Scripts\python.exe -m retrieval keyword "machine translation" --top-k 5
 ```
 
+## Evaluating retrieval
+
+`retrieval/evaluation/` scores rankings against labelled queries: precision@K, recall@K, MRR and nDCG@K (graded relevance 0, 1, 2; the formulas are in the docstring of `metrics.py`). It reads **files only**: it never calls the database or a model, so keyword, vector and hybrid rankings can be compared later by saving each system's results as a JSON file.
+
+```powershell
+..\.venv\Scripts\python.exe -m retrieval.evaluation run --queries eval/queries.jsonl --ranker keyword --rankings eval/rankings-keyword.json -k 10
+```
+
+`--rankings` defaults to `rankings-<ranker>.json` next to the queries file. A query with no relevant paper in its judgments is left out of the means and listed. The query-file format, and how to label without bias, is a proposal in `proposals/retrieval-eval-format.md`.
+
 ## Tests
 
 The tests need the containers running. They create a throwaway database for each run, apply `init.sql` to it, and drop it afterwards, so the main database is never touched.
