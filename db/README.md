@@ -106,6 +106,21 @@ The first run downloads about 0.9 GB of model files. Papers without an abstract 
 
 The embedding tests use a fake encoder and run with the other tests. One extra test runs the real model and is skipped by default: `embeddings\.venv\Scripts\python.exe -m pytest tests -m slow`.
 
+## Search layer
+
+`retrieval/` is the SQL search layer (no API; the API belongs to the scoring and API module). `search(conn, query_vector, top_k, offset, year_min, year_max, venues, methods, datasets, tasks, exclude_ids, include_entities, ef_search)` returns plain dicts (`paper_id`, `title`, `year`, `venue`, `similarity`) from a single parameterized SQL statement. Papers without an embedding are never returned. Method, dataset and task filters take canonical names or aliases and check the paper's experiments; several values in one filter mean OR, different filters combine with AND. Each entity filter is checked separately, so a paper matches `methods=A` and `tasks=B` if some experiment has A and some (possibly other) experiment has B.
+
+Filters are applied after the HNSW index scan, so `search()` turns on pgvector's iterative index scan (`hnsw.iterative_scan = strict_order`) for each call; otherwise a selective filter returns too few rows. pgvector stops iterating after `hnsw.max_scan_tuples` index entries (default 20000).
+
+`keyword_search(conn, text, ...)` is the full-text baseline for the later keyword-vs-vector evaluation (on-the-fly `to_tsvector`, no index).
+
+To try it from the command line (testing aid only), with the embeddings environment:
+
+```powershell
+embeddings\.venv\Scripts\python.exe -m retrieval search --vector-file q.npy --top-k 5 --year-min 2020 --method "Some Method" --entities
+embeddings\.venv\Scripts\python.exe -m retrieval keyword "machine translation" --top-k 5
+```
+
 ## Tests
 
 The tests need the containers running. They create a throwaway database for each run, apply `init.sql` to it, and drop it afterwards, so the main database is never touched.
