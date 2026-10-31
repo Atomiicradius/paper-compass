@@ -108,7 +108,12 @@ The embedding tests use a fake encoder and run with the other tests. One extra t
 
 ## Search layer
 
-`retrieval/` is the SQL search layer (no API; the API belongs to the scoring and API module). `search(conn, query_vector, top_k, offset, year_min, year_max, venues, methods, datasets, tasks, exclude_ids, include_entities, ef_search)` returns plain dicts (`paper_id`, `title`, `year`, `venue`, `similarity`) from a single parameterized SQL statement. Papers without an embedding are never returned. Method, dataset and task filters take canonical names or aliases and check the paper's experiments; several values in one filter mean OR, different filters combine with AND. Each entity filter is checked separately, so a paper matches `methods=A` and `tasks=B` if some experiment has A and some (possibly other) experiment has B.
+`retrieval/` is the SQL search layer (no API; the API belongs to the scoring and API module). `search(conn, query_vector, top_k, offset, year_min, year_max, venues, methods, datasets, tasks, exclude_ids, include_entities, ef_search)` returns plain dicts (`paper_id`, `title`, `year`, `venue`, `similarity`) from a single parameterized SQL statement. Papers without an embedding are never returned. Method, dataset and task filters take canonical names or aliases and check the paper's experiments; several values inside one filter mean OR. How different entity filters combine is set by `match`:
+
+- `match="same_experiment"` (the default): **one** experiment of the paper must satisfy all supplied entity filters. `methods=["A"], tasks=["B"]` needs an experiment that uses A on B.
+- `match="any"`: each filter may be satisfied by a different experiment. A paper with A in one experiment and B in another matches.
+
+With a single entity filter both modes are the same. Year, venue and exclusion filters always combine with AND. The same option exists on `keyword_search()` and as `--match` on the command line.
 
 Filters are applied after the HNSW index scan, so `search()` turns on pgvector's iterative index scan (`hnsw.iterative_scan = strict_order`) for each call; otherwise a selective filter returns too few rows. pgvector stops iterating after `hnsw.max_scan_tuples` index entries (default 20000).
 

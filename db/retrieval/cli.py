@@ -47,6 +47,9 @@ def add_filters(parser):
     parser.add_argument("--method", action="append", dest="methods", help="name or alias; repeat for several (OR)")
     parser.add_argument("--dataset", action="append", dest="datasets")
     parser.add_argument("--task", action="append", dest="tasks")
+    parser.add_argument("--match", choices=("same_experiment", "any"), default="same_experiment",
+                        help="same_experiment: one experiment must satisfy all method/dataset/task filters "
+                             "(default); any: each filter may be met by a different experiment")
     parser.add_argument("--exclude", action="append", dest="exclude_ids", help="paper_id to leave out")
     parser.add_argument("--entities", action="store_true", dest="include_entities",
                         help="also show each paper's methods, datasets and tasks")
@@ -80,7 +83,7 @@ def main(argv=None, connect_fn=None):
     args = build_parser().parse_args(argv)
     filters = dict(top_k=args.top_k, offset=args.offset, year_min=args.year_min, year_max=args.year_max,
                    venues=args.venues, methods=args.methods, datasets=args.datasets, tasks=args.tasks,
-                   exclude_ids=args.exclude_ids, include_entities=args.include_entities)
+                   exclude_ids=args.exclude_ids, include_entities=args.include_entities, match=args.match)
     try:
         with (connect_fn or connect)(args.dbname) as conn:
             if args.command == "search":

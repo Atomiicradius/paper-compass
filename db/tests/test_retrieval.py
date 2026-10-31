@@ -66,6 +66,7 @@ def corpus(conn):
             conn.execute("INSERT INTO experiment (paper_id, method_id, dataset_id, task_id) VALUES (%s, %s, %s, %s)",
                          (pid, ids[m], ids.get(d), ids.get(t)))
         meta[pid] = {"year": year, "venue": venue, "vec": vector,
+                     "experiments": [(names[m], names.get(d), names.get(t)) for m, d, t in experiments],
                      "methods": {names[m] for m, _, _ in experiments},
                      "datasets": {names[d] for _, d, _ in experiments if d},
                      "tasks": {names[t] for _, _, t in experiments if t}}
@@ -85,6 +86,18 @@ def brute(corpus, predicate=lambda m: True):
 
 def ids_of(results):
     return [r["paper_id"] for r in results]
+
+
+def same_experiment(m, methods=None, datasets=None, tasks=None):
+    """True if ONE experiment of the paper satisfies every supplied filter (values within a filter are OR)."""
+    return any((methods is None or e[0] in methods) and (datasets is None or e[1] in datasets)
+               and (tasks is None or e[2] in tasks) for e in m["experiments"])
+
+
+def any_experiment(m, methods=None, datasets=None, tasks=None):
+    """True if each supplied filter is satisfied by SOME experiment (possibly different ones)."""
+    return all(values is None or any(e[index] in values for e in m["experiments"])
+               for index, values in enumerate((methods, datasets, tasks)))
 
 
 # --- ordering, basic output -------------------------------------------------------------------
@@ -157,16 +170,54 @@ def test_different_filters_combine_with_and(conn, corpus):
     check_filter(conn, corpus,
                  lambda m: "Method One" in m["methods"] and m["year"] >= 2020 and m["venue"] == "Venue A",
                  methods=["Method One"], year_min=2020, venues=["Venue A"])
-    check_filter(conn, corpus, lambda m: "Dataset One" in m["datasets"] and "Task One" in m["tasks"],
+    check_filter(conn, corpus, lambda m: same_experiment(m, datasets={"Dataset One"}, tasks={"Task One"}),
                  datasets=["Dataset One"], tasks=["Task One"])
+    check_filter(conn, corpus, lambda m: any_experiment(m, datasets={"Dataset One"}, tasks={"Task One"}),
+                 datasets=["Dataset One"], tasks=["Task One"], match="any")
 
 
-def test_entity_filters_are_independent_per_filter_not_per_experiment(conn, corpus):
-    """S_03 has (Method Two, Dataset One) in one experiment and (Method One, Task One) in another.
-    It matches methods=Method Two AND tasks=Task One although no single experiment has both."""
-    got = ids_of(search(conn, corpus.query, top_k=100, methods=["Method Two"], tasks=["Task One"]))
-    assert got == brute(corpus, lambda m: "Method Two" in m["methods"] and "Task One" in m["tasks"])[0]
-    assert "S_03" in got
+# --- match="same_experiment" (default) versus match="any" -------------------------------------
+# S_03 has two experiments: (Method Two, Dataset One, -) and (Method One, -, Task One).
+
+def test_same_experiment_is_the_default_and_needs_one_experiment_to_satisfy_all_filters(conn, corpus):
+    """Method Two AND Task One: S_03 has each, but in different experiments."""
+    default = ids_of(search(conn, corpus.query, top_k=100, methods=["Method Two"], tasks=["Task One"]))
+    explicit = ids_of(search(conn, corpus.query, top_k=100, methods=["Method Two"], tasks=["Task One"],
+                             match="same_experiment"))
+    any_mode = ids_of(search(conn, corpus.query, top_k=100, methods=["Method Two"], tasks=["Task One"], match="any"))
+    assert default == explicit == []
+    assert any_mode == ["S_03"]
+    assert brute(corpus, lambda m: same_experiment(m, {"Method Two"}, None, {"Task One"}))[0] == []
+    assert brute(corpus, lambda m: any_experiment(m, {"Method Two"}, None, {"Task One"}))[0] == ["S_03"]
+
+
+def test_both_modes_accept_a_paper_whose_single_experiment_has_everything(conn, corpus):
+    for mode in ("same_experiment", "any"):
+        got = ids_of(search(conn, corpus.query, top_k=100, methods=["Method One"], tasks=["Task One"], match=mode))
+        assert "S_03" in got                         # its second experiment is (Method One, -, Task One)
+        assert "S_00" in got and "S_02" in got       # i % 4 == 0 and 2
+
+
+def test_three_filters_must_meet_in_one_experiment_by_default(conn, corpus):
+    kwargs = dict(methods=["Method One"], datasets=["Dataset One"], tasks=["Task One"])
+    default = ids_of(search(conn, corpus.query, top_k=100, **kwargs))
+    any_mode = ids_of(search(conn, corpus.query, top_k=100, match="any", **kwargs))
+    assert default == brute(corpus, lambda m: same_experiment(m, {"Method One"}, {"Dataset One"}, {"Task One"}))[0]
+    assert any_mode == brute(corpus, lambda m: any_experiment(m, {"Method One"}, {"Dataset One"}, {"Task One"}))[0]
+    assert "S_03" not in default and "S_03" in any_mode
+    assert set(default) < set(any_mode)
+
+
+def test_values_within_a_filter_stay_or_in_same_experiment_mode(conn, corpus):
+    check_filter(conn, corpus,
+                 lambda m: same_experiment(m, {"Method One", "Method Two"}, None, {"Task One"}),
+                 methods=["Method One", "m-one", "Method Two"], tasks=["Task One"])
+
+
+def test_a_single_entity_filter_is_the_same_in_both_modes(conn, corpus):
+    for kwargs in ({"methods": ["Method Two"]}, {"datasets": ["Dataset One"]}, {"tasks": ["Task One"]}):
+        assert ids_of(search(conn, corpus.query, top_k=100, **kwargs)) == \
+            ids_of(search(conn, corpus.query, top_k=100, match="any", **kwargs))
 
 
 def test_exclude_ids(conn, corpus):
@@ -204,7 +255,7 @@ def test_bad_query_vectors_are_rejected_before_any_query(conn, corpus, bad, text
 @pytest.mark.parametrize("kwargs", [
     {"top_k": 0}, {"top_k": -1}, {"top_k": "10"}, {"offset": -1}, {"ef_search": 0}, {"ef_search": 1001},
     {"iterative_scan": "sometimes"}, {"year_min": "2020"}, {"venues": "Venue A"}, {"methods": "Method One"},
-    {"exclude_ids": "S_01"},
+    {"exclude_ids": "S_01"}, {"match": "all"}, {"match": None},
 ])
 def test_bad_parameters_are_rejected(conn, corpus, kwargs):
     with pytest.raises(ValueError):
@@ -323,6 +374,31 @@ def test_keyword_search_validates_arguments(docs):
         keyword_search(docs, 123)
     with pytest.raises(ValueError):
         keyword_search(docs, "translation", top_k=0)
+    with pytest.raises(ValueError):
+        keyword_search(docs, "translation", match="all")
+
+
+def test_keyword_search_match_modes(conn):
+    ids = {}
+    for table, column, names in (("method", "canonical_name", ["Method X"]), ("dataset", "canonical_name", ["Dataset Y"]),
+                                 ("task", "canonical_name", ["Task W"])):
+        for name in names:
+            ids[name] = conn.execute(f"INSERT INTO {table} ({column}) VALUES (%s) RETURNING {table}_id",
+                                     (name,)).fetchone()[0]
+    method_z = conn.execute("INSERT INTO method (canonical_name) VALUES ('Method Z') RETURNING method_id").fetchone()[0]
+    for pid in ("W_SPLIT", "W_SINGLE"):
+        conn.execute("INSERT INTO paper (paper_id, title, abstract) VALUES (%s, 'Alpha study', 'about alpha')", (pid,))
+    # W_SPLIT: Method X in one experiment, Task W in another. W_SINGLE: both in one experiment.
+    conn.execute("INSERT INTO experiment (paper_id, method_id, dataset_id) VALUES ('W_SPLIT', %s, %s)",
+                 (ids["Method X"], ids["Dataset Y"]))
+    conn.execute("INSERT INTO experiment (paper_id, method_id, task_id) VALUES ('W_SPLIT', %s, %s)",
+                 (method_z, ids["Task W"]))
+    conn.execute("INSERT INTO experiment (paper_id, method_id, task_id) VALUES ('W_SINGLE', %s, %s)",
+                 (ids["Method X"], ids["Task W"]))
+    kwargs = dict(methods=["Method X"], tasks=["Task W"])
+    assert ids_of(keyword_search(conn, "alpha", **kwargs)) == ["W_SINGLE"]                       # default
+    assert ids_of(keyword_search(conn, "alpha", match="same_experiment", **kwargs)) == ["W_SINGLE"]
+    assert set(ids_of(keyword_search(conn, "alpha", match="any", **kwargs))) == {"W_SPLIT", "W_SINGLE"}
 
 
 # --- command line (testing aid only) ----------------------------------------------------------
@@ -343,6 +419,16 @@ def test_cli_search_from_a_json_vector_file(connect_to_test_db, conn, corpus, tm
     positions = [out.index(pid) for pid in expected]
     assert positions == sorted(positions)
     assert "Method One" in out
+
+
+def test_cli_match_option(connect_to_test_db, conn, corpus, tmp_path, capsys):
+    vector_file = tmp_path / "q.json"
+    vector_file.write_text(json.dumps(corpus.query), encoding="utf-8")
+    args = ["search", "--vector-file", str(vector_file), "--method", "Method Two", "--task", "Task One"]
+    assert cli.main(args, connect_fn=connect_to_test_db) == 0
+    assert "(no results)" in capsys.readouterr().out                 # default: same experiment
+    assert cli.main(args + ["--match", "any"], connect_fn=connect_to_test_db) == 0
+    assert "S_03" in capsys.readouterr().out
 
 
 def test_cli_search_from_an_npy_file(connect_to_test_db, conn, corpus, tmp_path, capsys):

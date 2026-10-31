@@ -9,6 +9,7 @@ from psycopg.rows import tuple_row
 
 EXPECTED_DIM = 768
 ITERATIVE_SCAN_MODES = ("strict_order", "relaxed_order", "off")
+MATCH_MODES = ("same_experiment", "any")
 
 # (filter name, entity table, alias table or None, id column) - fixed, not user input
 ENTITY_FILTERS = (
@@ -71,8 +72,17 @@ def check_query_vector(vector):
 
 # --- shared filters ---------------------------------------------------------------------------
 
-def _filters(year_min, year_max, venues, methods, datasets, tasks, exclude_ids):
+def _entity_condition(table, alias_table, id_column, name_column, names):
+    """SQL condition on experiment row e: its entity is one of the given names or aliases."""
+    sql = (f"e.{id_column} IN (SELECT {id_column} FROM {table} WHERE lower({name_column}) = ANY(%s) "
+           f"UNION SELECT {id_column} FROM {alias_table} WHERE lower(alias) = ANY(%s))")
+    return sql, [names, names]
+
+
+def _filters(year_min, year_max, venues, methods, datasets, tasks, exclude_ids, match):
     """Return (list of SQL conditions on p / v, list of parameters). Conditions are fixed text."""
+    if match not in MATCH_MODES:
+        raise ValueError(f"match must be one of {', '.join(MATCH_MODES)}, got {match!r}")
     clauses, params = [], []
     if year_min is not None:
         clauses.append("p.year >= %s")
@@ -83,15 +93,25 @@ def _filters(year_min, year_max, venues, methods, datasets, tasks, exclude_ids):
     if venues:
         clauses.append("lower(v.name) = ANY(%s)")
         params.append(_names(venues, "venues"))
+    conditions, condition_params = [], []
     for (label, table, alias_table, id_column, name_column), values in zip(
             ENTITY_FILTERS, (methods, datasets, tasks)):
         if values:
-            names = _names(values, label)
-            clauses.append(
-                f"EXISTS (SELECT 1 FROM experiment e WHERE e.paper_id = p.paper_id AND e.{id_column} IN ("
-                f"SELECT {id_column} FROM {table} WHERE lower({name_column}) = ANY(%s) "
-                f"UNION SELECT {id_column} FROM {alias_table} WHERE lower(alias) = ANY(%s)))")
-            params.extend([names, names])
+            sql, entity_params = _entity_condition(table, alias_table, id_column, name_column,
+                                                   _names(values, label))
+            conditions.append(sql)
+            condition_params.append(entity_params)
+    if match == "same_experiment" and conditions:
+        # one EXISTS: a single experiment row must satisfy every supplied filter
+        clauses.append("EXISTS (SELECT 1 FROM experiment e WHERE e.paper_id = p.paper_id AND "
+                       + " AND ".join(conditions) + ")")
+        for entity_params in condition_params:
+            params.extend(entity_params)
+    else:
+        # "any": each filter gets its own EXISTS, so different experiments may satisfy different filters
+        for sql, entity_params in zip(conditions, condition_params):
+            clauses.append("EXISTS (SELECT 1 FROM experiment e WHERE e.paper_id = p.paper_id AND " + sql + ")")
+            params.extend(entity_params)
     if exclude_ids:
         if isinstance(exclude_ids, (str, bytes)) or not all(isinstance(i, str) for i in exclude_ids):
             raise ValueError("exclude_ids must be a list of paper_id strings")
@@ -115,13 +135,19 @@ def _to_dicts(rows, score_name, convert_score, include_entities):
 
 def search(conn, query_vector, top_k=10, offset=0, year_min=None, year_max=None, venues=None, methods=None,
            datasets=None, tasks=None, exclude_ids=None, include_entities=False, ef_search=100,
-           iterative_scan="strict_order"):
+           iterative_scan="strict_order", match="same_experiment"):
     """Nearest papers to query_vector by cosine similarity, with optional filters.
 
     Returns dicts: paper_id, title, year, venue, similarity (1 - cosine distance), plus methods, datasets
     and tasks (lists of canonical names) when include_entities is true. Papers without an embedding are
-    never returned. A paper matches a methods/datasets/tasks filter if ANY of its experiments has one of the
-    given entities (names or aliases; several values mean OR); different filters combine with AND.
+    never returned.
+
+    methods / datasets / tasks take canonical names or aliases; several values inside one filter mean OR.
+    match decides how different entity filters combine:
+      "same_experiment" (default): ONE experiment of the paper must satisfy all supplied filters, e.g.
+          methods=A and tasks=B needs an experiment that uses A on B.
+      "any": each filter may be satisfied by a different experiment of the paper.
+    With a single entity filter both modes are identical. Year, venue and exclusion filters always AND.
 
     pgvector applies filters after the HNSW scan, so a selective filter can starve the result. Iterative
     scan (pgvector 0.8: hnsw.iterative_scan) keeps scanning until top_k rows pass the filters or
@@ -134,7 +160,7 @@ def search(conn, query_vector, top_k=10, offset=0, year_min=None, year_max=None,
     _int(ef_search, "ef_search", minimum=1, maximum=1000)
     if iterative_scan not in ITERATIVE_SCAN_MODES:
         raise ValueError(f"iterative_scan must be one of {', '.join(ITERATIVE_SCAN_MODES)}, got {iterative_scan!r}")
-    clauses, filter_params = _filters(year_min, year_max, venues, methods, datasets, tasks, exclude_ids)
+    clauses, filter_params = _filters(year_min, year_max, venues, methods, datasets, tasks, exclude_ids, match)
 
     sql = ("SELECT p.paper_id, p.title, p.year, v.name, p.embedding <=> %s::vector AS distance"
            + (ENTITY_COLUMNS if include_entities else "")
@@ -155,15 +181,15 @@ def search(conn, query_vector, top_k=10, offset=0, year_min=None, year_max=None,
 # --- keyword baseline -------------------------------------------------------------------------
 
 def keyword_search(conn, text, top_k=10, offset=0, year_min=None, year_max=None, venues=None, methods=None,
-                   datasets=None, tasks=None, exclude_ids=None, include_entities=False):
+                   datasets=None, tasks=None, exclude_ids=None, include_entities=False, match="same_experiment"):
     """PostgreSQL full-text search over title + abstract (English), ranked by ts_rank. Computed on the
-    fly, no index. Same filters as search(); results carry `score` instead of `similarity`. Works for papers
-    without an embedding."""
+    fly, no index. Same filters (and the same `match` modes) as search(); results carry `score` instead of
+    `similarity`. Works for papers without an embedding."""
     if not isinstance(text, str):
         raise ValueError(f"text must be a string, got {text!r}")
     _int(top_k, "top_k", minimum=1)
     _int(offset, "offset", minimum=0)
-    clauses, filter_params = _filters(year_min, year_max, venues, methods, datasets, tasks, exclude_ids)
+    clauses, filter_params = _filters(year_min, year_max, venues, methods, datasets, tasks, exclude_ids, match)
     if not text.strip():
         return []
 
