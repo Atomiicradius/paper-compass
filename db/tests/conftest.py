@@ -50,6 +50,26 @@ def test_db_conninfo():
 
 
 @pytest.fixture
+def private_db():
+    """A brand-new throwaway database, for tests that load a lot of data or drop indexes.
+    Created from db/init.sql and dropped afterwards; the shared test database is not touched."""
+    s = _settings()
+    name = "pc_test_" + uuid.uuid4().hex[:10]
+    admin = psycopg.connect(_conninfo("postgres", s), autocommit=True)
+    admin.execute(f'CREATE DATABASE "{name}"')
+    c = None
+    try:
+        c = psycopg.connect(_conninfo(name, s), autocommit=True)
+        c.execute((DB_DIR / "init.sql").read_text(encoding="utf-8"))
+        yield c
+    finally:
+        if c is not None:
+            c.close()
+        admin.execute(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
+        admin.close()
+
+
+@pytest.fixture
 def conn(test_db_conninfo):
     """A connection to the throwaway database with every table emptied first.
     Materialized views are refreshed too, so no test sees the contents left by an earlier test."""
