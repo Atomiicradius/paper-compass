@@ -91,6 +91,21 @@ How the loaders behave:
 
 File formats are proposed in `proposals/`.
 
+## Embeddings
+
+`embeddings/` fills `paper.embedding` with SPECTER2 vectors (base model plus the proximity adapter, both pinned to exact Hugging Face revisions; the model string is stored in `paper.embedding_model`). It has its own environment because it needs torch (Python 3.12):
+
+```powershell
+python -m venv embeddings/.venv      # use Python 3.12
+embeddings\.venv\Scripts\python.exe -m pip install -r embeddings/requirements-embeddings.txt
+embeddings\.venv\Scripts\python.exe -m embeddings embed-papers            # papers with embedding NULL
+embeddings\.venv\Scripts\python.exe -m embeddings embed-papers --force    # redo everything
+```
+
+The first run downloads about 0.9 GB of model files. Papers without an abstract are skipped (never embedded from the title alone). Work is saved every 50 papers, so an interrupted run resumes by running the same command again. A run refuses to mix embeddings from different models unless `--force` is used. The experiment that measured SPECTER2 is in `experiments/embeddings/`.
+
+The embedding tests use a fake encoder and run with the other tests. One extra test runs the real model and is skipped by default: `embeddings\.venv\Scripts\python.exe -m pytest tests -m slow`.
+
 ## Tests
 
 The tests need the containers running. They create a throwaway database for each run, apply `init.sql` to it, and drop it afterwards, so the main database is never touched.
