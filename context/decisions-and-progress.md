@@ -55,7 +55,8 @@ Update after each task: what's done, what's next, blockers.
 - Done (embeddings): SPECTER2 measured on CPU (about 0.13 s per paper, 768-dim; `db/experiments/embeddings/results.md`); embedding pipeline `embed-papers` in `db/embeddings/` built with tests (stub encoder, plus one `slow` real-model test) and run on the mock papers.
 - Proposed, awaiting teammates: decision #19 (Postgres built from `db/Dockerfile`); O3 / decision #20 (SPECTER2 with the proximity adapter, `vector(768)` unchanged). Real papers are not embedded until O3 is confirmed.
 - Done (retrieval): SQL search layer in `db/retrieval/` with tests: vector search (year, venue, method/dataset/task filters with aliases, offset, exclusions, optional entity names) using pgvector iterative index scans for selective filters, and a full-text keyword baseline. No API (Person 3 owns it). Tested on synthetic vectors only; no real embeddings exist yet.
-- Next: encoding search queries (the `specter2_adhoc_query` adapter, to be confirmed), embedding the real corpus once O3 is confirmed, and the keyword-vs-vector evaluation.
+- Done (evaluation): retrieval metrics (precision@K, recall@K, MRR, nDCG@K with graded relevance) and a runner that scores precomputed ranking files, in `db/retrieval/evaluation/` with hand-computed tests; no database or model involved. Query-set format written as a proposal (`db/proposals/retrieval-eval-format.md`), awaiting the team.
+- Next: embedding the real corpus once O3 is confirmed, labelling 15-20 queries, and the keyword-vs-vector evaluation. The query encoder (`specter2_adhoc_query` adapter vs the proximity adapter) is not implemented; it will be compared on the labelled query set once real papers exist.
 - Notes: Neo4j credentials are in the local `db/.env` (not committed); share them with Person 3 outside git.
 
 ### Person 3: Graph and analysis (then scoring and API)
