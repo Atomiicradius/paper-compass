@@ -8,7 +8,7 @@ Edit only your own section under "Progress" to avoid merge conflicts. Decisions 
 |---|---|---|---|---|
 | O1 | Domain: NLP / machine translation, ~5-10k papers | Week 1 meeting | All | Proposed |
 | O2 | Corpus source: OpenAlex / Semantic Scholar / ACL Anthology / annotated dump | After 500-paper pilot | Person 1 | Check whether an annotated Papers with Code dump is obtainable |
-| O3 | Embedding model: SPECTER2 vs Sentence Transformer for prototype | Before loading data | Person 2 | Record model name and version in `paper.embedding_model`. `vector(768)` is fixed to SPECTER2; a 384-dim model means changing the column, re-embedding, and rebuilding the index |
+| O3 | Embedding model: SPECTER2 vs Sentence Transformer for prototype | Before loading data | Person 2 | SPECTER2 (allenai/specter2_base + allenai/specter2 proximity adapter), 768-dim, no schema change; proposed, awaiting teammates' confirmation; measured on Person 2's machine, see db/experiments/embeddings/results.md |
 | O4 | UI stack | Week 3-4 | UI owner | Do not scaffold before this is decided |
 | O5 | LLM / RAG client and model | Phase 3 | RAG owner | |
 | O6 | Score weights, `min_support`, confidence constant `k` | Phase 3 | Scoring owner | Tune on real data; keep a sensitivity check |
@@ -40,6 +40,7 @@ Edit only your own section under "Progress" to avoid merge conflicts. Decisions 
 | 17 | 2026-10-30 | `experiment` uniqueness uses `NULLS NOT DISTINCT`; PostgreSQL 15+ required | Prevent duplicate extractions with missing fields | Locked |
 | 18 | 2026-10-30 | Values outside the controlled vocabulary go to a review queue, never create entities | Keep the vocabulary controlled | Locked |
 | 19 | 2026-10-30 | Postgres container is built from `db/Dockerfile` (`postgres:16` pinned by digest, plus apt `postgresql-16-pgvector` pinned) instead of the `pgvector/pgvector` image, because that image fails with `exec format error` on Person 2's Docker setup; one identical image for everyone | Reproducible environment | Proposed, teammates to confirm |
+| 20 | 2026-10-31 | Embedding model is SPECTER2 with the proximity adapter; `vector(768)` unchanged | Runs on CPU at about 0.13 s per paper, 768-dim output matches the schema; see `db/experiments/embeddings/results.md` | Proposed |
 
 ## Progress
 
@@ -51,8 +52,9 @@ Update after each task: what's done, what's next, blockers.
 ### Person 2: Database and retrieval (then evidence and RAG)
 - Status: week-1 foundation done (branch `db/foundation`).
 - Done: schema and containers (Postgres 16.15 + pgvector 0.8.7, Neo4j 5.26.32; schema from the contracts loaded verbatim via `db/init.sql`); 76 tests passing; loader (vocabulary, papers, extractions, refresh, load-all) done and run on the mock data in `db/mock/`; proposals for the paper metadata and vocabulary formats written in `db/proposals/`, awaiting Person 1's confirmation.
-- Proposed: decision #19 (Postgres built from `db/Dockerfile`), awaiting teammates.
-- Next: embeddings and hybrid search, blocked on O3 (embedding model decision). Embedding columns stay NULL until then.
+- Done (embeddings): SPECTER2 measured on CPU (about 0.13 s per paper, 768-dim; `db/experiments/embeddings/results.md`); embedding pipeline `embed-papers` in `db/embeddings/` built with tests (stub encoder, plus one `slow` real-model test) and run on the mock papers.
+- Proposed, awaiting teammates: decision #19 (Postgres built from `db/Dockerfile`); O3 / decision #20 (SPECTER2 with the proximity adapter, `vector(768)` unchanged). Real papers are not embedded until O3 is confirmed.
+- Next: hybrid search (year filter + vector similarity) and keyword-vs-vector evaluation.
 - Notes: Neo4j credentials are in the local `db/.env` (not committed); share them with Person 3 outside git.
 
 ### Person 3: Graph and analysis (then scoring and API)
