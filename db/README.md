@@ -18,13 +18,15 @@ docker compose up --build
 
 ## Connect
 
-Credentials live in `db/.env` (copy of `.env.example`). Ports are set in `docker-compose.yml`.
+Credentials and host ports live in `db/.env` (copy of `.env.example`). If a port variable is missing, the default below is used.
 
-| Service | Address | Credentials in `.env` |
-|---|---|---|
-| PostgreSQL | `127.0.0.1:5432` | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` |
-| Neo4j Browser | http://127.0.0.1:7474 | `NEO4J_USER`, `NEO4J_PASSWORD` |
-| Neo4j Bolt | `bolt://127.0.0.1:7687` | same as above |
+| Service | Default address | Credentials in `.env` | Port variable |
+|---|---|---|---|
+| PostgreSQL | `127.0.0.1:5432` | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | `POSTGRES_PORT` |
+| Neo4j Browser | http://127.0.0.1:7474 | `NEO4J_USER`, `NEO4J_PASSWORD` | `NEO4J_HTTP_PORT` |
+| Neo4j Bolt | `bolt://127.0.0.1:7687` | same as above | `NEO4J_BOLT_PORT` |
+
+The port variables change only the port on your machine; inside the containers the ports stay 5432, 7474 and 7687. The loaders, the embedding and search commands and the tests all read `POSTGRES_PORT` (and `POSTGRES_HOST`, default `127.0.0.1`) from `.env` or the environment, so after changing the port nothing else needs editing. Restart the containers with `docker compose up -d` for a port change to take effect.
 
 psql, without installing anything (inside the container):
 
@@ -38,7 +40,9 @@ psql installed on your machine:
 psql -h 127.0.0.1 -p 5432 -U paper_compass -d paper_compass
 ```
 
-(Use the user and database names from your `.env`; the password is prompted for.) Always use `127.0.0.1`, not `localhost`.
+(Use the user, database and port from your `.env`; the password is prompted for.) Always use `127.0.0.1`, not `localhost`.
+
+**Troubleshooting: "password authentication failed" although the container is running.** This usually means another PostgreSQL (for example a Windows service) owns port 5432, so your connection reaches it instead of the container. Check with `netstat -ano | findstr :5432`, then set `POSTGRES_PORT=55432` in `db/.env` and re-run `docker compose up -d`.
 
 Neo4j is only a running container here. The graph model and sync belong to the graph module.
 

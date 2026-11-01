@@ -34,22 +34,26 @@ def read_env_file(path=DB_DIR / ".env"):
     return values
 
 
-def connect(dbname=None):
-    """Connect using db/.env (environment variables override it). Autocommit, so each loader
-    controls its own transaction."""
-    env = read_env_file()
+def connection_params(dbname=None, env_file=DB_DIR / ".env"):
+    """Connection settings from the environment, then db/.env, then defaults (127.0.0.1, port 5432).
+    POSTGRES_PORT matters when another PostgreSQL already owns 5432 and the container is published elsewhere."""
+    env = read_env_file(env_file)
 
     def get(key, default=""):
         return os.environ.get(key, env.get(key, default))
 
-    return psycopg.connect(
-        host=get("POSTGRES_HOST", "127.0.0.1"),
-        port=get("POSTGRES_PORT", "5432"),
-        user=get("POSTGRES_USER"),
-        password=get("POSTGRES_PASSWORD"),
-        dbname=dbname or get("POSTGRES_DB"),
-        autocommit=True,
-    )
+    return {
+        "host": get("POSTGRES_HOST", "127.0.0.1"),
+        "port": get("POSTGRES_PORT", "5432"),
+        "user": get("POSTGRES_USER"),
+        "password": get("POSTGRES_PASSWORD"),
+        "dbname": dbname or get("POSTGRES_DB"),
+    }
+
+
+def connect(dbname=None):
+    """Connect using connection_params(). Autocommit, so each loader controls its own transaction."""
+    return psycopg.connect(**connection_params(dbname), autocommit=True)
 
 
 # --- reading and rejecting --------------------------------------------------------------------

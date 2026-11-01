@@ -1,4 +1,4 @@
-# Pinned dependencies for graph/, scoring/ and api/ (Person 3). Python 3.12 (team decision 22).
+# Pinned dependencies for graph/, scoring/ and api/ (Person 3). Python 3.12 (team decision 23).
 # Tested on Python 3.12.16 with these pins. To be merged into the shared root requirements.txt.
 psycopg[binary]==3.3.6
 neo4j==5.28.8
