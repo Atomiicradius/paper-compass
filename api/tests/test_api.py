@@ -53,9 +53,20 @@ def test_landscape_trends_clusters(client):
     assert client.get("/clusters").json()["clusters"] == []
 
 
-@pytest.mark.parametrize("method,path", [("post", "/opportunities/1/explain"), ("post", "/rag/query")])
-def test_rag_endpoints_not_ready(client, method, path):
-    assert getattr(client, method)(path).status_code == 501
+def test_explain(client):
+    r = client.post("/opportunities/1/explain")
+    assert r.status_code == 200
+    body = r.json()
+    assert set(body) == {"opportunity_id", "evidence", "summary", "citation_check", "disclaimer"}
+    assert set(body["evidence"]["roles"]) == {"supports_A", "supports_B", "bridge", "nearest_existing"}
+    assert "[paper:MOCK-W5]" in body["summary"]
+    assert body["citation_check"]["ok"] is True
+    assert "MOCK" in body["disclaimer"]
+    assert client.post("/opportunities/999/explain").status_code == 404
+
+
+def test_rag_query_not_ready(client):
+    assert client.post("/rag/query").status_code == 501
 
 
 # --- /search and /papers/{id}/related -------------------------------------------

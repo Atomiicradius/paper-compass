@@ -60,6 +60,43 @@ class MockRepository:
     def get_opportunity(self, opportunity_id):
         return next((o for o in _OPPORTUNITIES if o["opportunity_id"] == opportunity_id), None)
 
+    def explain(self, opportunity_id):
+        """Made-up evidence (MOCK ids and counts) run through Person 2's real summary and citation check."""
+        from rag.citations import verify_citations
+        from rag.evidence import LIMITATIONS, collect_paper_ids
+        from rag.summary import summarize_evidence
+
+        opp = self.get_opportunity(opportunity_id)
+        if opp is None:
+            return None
+        (kind_a, name_a), (kind_b, name_b) = [(k, v) for k, v in opp["elements"].items() if v is not None]
+        n_total, n_a = 500, 50
+        n_b = round(opp["expected_count"] * n_total / n_a)
+
+        def entry(pid, **extra):
+            p = _PAPERS[pid]
+            return {"paper_id": pid, "title": p["title"], "year": p["year"], "venue": p["venue"], **extra}
+
+        src = {"source_sentence": None, "extractor": "MOCK"}
+        ev = opp["evidence"]
+        evidence = {
+            "pair": {"a": {"kind": kind_a, "id": 1, "name": name_a}, "b": {"kind": kind_b, "id": 1, "name": name_b}},
+            "corpus": {"cutoff_year": opp["corpus"]["cutoff_year"], "universe_size": n_total, "n_a": n_a, "n_b": n_b,
+                       "observed": opp["observed_count"], "expected": n_a * n_b / n_total},
+            "yearly": [],
+            "roles": {
+                "supports_A": [entry(pid, **src) for pid in ev["supports_A"]],
+                "supports_B": [entry(pid, **src) for pid in ev["supports_B"]],
+                "bridge": [entry(pid) for pid in ev["bridge"]],
+                "nearest_existing": [entry(pid, **src, tier="close", similarity=0.8, uses="a")
+                                     for pid in ev["nearest_existing"]],
+            },
+            "limitations": [MOCK_NOTICE, *LIMITATIONS],
+        }
+        summary = summarize_evidence(evidence)
+        return {"opportunity_id": opportunity_id, "evidence": evidence, "summary": summary,
+                "citation_check": verify_citations(summary, collect_paper_ids(evidence))}
+
     def get_paper(self, paper_id):
         return _PAPERS.get(paper_id)
 

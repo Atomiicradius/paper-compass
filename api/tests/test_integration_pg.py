@@ -90,3 +90,33 @@ def test_related_excludes_the_paper(repo):
     c.execute("UPDATE paper SET embedding = NULL WHERE paper_id = %s", (papers[1],))
     with pytest.raises(VectorSearchUnavailable):
         r.related(papers[1], 10, {})
+
+
+def test_explain_uses_rag_evidence(repo):
+    from scoring.pipeline import run
+
+    r, _, c = repo
+    # same scenario as scoring's pipeline test: one opportunity, (m1, d2), observed 1 (P1), expected 4/3
+    (opp_id,) = run(c, "method_dataset", min_support=1, k=5.0, cutoff_year=None)
+    out = r.explain(opp_id)
+    corpus = out["evidence"]["corpus"]
+    assert (corpus["universe_size"], corpus["n_a"], corpus["n_b"], corpus["observed"]) == (3, 2, 2, 1)
+    assert corpus["expected"] == pytest.approx(4 / 3)
+    # scoring's counts and rag's counts agree (same-universe rule)
+    observed, expected = c.execute("SELECT observed_count, expected_count FROM opportunity WHERE opportunity_id = %s",
+                                   (opp_id,)).fetchone()
+    assert (observed, expected) == (corpus["observed"], pytest.approx(corpus["expected"]))
+    assert [p["paper_id"] for p in out["evidence"]["roles"]["nearest_existing"]][:1] == ["MOCK-P1"]
+    assert "[paper:MOCK-P1]" in out["summary"]
+    assert out["citation_check"]["ok"] is True
+    assert r.explain(10**9) is None
+
+
+def test_explain_rejects_non_pair_opportunity(repo):
+    from scoring.pipeline import run
+
+    r, _, c = repo
+    (opp_id,) = run(c, "method_dataset", min_support=1, k=5.0, cutoff_year=None)
+    c.execute("UPDATE opportunity SET task_id = 1 WHERE opportunity_id = %s", (opp_id,))
+    with pytest.raises(ValueError):
+        r.explain(opp_id)

@@ -13,6 +13,7 @@ import argparse
 import json
 from typing import Sequence
 
+from rag.evidence import build_evidence_ids
 from scoring.candidates import Candidate, generate_candidates
 from scoring.counts import PAIR_TYPES, fetch_pair_counts
 from scoring.ranking import (
@@ -98,59 +99,21 @@ def compute_inputs(conn, candidates: Sequence[Candidate], cutoff_year: int) -> t
     return semantic, temporal
 
 
-def evidence(conn, c: Candidate, cutoff_year: int) -> dict[str, list[str]]:
-    """Paper IDs per evidence role, within the pair's universe and the cutoff.
+# experiment column -> element kind used by rag/
+_KINDS = {"method_id": "method", "dataset_id": "dataset", "task_id": "task"}
 
-    nearest_existing: papers already using A and B together; if there are none,
-    papers using A whose embedding is closest to B's centroid. This is an interim
-    lookup; the evidence owner (Person 2) may replace it.
-    """
+
+def pair_elements(c: Candidate) -> tuple[tuple[str, int], tuple[str, int]]:
+    """The candidate's two elements as rag/ (kind, id) tuples, A first."""
     col_a, col_b = PAIR_TYPES[c.pair_type]
-    params = {"a": c.a_id, "b": c.b_id, "cutoff": cutoff_year, "lim": EVIDENCE_LIMIT}
+    return (_KINDS[col_a], c.a_id), (_KINDS[col_b], c.b_id)
 
-    def paper_set(cond: str, e: str = "e", p: str = "p") -> str:
-        return (
-            f"SELECT {e}.paper_id FROM experiment {e} JOIN paper {p} ON {p}.paper_id = {e}.paper_id "
-            f"WHERE {e}.{col_a} IS NOT NULL AND {e}.{col_b} IS NOT NULL AND {p}.year <= %(cutoff)s AND "
-            + cond.format(e=e)
-        )
 
-    with conn.cursor() as cur:
-        def ids(sql: str) -> list[str]:
-            cur.execute(sql, params)
-            return [r[0] for r in cur.fetchall()]
-
-        a_set = paper_set(f"{{e}}.{col_a} = %(a)s")
-        b_set = paper_set(f"{{e}}.{col_b} = %(b)s")
-        both = paper_set(f"{{e}}.{col_a} = %(a)s AND {{e}}.{col_b} = %(b)s")
-        b_set_inner = paper_set(f"{{e}}.{col_b} = %(b)s", e="e2", p="p2")
-
-        def recent(paper_set: str) -> str:
-            return f"SELECT p.paper_id FROM paper p WHERE p.paper_id IN ({paper_set}) ORDER BY p.year DESC NULLS LAST, p.paper_id LIMIT %(lim)s"
-
-        out = {
-            "supports_A": ids(recent(f"{a_set} EXCEPT {both}")),
-            "supports_B": ids(recent(f"{b_set} EXCEPT {both}")),
-            # papers that cite into both sets, or an A paper citing a B paper
-            "bridge": ids(recent(
-                f"""SELECT c1.citing_paper_id FROM citation c1 JOIN citation c2 USING (citing_paper_id)
-                    WHERE c1.cited_paper_id IN ({a_set}) AND c2.cited_paper_id IN ({b_set})
-                    UNION
-                    SELECT citing_paper_id FROM citation
-                    WHERE (citing_paper_id IN ({a_set}) AND cited_paper_id IN ({b_set}))
-                       OR (citing_paper_id IN ({b_set}) AND cited_paper_id IN ({a_set}))"""
-            )),
-            "nearest_existing": ids(recent(both)),
-        }
-        if not out["nearest_existing"]:
-            out["nearest_existing"] = ids(
-                f"""SELECT p.paper_id FROM paper p
-                    WHERE p.paper_id IN ({a_set}) AND p.embedding IS NOT NULL
-                    ORDER BY p.embedding <=> (SELECT AVG(p3.embedding) FROM paper p3
-                                              WHERE p3.paper_id IN ({b_set_inner}))
-                    LIMIT %(lim)s"""
-            )
-    return out
+def evidence(conn, c: Candidate, cutoff_year: int) -> dict[str, list[str]]:
+    """Paper IDs per evidence role, from Person 2's rag.evidence.build_evidence_ids
+    (same universe and cutoff as the counts; see db/proposals/evidence-chain-format.md)."""
+    a, b = pair_elements(c)
+    return build_evidence_ids(conn, a, b, cutoff_year, EVIDENCE_LIMIT)
 
 
 def store(conn, scored: Sequence[ScoredCandidate], cutoff_year: int, evidence_by_key: dict[PairKey, dict[str, list[str]]]) -> list[int]:

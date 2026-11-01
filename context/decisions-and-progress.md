@@ -79,11 +79,16 @@ Update after each task: what's done, what's next, blockers.
 - Next: run on the 500-paper pilot once Person 2's DDL and loader exist; tune O6 on real data; temporal holdout run.
 - Needs the team:
   - O10: agree response shapes with the UI owner. Everything except the opportunity object is provisional in `api/schemas.py`.
-  - `/explain` and `/rag/query` return 501 until `rag/` exists.
+  - `/rag/query` returns 501 until O5 (LLM client) is decided.
   - `/search` takes optional filter fields and a `mode` on top of the contract body (see `api/README.md`). Provisional under O10; I will copy the final shape into `data-and-contracts.md` once agreed.
 - Update (2026-11-01): `/search` and `/papers/{id}/related` built on Person 2's `db/retrieval` (branch `person3` merges `db/embeddings`).
   - The query encoder is Person 2's SPECTER2 proximity encoder until their adapter comparison. Vector search refuses paper embeddings from another model; in `auto` mode it falls back to keyword search and says why.
   - Tests: 66 passing with no skips, against Person 2's Postgres image and Neo4j 5.26.32. Person 2's `init.sql` is identical to the contract DDL my tests use.
   - Python 3.12 + psycopg 3.3.6 (decision 23): 66 tests pass with no skips on Python 3.12.16, run in a `python:3.12-slim` container against Person 2's Postgres image and Neo4j. `requirements-person3.txt` updated.
   - Interim `nearest_existing` in `scoring/` will be replaced by Person 2's read-only `rag.nearest_existing(conn, element_a, element_b, cutoff_year, limit)`, called inside the scoring transaction.
+- Update (2026-11-01): on Person 2's `rag/` (branch `person3` merges main with PR #1 and #2).
+  - `scoring.pipeline` writes `opportunity_evidence` from `rag.evidence.build_evidence_ids`; my interim lookup is gone. Two visible changes: `nearest_existing` now fills up to 5 with close papers after the exact ones, and `bridge` only counts citations between the A-only and B-only papers.
+  - `POST /opportunities/{id}/explain` returns `{opportunity_id, evidence, summary, citation_check, disclaimer}` from `build_evidence`, `summarize_evidence` and `verify_citations` (shape provisional under O10). 422 if the opportunity is not exactly one method/dataset/task pair. `/rag/query` stays 501 until O5 (LLM client).
+  - An integration test checks that the stored observed/expected equal `build_evidence(...)["corpus"]` on the same data.
+  - Tests: 425 passed, 10 skipped (dotenv-only tests) across api, graph, scoring, rag and db/tests on Python 3.12, against the compose Postgres and Neo4j.
 - Blockers: none. Pinned deps are in `requirements-person3.txt`.

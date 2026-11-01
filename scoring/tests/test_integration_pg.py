@@ -120,6 +120,7 @@ def test_pipeline_stores_opportunities_with_evidence(conn):
     assert evidence == {
         "supports_A": ["MOCK-P2"],          # m1 without d2
         "supports_B": ["MOCK-P4"],          # d2 without m1
-        "bridge": ["MOCK-P4"],              # P4 (B side) cites P1 (A side)
-        "nearest_existing": ["MOCK-P1"],    # already uses both
+        "bridge": [],                       # P4 cites P1, but P1 uses both, so it is not on the A-only side
+        # rag.nearest: exact papers (P1 uses both) first, then close ones by embedding similarity
+        "nearest_existing": ["MOCK-P1", "MOCK-P2", "MOCK-P4"],
     }

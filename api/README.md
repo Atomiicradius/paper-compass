@@ -14,7 +14,8 @@ PC_PG_DSN=postgresql://... PC_NEO4J_URI=bolt://... PC_NEO4J_PASSWORD=... uvicorn
 | `GET /trends`, `GET /clusters`, `GET /landscape` | Done |
 | `POST /search` | Done; uses Person 2's `db/retrieval` (vector search, or the keyword baseline) |
 | `GET /papers/{id}/related` | Done; nearest papers to the paper's own embedding, the paper itself excluded |
-| `POST /opportunities/{id}/explain`, `POST /rag/query` | Return 501 until Person 2's `rag/` exists |
+| `POST /opportunities/{id}/explain` | `{opportunity_id, evidence, summary, citation_check, disclaimer}` from Person 2's `rag/` (template summary, no LLM); shape provisional, see `db/proposals/evidence-chain-format.md`. 422 if the opportunity is not exactly one pair of method/dataset/task |
+| `POST /rag/query` | Returns 501 until an LLM client is chosen (O5) |
 | `POST /opportunities/{id}/feedback` | Not built (stretch) |
 
 ## Search

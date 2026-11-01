@@ -10,7 +10,8 @@ Configuration (environment variables):
     PC_QUERY_ENCODER       specter2 (default) or none; see api/query_encoder.py
 
 /search and /papers/{id}/related use Person 2's db/retrieval search layer.
-/opportunities/{id}/explain and /rag/query depend on rag/ and return 501 until it exists.
+/opportunities/{id}/explain uses Person 2's rag/ evidence builder and template summary (no LLM).
+/rag/query returns 501 until an LLM client is chosen (open decision O5).
 """
 
 from __future__ import annotations
@@ -193,15 +194,19 @@ def related(paper_id: str, top_k: int = Query(10, ge=1, le=100), year_min: int |
     return {"paper_id": paper_id, "score_type": "cosine_similarity", **out}
 
 
-def _not_ready(owner_module: str):
-    raise HTTPException(501, f"not implemented yet: depends on {owner_module} (Person 2)")
-
-
 @app.post("/opportunities/{opportunity_id}/explain")
-def explain(opportunity_id: int):
-    _not_ready("rag/")
+def explain(opportunity_id: int, repo: Repository = Depends(get_repo)):
+    """{opportunity_id, evidence, summary, citation_check}; shape provisional until it is in
+    data-and-contracts.md (db/proposals/evidence-chain-format.md)."""
+    try:
+        out = repo.explain(opportunity_id)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    if out is None:
+        raise HTTPException(404, "opportunity not found")
+    return {**out, "disclaimer": _disclaimer()}
 
 
 @app.post("/rag/query")
 def rag_query():
-    _not_ready("rag/")
+    raise HTTPException(501, "not implemented yet: needs an LLM client (open decision O5)")

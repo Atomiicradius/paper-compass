@@ -56,6 +56,7 @@ class Repository(Protocol):
     def list_opportunities(self, limit: int, offset: int, cutoff_year: int | None,
                            weights_version: str | None, min_confidence: float | None) -> tuple[int, list[dict]]: ...
     def get_opportunity(self, opportunity_id: int) -> dict | None: ...
+    def explain(self, opportunity_id: int) -> dict | None: ...
     def get_paper(self, paper_id: str) -> dict | None: ...
     def paper_graph(self, paper_id: str, limit: int) -> dict | None: ...
     def trends(self, element_type: str) -> list[dict]: ...
@@ -127,6 +128,30 @@ class PostgresRepository:
             cur.execute(f"{_OPP_SELECT} WHERE o.opportunity_id = %s", (opportunity_id,))
             row = cur.fetchone()
             return self._opportunity(cur, row) if row else None
+
+    def explain(self, opportunity_id):
+        """Evidence chain, template summary and citation check from Person 2's rag/ (shape provisional,
+        db/proposals/evidence-chain-format.md). ValueError if the opportunity is not a single pair."""
+        from rag.citations import verify_citations
+        from rag.evidence import build_evidence, collect_paper_ids
+        from rag.summary import summarize_evidence
+
+        with self._conn() as conn, conn.cursor() as cur:
+            cur.execute("SELECT method_id, dataset_id, task_id, setting_id, corpus_cutoff_year "
+                        "FROM opportunity WHERE opportunity_id = %s", (opportunity_id,))
+            row = cur.fetchone()
+            if row is None:
+                return None
+            method, dataset, task, setting, cutoff = row
+            # A/B order matches scoring.counts.PAIR_TYPES: method before dataset before task
+            elements = [(k, i) for k, i in (("method", method), ("dataset", dataset), ("task", task)) if i is not None]
+            if setting is not None or len(elements) != 2:
+                raise ValueError("explain supports opportunities with exactly two of method, dataset and task, "
+                                 "and no setting")
+            evidence = build_evidence(conn, elements[0], elements[1], cutoff)
+        summary = summarize_evidence(evidence)
+        return {"opportunity_id": opportunity_id, "evidence": evidence, "summary": summary,
+                "citation_check": verify_citations(summary, collect_paper_ids(evidence))}
 
     # --- papers -------------------------------------------------------------
 
