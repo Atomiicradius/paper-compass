@@ -51,4 +51,20 @@ Update after each task: what's done, what's next, blockers.
 - Status: not started
 
 ### Person 3: Graph and analysis (then scoring and API)
-- Status: not started
+- Status: first version of `graph/`, `scoring/`, `api/` built and tested (2026-10-30). No real data loaded yet.
+- Done:
+  - `graph/`: Neo4j constraints, idempotent MERGE sync with mark-and-sweep, count verification, Cypher queries (graph screen, method bridges, multi-hop citations plus the recursive-CTE equivalent), trends, HDBSCAN clusters (written to `graph/out/clusters.json`), bridge papers, weakly connected cluster pairs.
+  - `scoring/`: same-universe pair counts (views, cutoff query, Python), candidates, normalized signals, v1/v2 weights, ranking, sensitivity check, temporal holdout with random / sparsity-only / semantic-only baselines, DB pipeline writing `opportunity` and `opportunity_evidence` in one transaction.
+  - `api/`: FastAPI endpoints for opportunities, papers, paper graph, trends, clusters and landscape. The opportunity response matches the contract. `PC_API_MOCK=1` serves clearly marked mock data for UI work.
+  - Tests: 55 passing, including integration tests on PostgreSQL 16 + pgvector and Neo4j 5.26. Views were checked against raw counts, and the sync was shown to be idempotent and to remove deleted rows.
+- Choices within my modules (tell me if you disagree):
+  - Sparsity = `1 - (obs+1)/(exp+1)`, clipped to [0, 1], fixed for the evaluation.
+  - Pairs with expected < 1 are dropped.
+  - Semantic compatibility and temporal activity are percentile-ranked across the candidate set.
+  - `nearest_existing` uses papers that already have both elements; otherwise, A papers closest to B's centroid. This is interim until Person 2's lookup exists.
+- Next: run on the 500-paper pilot once Person 2's DDL and loader exist; tune O6 on real data; temporal holdout run.
+- Needs the team:
+  - O10: agree response shapes with the UI owner. Everything except the opportunity object is provisional in `api/schemas.py`.
+  - Clusters have no table in the schema. They stay in a JSON file unless the team decides to add one.
+  - `/search`, `/papers/{id}/related`, `/explain` and `/rag/query` return 501 until `retrieval/` and `rag/` exist.
+- Blockers: none. Pinned deps are in `requirements-person3.txt`.

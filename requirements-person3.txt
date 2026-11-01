@@ -1,0 +1,12 @@
+# Pinned dependencies for graph/, scoring/ and api/ (Person 3). Tested on Python 3.14.
+# Merge into a shared lockfile once the team picks one.
+psycopg[binary]==3.2.13
+neo4j==5.28.8
+numpy==2.4.1
+scikit-learn==1.8.0
+fastapi==0.136.1
+pydantic==2.12.5
+uvicorn==0.46.0
+# tests
+pytest==9.0.3
+httpx==0.28.1
