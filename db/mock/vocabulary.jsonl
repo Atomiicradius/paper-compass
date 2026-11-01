@@ -1,0 +1,12 @@
+{"type": "method", "canonical_name": "Mock Method Alpha", "aliases": ["MMA", "mock-alpha"]}
+{"type": "method", "canonical_name": "Mock Method Beta", "aliases": ["MMB"]}
+{"type": "method", "canonical_name": "Mock Method Gamma", "aliases": []}
+{"type": "method", "canonical_name": "Mock Method Delta", "aliases": []}
+{"type": "dataset", "canonical_name": "Mock Dataset One", "aliases": ["MD1"]}
+{"type": "dataset", "canonical_name": "Mock Dataset Two", "aliases": []}
+{"type": "dataset", "canonical_name": "Mock Dataset Three", "aliases": []}
+{"type": "task", "canonical_name": "Mock Task X", "aliases": ["MTX"]}
+{"type": "task", "canonical_name": "Mock Task Y", "aliases": []}
+{"type": "task", "canonical_name": "Mock Task Z", "aliases": []}
+{"type": "setting", "canonical_name": "Mock Setting Sparse", "aliases": []}
+{"type": "setting", "canonical_name": "Mock Setting Shifted", "aliases": []}
