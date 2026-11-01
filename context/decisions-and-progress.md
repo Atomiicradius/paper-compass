@@ -41,6 +41,8 @@ Edit only your own section under "Progress" to avoid merge conflicts. Decisions 
 | 18 | 2026-10-30 | Values outside the controlled vocabulary go to a review queue, never create entities | Keep the vocabulary controlled | Locked |
 | 19 | 2026-10-30 | Postgres container is built from `db/Dockerfile` (`postgres:16` pinned by digest, plus apt `postgresql-16-pgvector` pinned) instead of the `pgvector/pgvector` image, because that image fails with `exec format error` on Person 2's Docker setup; one identical image for everyone | Reproducible environment | Proposed, teammates to confirm |
 | 20 | 2026-10-31 | Embedding model is SPECTER2 with the proximity adapter; `vector(768)` unchanged | Runs on CPU at about 0.13 s per paper, 768-dim output matches the schema; see `db/experiments/embeddings/results.md` | Proposed |
+| 21 | 2026-11-01 | Clusters stay in `graph/out/clusters.json`; no schema change | Agreed by Persons 2 and 3; revisit if the UI needs to query clusters in SQL | Locked |
+| 22 | 2026-11-01 | Python 3.12 and psycopg 3.3.6 for everyone; two lockfiles: core root `requirements.txt` plus add-on `requirements-embeddings.txt` (torch, transformers 4.57.6, adapters) | One environment that also runs the embeddings; keeps torch out of the test environment | Agreed by Persons 2 and 3 |
 
 ## Progress
 
@@ -74,11 +76,11 @@ Update after each task: what's done, what's next, blockers.
 - Next: run on the 500-paper pilot once Person 2's DDL and loader exist; tune O6 on real data; temporal holdout run.
 - Needs the team:
   - O10: agree response shapes with the UI owner. Everything except the opportunity object is provisional in `api/schemas.py`.
-  - Clusters have no table in the schema. They stay in a JSON file unless the team decides to add one.
   - `/explain` and `/rag/query` return 501 until `rag/` exists.
   - `/search` takes optional filter fields and a `mode` on top of the contract body (see `api/README.md`). Provisional under O10; I will copy the final shape into `data-and-contracts.md` once agreed.
 - Update (2026-11-01): `/search` and `/papers/{id}/related` built on Person 2's `db/retrieval` (branch `person3` merges `db/embeddings`).
   - The query encoder is Person 2's SPECTER2 proximity encoder until their adapter comparison. Vector search refuses paper embeddings from another model; in `auto` mode it falls back to keyword search and says why.
   - Tests: 66 passing with no skips, against Person 2's Postgres image and Neo4j 5.26.32. Person 2's `init.sql` is identical to the contract DDL my tests use.
-  - Note for Person 2: `requirements-person3.txt` pins psycopg 3.2.13, `db/requirements.txt` pins 3.3.6. We should agree on one version in a shared lockfile.
+  - Python 3.12 + psycopg 3.3.6 (decision 22): 66 tests pass with no skips on Python 3.12.16, run in a `python:3.12-slim` container against Person 2's Postgres image and Neo4j. `requirements-person3.txt` updated.
+  - Interim `nearest_existing` in `scoring/` will be replaced by Person 2's read-only `rag.nearest_existing(conn, element_a, element_b, cutoff_year, limit)`, called inside the scoring transaction.
 - Blockers: none. Pinned deps are in `requirements-person3.txt`.
