@@ -8,6 +8,7 @@ import pytest
 import rag_helpers as h
 from rag_helpers import M1, T1, standard_world
 from rag.citations import extract_paper_ids, verify_citations
+from rag import summary
 from rag.evidence import LIMITATIONS, build_evidence, collect_paper_ids
 from rag.summary import summarize_evidence
 
@@ -67,31 +68,94 @@ def test_singular_and_plural_are_handled():
     assert "1 papers" not in shows
 
 
-def test_the_inference_is_one_clear_sentence_for_a_weakly_represented_pair():
-    infers = section(summarize_evidence(make_evidence()), "What the system infers")   # observed 2 < expected 3.8
-    assert len(re.findall(r"\.(?:\s|$)", infers)) == 1 and "\n" not in infers      # one sentence (3.8 is a number)
+# The inference rule (thresholds are provisional until open decision O6; they mirror Person 3's candidate
+# filter, which drops pairs with expected < 1):
+#   expected < 1.0                                  -> too little data, no inference
+#   observed >= expected                            -> not weakly represented
+#   observed < expected and expected >= 1.0         -> potentially underexplored (candidate for review)
+#       and expected < 5.0                          -> plus: low confidence because the expected count is small
+
+def infers_for(**kwargs):
+    return section(summarize_evidence(make_evidence(**kwargs)), "What the system infers")
+
+
+def test_the_thresholds_are_the_provisional_constants():
+    assert summary.MIN_EXPECTED_FOR_INFERENCE == 1.0 and summary.LOW_CONFIDENCE_BELOW_EXPECTED == 5.0
+
+
+def test_the_inference_is_one_clear_sentence_when_the_expected_count_is_large_enough():
+    infers = infers_for(n=10, n_a=10, n_b=6, observed=2)                  # expected 6.0, observed 2 < 6.0
+    assert len(re.findall(r"\.(?:\s|$)", infers)) == 1 and "\n" not in infers      # one sentence (6.0 is a number)
     assert "potentially underexplored" in infers
     assert "analyzed corpus" in infers
     assert "candidate" in infers and "review" in infers and "not a proven" in infers
-    assert "2 observed" in infers and "3.8" in infers
+    assert "2 observed" in infers and "6.0" in infers
+    assert "low confidence" not in infers.lower()
 
 
-def test_a_well_represented_pair_is_not_called_underexplored():
-    infers = section(summarize_evidence(make_evidence(observed=6, n_a=7, n_b=6)), "What the system infers")  # 6 >= 3.8
-    assert "underexplored" not in infers.lower()
-    assert "not weakly represented" in infers and "not flagged" in infers
+def test_a_small_expected_count_adds_a_low_confidence_remark_that_states_the_count():
+    infers = infers_for()                                                 # expected 3.8, observed 2: 1.0 <= 3.8 < 5.0
+    assert "potentially underexplored" in infers and "not a proven" in infers
+    assert "low confidence" in infers.lower() and "expected count is small" in infers
+    assert infers.count("3.8") == 2                                       # in the counts and in the remark
+    assert len(re.findall(r"\.(?:\s|$)", infers)) == 2                    # the inference and the remark
 
 
-def test_exactly_as_many_as_expected_is_not_flagged():
-    infers = section(summarize_evidence(make_evidence(n=4, n_a=2, n_b=2, observed=1)), "What the system infers")
-    assert "underexplored" not in infers.lower()                                       # expected 1.0, observed 1
+@pytest.mark.parametrize("n, n_a, n_b, expected_text", [
+    (4, 2, 2, "1.0"),            # expected exactly 1.0: the lower boundary is inclusive, so an inference is made
+    (10, 7, 7, "4.9"),           # just below 5.0
+    (10, 5, 10, "5.0"),          # expected exactly 5.0: NOT low confidence (the rule is expected < 5.0)
+    (100, 51, 100, "51.0"),
+])
+def test_boundaries_one_and_five(n, n_a, n_b, expected_text):
+    infers = infers_for(n=n, n_a=n_a, n_b=n_b, observed=0)
+    expected = n_a * n_b / n
+    assert "potentially underexplored" in infers and f"about {expected_text} expected" in infers
+    assert ("low confidence" in infers.lower()) == (expected < 5.0)
+    assert "too little" not in infers
+
+
+def test_expected_just_below_one_is_too_little_data():
+    infers = infers_for(n=100, n_a=9, n_b=11, observed=0)                 # expected 0.99
+    assert "too little" in infers and "0.99" in infers
+    assert "underexplored" not in infers.lower() and "candidate" not in infers.lower()
+    assert "low confidence" not in infers.lower()
 
 
 @pytest.mark.parametrize("kwargs", [dict(n=0, n_a=0, n_b=0, observed=0), dict(n_a=0, observed=0),
-                                    dict(n_b=0, observed=0)])
+                                    dict(n_b=0, observed=0), dict(n=10, n_a=3, n_b=3, observed=0),
+                                    dict(n=10, n_a=3, n_b=3, observed=5)])
 def test_too_little_data_gives_no_inference(kwargs):
-    infers = section(summarize_evidence(make_evidence(**kwargs)), "What the system infers")
+    infers = infers_for(**kwargs)
     assert "too little" in infers and "underexplored" not in infers.lower()
+    assert "weakly represented" not in infers and "candidate" not in infers.lower()
+
+
+def test_too_little_data_wins_even_if_observed_is_at_least_expected():
+    # expected 0.9 < 1.0 and observed 5 >= 0.9: no statement about the pair is made (an empty corpus, with
+    # observed 0 and expected 0, must not be reported as "not weakly represented")
+    assert "weakly represented" not in infers_for(n=10, n_a=3, n_b=3, observed=5)
+    assert "weakly represented" not in infers_for(n=0, n_a=0, n_b=0, observed=0)
+
+
+def test_a_well_represented_pair_is_not_called_underexplored():
+    infers = infers_for(observed=6, n_a=7, n_b=6)                          # 6 >= 3.8
+    assert "underexplored" not in infers.lower()
+    assert "not weakly represented" in infers and "not flagged" in infers
+    assert "low confidence" not in infers.lower()
+
+
+def test_exactly_as_many_as_expected_is_not_flagged():
+    infers = infers_for(n=4, n_a=2, n_b=2, observed=1)                     # expected 1.0, observed 1
+    assert "underexplored" not in infers.lower() and "not weakly represented" in infers
+
+
+def test_the_code_really_uses_the_constants(monkeypatch):
+    evidence = make_evidence(n=10, n_a=10, n_b=6, observed=2)             # expected 6.0
+    monkeypatch.setattr(summary, "LOW_CONFIDENCE_BELOW_EXPECTED", 8.0)
+    assert "low confidence" in section(summarize_evidence(evidence), "What the system infers").lower()
+    monkeypatch.setattr(summary, "MIN_EXPECTED_FOR_INFERENCE", 7.0)
+    assert "too little" in section(summarize_evidence(evidence), "What the system infers")
 
 
 # --- closest existing work and citations -------------------------------------------------------
@@ -146,9 +210,13 @@ def test_no_nearest_papers_is_stated_without_markers():
 
 # --- wording rules -----------------------------------------------------------------------------
 
-@pytest.mark.parametrize("evidence", [make_evidence(), make_evidence(observed=6), make_evidence(n=0, n_a=0, n_b=0,
-                                                                                               observed=0),
-                                      make_evidence(nearest=[]), make_evidence(observed=0)])
+@pytest.mark.parametrize("evidence", [
+    make_evidence(), make_evidence(observed=6), make_evidence(n=0, n_a=0, n_b=0, observed=0),
+    make_evidence(nearest=[]), make_evidence(observed=0),
+    make_evidence(n=10, n_a=10, n_b=6, observed=2),            # underexplored, expected 6.0 (no low-confidence remark)
+    make_evidence(n=4, n_a=2, n_b=2, observed=0),              # underexplored at the boundary 1.0, low confidence
+    make_evidence(n=100, n_a=9, n_b=11, observed=0),           # too little data (0.99)
+])
 def test_the_summary_never_uses_forbidden_phrases(evidence):
     text = summarize_evidence(evidence).lower()
     for phrase in FORBIDDEN:

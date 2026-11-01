@@ -64,6 +64,19 @@ A paper that uses A and B only in **different** experiments is in no role and no
 
 A paper is cited as `[paper:ID]`, on one line, with no space after the colon, in lower case (`[paper:W1234567890]`, `[paper:MOCK_P001]`). The id is any run of characters without whitespace or brackets. Only markers count; a bare id in the prose is ignored. `verify_citations(text, allowed_ids)` returns `ok`, `cited`, `unknown`, `uncited_markers_count` (malformed markers such as `[paper: W1]` or `[Paper:W1]`) and `has_no_citations`. `ok` is false if any cited id is not in the allowed set or any marker is malformed. An answer without any citation is `ok` but flagged.
 
+## Summary text and its inference rule
+
+`summarize_evidence(evidence)` builds a fixed-template text with four `## ` sections: what the corpus shows (counts as observations), what the system infers (one hedged statement), closest existing work (with `[paper:ID]` markers) and limitations. The inference depends only on the expected and observed counts, checked in this order:
+
+| Condition | Statement |
+|---|---|
+| `expected < MIN_EXPECTED_FOR_INFERENCE` (1.0) | There is too little data to say anything about the pair. No inference sentence. This also covers an empty universe, and it applies even if `observed >= expected`. |
+| `observed >= expected` | The pair is not weakly represented in the analyzed corpus and is not flagged as a candidate. |
+| `observed < expected` and `expected >= 1.0` | The pair is potentially underexplored in the analyzed corpus: a candidate for review, not a proven gap. |
+| ... and `expected < LOW_CONFIDENCE_BELOW_EXPECTED` (5.0) | A second sentence adds that this is low confidence because the expected count is small, and states that count. |
+
+**The two thresholds are provisional until open decision O6.** `MIN_EXPECTED_FOR_INFERENCE = 1.0` mirrors Person 3's candidate filter, which drops pairs with an expected count below 1; `LOW_CONFIDENCE_BELOW_EXPECTED = 5.0` is a starting value with no data behind it yet. Both are module constants in `rag/summary.py` and should be tuned on real data together with the scoring thresholds. The wording follows `AGENTS.md`: never "definitely unexplored", "guaranteed research gap" or "nobody has done this" (a test scans for them).
+
 ## How the other modules would call it
 
 **Person 3, scoring pipeline.** When it stores an opportunity: `ids = build_evidence_ids(conn, ("method", m), ("task", t), cutoff_year)`, then one `opportunity_evidence` row per id and role. He replaces his interim `nearest_existing` with `rag.nearest.nearest_existing` (same signature).
@@ -80,6 +93,7 @@ A paper is cited as `[paper:ID]`, on one line, with no space after the colon, in
 3. Do you want `bridge` from this SQL (citation links between the A-only and B-only papers), or from your Neo4j graph code once it exists? The role name stays the same.
 4. Please compare your own `n_a`, `n_b`, `N` and observed with `build_evidence(...)["corpus"]` on the same data; they should be identical under the same-universe rule.
 5. Papers that use A and B only in separate experiments appear in no role. Should they count as "closest existing work"?
+6. The summary uses `expected < 1.0` as "too little data", mirroring your candidate filter, and `expected < 5.0` as low confidence. Is 1.0 exactly your filter's threshold, and should the two values live in one shared place once O6 is settled?
 
 **For the UI owner (O10)**
 1. Is this JSON a good payload for the evidence panel (snake_case keys, `similarity` as a 0 to 1 number, `yearly` as a list of objects)?

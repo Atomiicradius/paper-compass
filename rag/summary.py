@@ -10,6 +10,14 @@ import re
 REQUIRED = ("pair", "corpus", "yearly", "roles", "limitations")
 RECENT_YEARS = 3
 
+# PROVISIONAL until open decision O6 (score weights, min_support, thresholds) is settled. They mirror Person 3's
+# candidate filter, which drops pairs whose expected count is below 1.
+# Below this expected count the corpus is too small for any statement about the pair: no inference is made.
+MIN_EXPECTED_FOR_INFERENCE = 1.0
+# An "underexplored" inference whose expected count is below this is marked low confidence, because with so
+# few papers expected, an observed count below it can easily be chance.
+LOW_CONFIDENCE_BELOW_EXPECTED = 5.0
+
 
 def _clean(value):
     """Corpus text (names, titles, sentences) made safe to place in the summary: whitespace collapsed to
@@ -22,6 +30,11 @@ def _papers(n):
     return f"{n} paper" if n == 1 else f"{n} papers"
 
 
+def _expected(value):
+    """An expected count for display: two decimals below 1 (so 0.99 is not shown as 1.0), else one."""
+    return f"{value:.2f}" if value < 1 else f"{value:.1f}"
+
+
 def _corpus_section(evidence):
     a, b = evidence["pair"]["a"], evidence["pair"]["b"]
     c = evidence["corpus"]
@@ -32,7 +45,7 @@ def _corpus_section(evidence):
         f'- "{name_a}" ({a["kind"]}) is used in {_papers(c["n_a"])} and "{name_b}" ({b["kind"]}) in '
         f'{_papers(c["n_b"])}.',
         f"- The two are used together in {_papers(c['observed'])} (in one experiment); if they were combined "
-        f"independently, about {c['expected']:.1f} papers would be expected.",
+        f"independently, about {_expected(c['expected'])} papers would be expected.",
     ]
     recent = evidence["yearly"][-RECENT_YEARS:]
     if recent:
@@ -45,16 +58,22 @@ def _corpus_section(evidence):
 
 
 def _inference(evidence):
+    """The text of "What the system infers" (the rule is described in summarize_evidence)."""
     c = evidence["corpus"]
-    if c["universe_size"] == 0 or c["n_a"] == 0 or c["n_b"] == 0:
-        return ("There is too little extracted data in the analyzed corpus to draw an inference about this "
-                "research-element combination.")
-    counts = f"{c['observed']} observed versus about {c['expected']:.1f} expected"
-    if c["observed"] < c["expected"]:
-        return (f"This research-element combination is potentially underexplored in the analyzed corpus "
-                f"({counts}); it is a candidate research opportunity for review, not a proven research gap.")
-    return (f"In the analyzed corpus this research-element combination is not weakly represented ({counts}), "
-            f"so it is not flagged as a candidate research opportunity.")
+    expected, observed = c["expected"], c["observed"]
+    shown = _expected(expected)
+    if expected < MIN_EXPECTED_FOR_INFERENCE:
+        return ("There is too little data in the analyzed corpus to say anything about this research-element "
+                f"combination (only about {shown} papers would be expected).")
+    counts = f"{observed} observed versus about {shown} expected"
+    if observed >= expected:
+        return (f"In the analyzed corpus this research-element combination is not weakly represented ({counts}), "
+                f"so it is not flagged as a candidate research opportunity.")
+    text = (f"This research-element combination is potentially underexplored in the analyzed corpus ({counts}); "
+            f"it is a candidate research opportunity for review, not a proven research gap.")
+    if expected < LOW_CONFIDENCE_BELOW_EXPECTED:
+        text += (f" This is low confidence because the expected count is small (about {shown} papers).")
+    return text
 
 
 def _closest_section(evidence):
@@ -89,11 +108,18 @@ def summarize_evidence(evidence):
     Four sections, each a "## " heading:
       What the corpus shows      counts as observations: corpus size, n_a, n_b, observed versus expected, and
                                  the most recent years
-      What the system infers     one sentence. If observed < expected: the combination is potentially
-                                 underexplored in the analyzed corpus and is a candidate for review, not a
-                                 proven gap. If observed >= expected: it is not weakly represented and is
-                                 not flagged. If the universe or either element has no papers: too little
-                                 data for an inference.
+      What the system infers     decided from the expected count and the observed count, in this order
+                                 (thresholds are the module constants, provisional until open decision O6):
+                                 1. expected < MIN_EXPECTED_FOR_INFERENCE (1.0): too little data to say
+                                    anything about the pair; no inference sentence. This also covers an empty
+                                    universe, and it wins even if observed >= expected.
+                                 2. observed >= expected: the pair is not weakly represented in the analyzed
+                                    corpus and is not flagged.
+                                 3. otherwise (observed < expected, expected >= 1.0): the pair is potentially
+                                    underexplored in the analyzed corpus, a candidate for review, not a proven
+                                    gap. If expected < LOW_CONFIDENCE_BELOW_EXPECTED (5.0) a second sentence
+                                    says this is low confidence because the expected count is small, and
+                                    states that count.
       Closest existing work      the nearest_existing papers, each with a [paper:ID] marker, what it uses, and
                                  its stored source sentence (verbatim apart from whitespace) when there is one
       Limitations                the evidence's limitations, one bullet each
