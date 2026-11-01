@@ -7,9 +7,10 @@ Configuration (environment variables):
     PC_PG_DSN              PostgreSQL connection string
     PC_NEO4J_URI / PC_NEO4J_USER / PC_NEO4J_PASSWORD
     PC_CLUSTERS_PATH       output of graph.clusters (default graph/out/clusters.json)
+    PC_QUERY_ENCODER       specter2 (default) or none; see api/query_encoder.py
 
-/search, /papers/{id}/related, /opportunities/{id}/explain and /rag/query
-depend on Person 2's retrieval and RAG modules and return 501 until those exist.
+/search and /papers/{id}/related use Person 2's db/retrieval search layer.
+/opportunities/{id}/explain and /rag/query depend on rag/ and return 501 until it exists.
 """
 
 from __future__ import annotations
@@ -20,10 +21,11 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from api import schemas
-from api.repository import PostgresRepository, Repository
+from api.query_encoder import QueryEncoder, get_query_encoder
+from api.repository import PostgresRepository, Repository, VectorSearchUnavailable
 
 DISCLAIMER = (
     "Candidate research opportunities are combinations weakly represented in the analyzed corpus. "
@@ -135,23 +137,64 @@ def get_landscape(repo: Repository = Depends(get_repo)):
 # --- endpoints backed by Person 2's modules -------------------------------------
 
 class SearchRequest(BaseModel):
-    query: str
-    top_k: int = 10
+    # contract fields
+    query: str = Field(min_length=1)
+    top_k: int = Field(10, ge=1, le=100)
     year_min: int | None = None
+    # optional extras, passed through to db.retrieval.search (provisional, O10)
+    year_max: int | None = None
+    venues: list[str] | None = None
+    methods: list[str] | None = None
+    datasets: list[str] | None = None
+    tasks: list[str] | None = None
+    match: Literal["same_experiment", "any"] = "same_experiment"
+    # auto: vector search when a query encoder and matching paper embeddings exist, else keyword search
+    mode: Literal["auto", "vector", "keyword"] = "auto"
+
+
+@app.post("/search", response_model=schemas.SearchResponse)
+def search(body: SearchRequest, repo: Repository = Depends(get_repo),
+           encoder: QueryEncoder | None = Depends(get_query_encoder)):
+    filters = body.model_dump(exclude={"query", "top_k", "mode"})
+    mode, note = body.mode, None
+    if mode == "auto":
+        mode = "vector" if encoder is not None else "keyword"
+        if encoder is None:
+            note = "query encoder not available; used keyword search"
+    if mode == "vector" and encoder is None:
+        raise HTTPException(503, "query encoder not available (PC_QUERY_ENCODER=none or torch/transformers/adapters "
+                                 "not installed); use mode=keyword")
+    try:
+        if mode == "vector":
+            try:
+                out = repo.vector_search(encoder, body.query, body.top_k, filters)
+            except VectorSearchUnavailable as e:
+                if body.mode == "vector":
+                    raise HTTPException(409, str(e))
+                mode, note = "keyword", f"{e}; used keyword search"
+                out = repo.keyword_search(body.query, body.top_k, filters)
+        else:
+            out = repo.keyword_search(body.query, body.top_k, filters)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    return {"query": body.query, "mode": mode, "note": note,
+            "score_type": "cosine_similarity" if mode == "vector" else "ts_rank", **out}
+
+
+@app.get("/papers/{paper_id}/related", response_model=schemas.RelatedResponse)
+def related(paper_id: str, top_k: int = Query(10, ge=1, le=100), year_min: int | None = None,
+            year_max: int | None = None, repo: Repository = Depends(get_repo)):
+    try:
+        out = repo.related(paper_id, top_k, {"year_min": year_min, "year_max": year_max})
+    except VectorSearchUnavailable as e:
+        raise HTTPException(409, str(e))
+    if out is None:
+        raise HTTPException(404, "paper not found")
+    return {"paper_id": paper_id, "score_type": "cosine_similarity", **out}
 
 
 def _not_ready(owner_module: str):
     raise HTTPException(501, f"not implemented yet: depends on {owner_module} (Person 2)")
-
-
-@app.post("/search")
-def search(body: SearchRequest):
-    _not_ready("retrieval/")
-
-
-@app.get("/papers/{paper_id}/related")
-def related(paper_id: str):
-    _not_ready("retrieval/")
 
 
 @app.post("/opportunities/{opportunity_id}/explain")

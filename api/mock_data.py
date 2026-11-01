@@ -83,3 +83,22 @@ class MockRepository:
     def landscape(self):
         return {"corpus": {"papers": 500, "cutoff_year": 2025}, "papers_per_year": {}, "n_clusters": 0,
                 "emerging": [], "declining": [], "weakly_connected_cluster_pairs": [], "bridge_papers": []}
+
+    # --- search (made-up scores, ordered by paper number) ---------------------
+
+    def _hits(self, top_k, exclude=None):
+        papers = [p for pid, p in _PAPERS.items() if pid != exclude][:top_k]
+        return [{"paper_id": p["paper_id"], "title": p["title"], "year": p["year"], "venue": p["venue"],
+                 "score": round(0.9 - 0.1 * i, 2), "methods": [], "datasets": [], "tasks": []}
+                for i, p in enumerate(papers)]
+
+    def vector_search(self, encoder, text, top_k, filters):
+        return {"model": "MOCK", "results": self._hits(top_k)}
+
+    def keyword_search(self, text, top_k, filters):
+        return {"model": None, "results": self._hits(top_k)}
+
+    def related(self, paper_id, top_k, filters):
+        if paper_id not in _PAPERS:
+            return None
+        return {"model": "MOCK", "results": self._hits(top_k, exclude=paper_id)}

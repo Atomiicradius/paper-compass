@@ -75,5 +75,10 @@ Update after each task: what's done, what's next, blockers.
 - Needs the team:
   - O10: agree response shapes with the UI owner. Everything except the opportunity object is provisional in `api/schemas.py`.
   - Clusters have no table in the schema. They stay in a JSON file unless the team decides to add one.
-  - `/search`, `/papers/{id}/related`, `/explain` and `/rag/query` return 501 until `retrieval/` and `rag/` exist.
+  - `/explain` and `/rag/query` return 501 until `rag/` exists.
+  - `/search` takes optional filter fields and a `mode` on top of the contract body (see `api/README.md`). Provisional under O10; I will copy the final shape into `data-and-contracts.md` once agreed.
+- Update (2026-11-01): `/search` and `/papers/{id}/related` built on Person 2's `db/retrieval` (branch `person3` merges `db/embeddings`).
+  - The query encoder is Person 2's SPECTER2 proximity encoder until their adapter comparison. Vector search refuses paper embeddings from another model; in `auto` mode it falls back to keyword search and says why.
+  - Tests: 66 passing with no skips, against Person 2's Postgres image and Neo4j 5.26.32. Person 2's `init.sql` is identical to the contract DDL my tests use.
+  - Note for Person 2: `requirements-person3.txt` pins psycopg 3.2.13, `db/requirements.txt` pins 3.3.6. We should agree on one version in a shared lockfile.
 - Blockers: none. Pinned deps are in `requirements-person3.txt`.

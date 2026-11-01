@@ -114,3 +114,30 @@ class Landscape(BaseModel):
     weakly_connected_cluster_pairs: list[dict]
     bridge_papers: list[dict]
     disclaimer: str
+
+
+class SearchHit(BaseModel):
+    paper_id: str
+    title: str
+    year: int | None = None
+    venue: str | None = None
+    score: float
+    methods: list[str] = []
+    datasets: list[str] = []
+    tasks: list[str] = []
+
+
+class SearchResponse(BaseModel):
+    query: str
+    mode: str                  # "vector" or "keyword": the mode actually used
+    score_type: str            # "cosine_similarity" (vector) or "ts_rank" (keyword)
+    model: str | None          # embedding model of the query vector; null for keyword search
+    note: str | None = None    # set when auto mode fell back to keyword search
+    results: list[SearchHit]
+
+
+class RelatedResponse(BaseModel):
+    paper_id: str
+    score_type: str
+    model: str | None
+    results: list[SearchHit]

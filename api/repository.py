@@ -31,6 +31,27 @@ LEFT JOIN setting s ON s.setting_id = o.setting_id
 """
 
 
+class VectorSearchUnavailable(RuntimeError):
+    """Vector search cannot give meaningful results (no embeddings, or a different embedding model)."""
+
+
+def _hits(rows: list[dict], score_key: str) -> list[dict]:
+    """Rows from db.retrieval.search, with the similarity or ts_rank value under a common `score` key."""
+    return [{**{k: v for k, v in r.items() if k != score_key}, "score": r[score_key]} for r in rows]
+
+
+def _check_embedding_model(cur, model: str) -> None:
+    cur.execute("SELECT DISTINCT embedding_model FROM paper WHERE embedding IS NOT NULL")
+    models = [r[0] for r in cur.fetchall()]
+    if not models:
+        raise VectorSearchUnavailable("no paper has an embedding yet")
+    if models != [model]:
+        raise VectorSearchUnavailable(
+            f"paper embeddings come from {sorted(map(str, models))}, not {model!r}; "
+            "vectors from different models are not comparable"
+        )
+
+
 class Repository(Protocol):
     def list_opportunities(self, limit: int, offset: int, cutoff_year: int | None,
                            weights_version: str | None, min_confidence: float | None) -> tuple[int, list[dict]]: ...
@@ -40,6 +61,9 @@ class Repository(Protocol):
     def trends(self, element_type: str) -> list[dict]: ...
     def clusters(self) -> dict: ...
     def landscape(self) -> dict: ...
+    def vector_search(self, encoder, text: str, top_k: int, filters: dict) -> dict: ...
+    def keyword_search(self, text: str, top_k: int, filters: dict) -> dict: ...
+    def related(self, paper_id: str, top_k: int, filters: dict) -> dict | None: ...
 
 
 class PostgresRepository:
@@ -137,6 +161,42 @@ class PostgresRepository:
             raise RuntimeError("Neo4j is not configured")
         with self.neo4j.session() as session:
             return queries.paper_neighborhood(session, paper_id, limit)
+
+    # --- search (Person 2's db/retrieval) ---------------------------------------
+
+    def vector_search(self, encoder, text, top_k, filters):
+        from db.retrieval.search import search
+
+        with self._conn() as conn:
+            with conn.cursor() as cur:
+                _check_embedding_model(cur, encoder.model_string)
+            vector = encoder.embed([text])[0]
+            rows = search(conn, vector, top_k=top_k, include_entities=True, **filters)
+        return {"model": encoder.model_string, "results": _hits(rows, "similarity")}
+
+    def keyword_search(self, text, top_k, filters):
+        from db.retrieval.search import keyword_search
+
+        with self._conn() as conn:
+            rows = keyword_search(conn, text, top_k=top_k, include_entities=True, **filters)
+        return {"model": None, "results": _hits(rows, "score")}
+
+    def related(self, paper_id, top_k, filters):
+        """Nearest papers to this paper's own embedding, the paper itself excluded."""
+        from db.retrieval.search import search
+
+        with self._conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT embedding::text, embedding_model FROM paper WHERE paper_id = %s", (paper_id,))
+                row = cur.fetchone()
+                if row is None:
+                    return None
+                if row[0] is None:
+                    raise VectorSearchUnavailable("this paper has no embedding (no abstract, or not embedded yet)")
+                _check_embedding_model(cur, row[1])
+            # pgvector's text form "[0.1,0.2,...]" is valid JSON
+            rows = search(conn, json.loads(row[0]), top_k=top_k, exclude_ids=[paper_id], include_entities=True, **filters)
+        return {"model": row[1], "results": _hits(rows, "similarity")}
 
     # --- landscape ----------------------------------------------------------
 
