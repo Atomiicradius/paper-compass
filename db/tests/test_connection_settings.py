@@ -4,10 +4,16 @@ retrieval CLI and the test fixtures. (A local PostgreSQL service can own port 54
 be published on another port.)"""
 import importlib.util
 import os
+from pathlib import Path
 
 import pytest
 
-import conftest
+# Load THIS folder's conftest.py by path. A plain `import conftest` would pick up whichever conftest module
+# is loaded first, which is the wrong one when rag/tests is run in the same pytest session.
+_spec = importlib.util.spec_from_file_location("db_tests_conftest", Path(__file__).with_name("conftest.py"))
+conftest = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(conftest)
+
 from embeddings import cli as embeddings_cli
 from loaders import common as loaders_common
 from retrieval import cli as retrieval_cli
