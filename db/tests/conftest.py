@@ -16,22 +16,24 @@ DB_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(DB_DIR))  # so tests can import the `loaders` package
 
 
-def _settings():
+def _settings(env_file=DB_DIR / ".env"):
+    """POSTGRES_* values from the environment, then db/.env. Host and port default to 127.0.0.1 and 5432."""
     values = {}
-    env_file = DB_DIR / ".env"
     if env_file.exists():
         for line in env_file.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
                 key, value = line.split("=", 1)
                 values[key.strip()] = value.strip()
-    for key in ("POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB"):
-        values[key] = os.environ.get(key, values.get(key, ""))
+    for key, default in (("POSTGRES_USER", ""), ("POSTGRES_PASSWORD", ""), ("POSTGRES_DB", ""),
+                         ("POSTGRES_HOST", "127.0.0.1"), ("POSTGRES_PORT", "5432")):
+        values[key] = os.environ.get(key, values.get(key, default))
     return values
 
 
 def _conninfo(dbname, s):
-    return f"host=127.0.0.1 port=5432 user={s['POSTGRES_USER']} password={s['POSTGRES_PASSWORD']} dbname={dbname}"
+    return (f"host={s['POSTGRES_HOST']} port={s['POSTGRES_PORT']} user={s['POSTGRES_USER']} "
+            f"password={s['POSTGRES_PASSWORD']} dbname={dbname}")
 
 
 @pytest.fixture(scope="session")

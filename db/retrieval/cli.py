@@ -17,13 +17,20 @@ from .search import keyword_search, search
 DB_DIR = Path(__file__).resolve().parents[1]
 
 
-def connect(dbname=None):
+def connection_params(dbname=None, env_file=DB_DIR / ".env"):
+    """Settings from the environment, then db/.env (environment variables win), then defaults
+    (127.0.0.1, port 5432). POSTGRES_PORT matters when another PostgreSQL already owns 5432."""
     from dotenv import load_dotenv
-    load_dotenv(DB_DIR / ".env")
-    return psycopg.connect(
-        host=os.environ.get("POSTGRES_HOST", "127.0.0.1"), port=os.environ.get("POSTGRES_PORT", "5432"),
-        user=os.environ.get("POSTGRES_USER", ""), password=os.environ.get("POSTGRES_PASSWORD", ""),
-        dbname=dbname or os.environ.get("POSTGRES_DB", ""), autocommit=True)
+    load_dotenv(env_file)
+    return {
+        "host": os.environ.get("POSTGRES_HOST", "127.0.0.1"), "port": os.environ.get("POSTGRES_PORT", "5432"),
+        "user": os.environ.get("POSTGRES_USER", ""), "password": os.environ.get("POSTGRES_PASSWORD", ""),
+        "dbname": dbname or os.environ.get("POSTGRES_DB", ""),
+    }
+
+
+def connect(dbname=None):
+    return psycopg.connect(**connection_params(dbname), autocommit=True)
 
 
 def read_vector(path):
