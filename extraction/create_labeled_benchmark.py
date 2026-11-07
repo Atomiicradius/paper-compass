@@ -124,7 +124,8 @@ def build_benchmark():
                 "setting": gt_setting
             })
 
-    with open(OUTPUT_BENCHMARK, "w", encoding="utf-8") as f:
+    # newline="\n": the same bytes on every platform (text mode would write CRLF on Windows)
+    with open(OUTPUT_BENCHMARK, "w", encoding="utf-8", newline="\n") as f:
         for entry in labeled_entries:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
