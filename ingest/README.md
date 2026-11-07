@@ -17,6 +17,10 @@ cd db
 ..\.venv\Scripts\python.exe -m loaders load-papers ..\ingest\data\papers_pilot.jsonl
 ```
 
+## Vocabulary
+
+`ingest/data/vocabulary.jsonl` is written by `ingest/create_vocabulary.py`. The vocabulary is curated manually in ingest/create_vocabulary.py: its entries and aliases are the lists in that file. Format: `db/proposals/vocabulary-format.md`.
+
 ## Schema output
 
 Every line in `papers_pilot.jsonl` is a JSON object with:

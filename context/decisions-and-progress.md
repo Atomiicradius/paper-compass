@@ -7,7 +7,7 @@ Edit only your own section under "Progress" to avoid merge conflicts. Decisions 
 | # | Decision | Needed by | Owner | Notes |
 |---|---|---|---|---|
 | O1 | Domain: NLP / machine translation, ~5-10k papers | Week 1 meeting | All | Locked: NLP / Machine Translation (low-resource / Indic / Kannada MT) |
-| O2 | Corpus source: OpenAlex API + Papers with Code vocabulary taxonomy | After 500-paper pilot | Person 1 | Locked: OpenAlex API selected for papers/citations; Papers with Code for seeding vocabulary |
+| O2 | Corpus source: OpenAlex API | After 500-paper pilot | Person 1 | Locked: OpenAlex API selected for papers/citations; the vocabulary is curated manually in ingest/create_vocabulary.py |
 | O3 | Embedding model: SPECTER2 vs Sentence Transformer for prototype | Before loading data | Person 2 | Confirmed by Person 1 on 2026-11-04: SPECTER2 (allenai/specter2_base + allenai/specter2 proximity adapter), 768-dim, no schema change |
 | O4 | UI stack | Week 3-4 | UI owner | Do not scaffold before this is decided |
 | O5 | LLM / RAG client and model | Phase 3 | RAG owner | |

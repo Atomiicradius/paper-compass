@@ -14,7 +14,7 @@ Research Paper Discovery and Exploration System (DBMS course CD252IA, RV College
 # Ingest pilot corpus from OpenAlex API (~500 papers in Machine Translation / Low-Resource NLP)
 python ingest/fetch_openalex.py --query "machine translation low-resource" --count 500 --out ingest/data/papers_pilot.jsonl
 
-# Generate controlled vocabulary & aliases
+# Write the controlled vocabulary & aliases (curated manually in ingest/create_vocabulary.py)
 python ingest/create_vocabulary.py
 
 # Run extraction to produce experiment tuples (method, dataset, task, setting, confidence, source_sentence)
