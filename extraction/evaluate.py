@@ -1,7 +1,9 @@
-"""Evaluation script for extraction precision, recall, F1, and entity coverage.
+"""Evaluation script for extraction coverage and agreement with a reference set.
 
-Generates evaluation metrics per entity type (method, dataset, task, setting)
-and overall paper coverage as specified in build-plan.md and project-plan-v2.md §12.2.
+Generates coverage per entity type (method, dataset, task, setting) and, when a reference set is given,
+precision, recall and F1 against it. The reference set in this repository is rule-generated (preliminary),
+so those three figures compare two rule-based systems and are not accuracy measurements; the coverage
+figures remain valid.
 """
 
 import argparse
@@ -37,11 +39,11 @@ def evaluate(predictions_file, labels_file=None):
         print(f"  - {k:<10}: {entity_counts[k]} extractions")
 
     if not labels_file or not Path(labels_file).exists():
-        print("\nNote: Ground-truth labeled benchmark file not provided.")
-        print("To compute precision/recall/F1, supply --labels with labeled JSONL benchmark.")
+        print("\nNote: no reference set was provided.")
+        print("To compute precision/recall/F1 against a reference set, supply --labels with its JSONL file.")
         return
 
-    # If ground-truth labels provided
+    # If a reference set is provided
     gold_by_paper = defaultdict(list)
     with open(labels_file, "r", encoding="utf-8") as f:
         for line in f:
@@ -50,8 +52,10 @@ def evaluate(predictions_file, labels_file=None):
                 gold_by_paper[r["paper_id"]].append(r)
 
     print("\n" + "=" * 60)
-    print("EXTRACTION ACCURACY REPORT (Precision / Recall / F1)")
+    print("AGREEMENT WITH THE REFERENCE SET (Precision / Recall / F1)")
     print("=" * 60)
+    print("Note: with the rule-generated reference set (preliminary) these compare two rule-based systems;")
+    print("they are not accuracy measurements.")
 
     for kind in ("method", "dataset", "task", "setting"):
         tp, fp, fn = 0, 0, 0
@@ -73,6 +77,7 @@ def evaluate(predictions_file, labels_file=None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--preds", default="extraction/data/extractions_pilot.jsonl")
-    parser.add_argument("--labels", default=None, help="Path to hand-labeled abstracts JSONL")
+    parser.add_argument("--labels", default=None,
+                        help="Path to the reference set JSONL (the rule-generated reference set, preliminary)")
     args = parser.parse_args()
     evaluate(args.preds, args.labels)
