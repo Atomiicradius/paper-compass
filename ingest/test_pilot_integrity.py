@@ -6,9 +6,15 @@ loaders):
 2. ingest/data/papers_pilot.jsonl: unique paper_id, title, venue_type, author order
 3. extraction/data/extractions_pilot.jsonl: every paper_id exists in the papers file
 4. every entity name in the extractions maps to a canonical vocabulary name or an alias
+
+Every check is counted. The script prints PASS only when every failure count is zero; otherwise it prints the
+failures and exits with a non-zero status. The three paths can be overridden (--vocab, --papers, --extractions).
 """
 
+import argparse
 import json
+import sys
+from collections import Counter, defaultdict
 from pathlib import Path
 
 INGEST_DIR = Path(__file__).resolve().parent
@@ -21,85 +27,153 @@ EXTRACTIONS_PATH = ROOT_DIR / "extraction" / "data" / "extractions_pilot.jsonl"
 VENUE_TYPES = ("conference", "journal", "workshop", "preprint", "other")
 TYPES = ("method", "dataset", "task", "setting")
 
+# every failure kind, in the order they are reported (all are printed, also when 0)
+FAILURE_KINDS = (
+    "vocabulary: line is not a JSON object",
+    "vocabulary: unknown type or missing canonical_name",
+    "vocabulary: setting has aliases",
+    "papers: line is not a JSON object",
+    "papers: missing or duplicate paper_id",
+    "papers: missing title",
+    "papers: invalid venue_type",
+    "papers: author without a name or an integer order",
+    "extractions: line is not a JSON object",
+    "extractions: paper_id not in the papers file",
+    "extractions: entity not in the vocabulary or its aliases",
+)
 
-def run_checks():
-    print("=" * 60)
-    print("PILOT DATA INTEGRITY & LOADER VALIDATION")
-    print("=" * 60)
 
-    # 1. Vocabulary
-    vocab_entries = []
-    canonical_lookup = {"method": set(), "dataset": set(), "task": set(), "setting": set()}
-    alias_lookup = {"method": set(), "dataset": set(), "task": set(), "setting": set()}
+class Failures:
+    """Counts failures per kind and keeps the first few examples of each."""
 
-    for line in open(VOCAB_PATH, encoding="utf-8"):
-        if not line.strip():
+    def __init__(self):
+        self.counts = Counter()
+        self.examples = defaultdict(list)
+
+    def add(self, kind, message):
+        assert kind in FAILURE_KINDS, kind
+        self.counts[kind] += 1
+        if len(self.examples[kind]) < 5:
+            self.examples[kind].append(message)
+
+    def total(self):
+        return sum(self.counts.values())
+
+
+def read_rows(path, kind, failures):
+    """Yield (line number, object) for each non-empty line; a line that is not a JSON object is a failure."""
+    with open(path, encoding="utf-8") as f:
+        for number, line in enumerate(f, start=1):
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError as exc:
+                failures.add(kind, f"line {number}: invalid JSON ({exc.msg})")
+                continue
+            if not isinstance(row, dict):
+                failures.add(kind, f"line {number}: not a JSON object")
+                continue
+            yield number, row
+
+
+def check_vocabulary(path, failures):
+    canonical = {t: set() for t in TYPES}
+    aliases = {t: set() for t in TYPES}
+    entries = 0
+    for number, row in read_rows(path, "vocabulary: line is not a JSON object", failures):
+        entries += 1
+        kind, name = row.get("type"), row.get("canonical_name")
+        if kind not in TYPES or not isinstance(name, str) or not name.strip():
+            failures.add("vocabulary: unknown type or missing canonical_name", f"line {number}: {row.get('type')!r}, {name!r}")
             continue
-        row = json.loads(line)
-        t = row["type"]
-        assert t in TYPES, f"Invalid type {t}"
-        c = row["canonical_name"].lower().strip()
-        canonical_lookup[t].add(c)
-        if t == "setting":
-            assert row.get("aliases") == [], f"Setting {c} cannot have aliases"
-        for a in row.get("aliases", []):
-            alias_lookup[t].add(a.lower().strip())
-        vocab_entries.append(row)
+        canonical[kind].add(name.lower().strip())
+        row_aliases = row.get("aliases") or []
+        if kind == "setting" and row_aliases:
+            failures.add("vocabulary: setting has aliases", f"line {number}: {name!r} has {len(row_aliases)} alias(es)")
+        aliases[kind].update(a.lower().strip() for a in row_aliases if isinstance(a, str))
+    return entries, canonical, aliases
 
-    print(f"1. Vocabulary: {len(vocab_entries)} entries validated.")
 
-    # 2. Papers
-    paper_ids = set()
-    paper_count = 0
-    venue_count = 0
-    author_count = 0
-    ref_count = 0
+def check_papers(path, failures):
+    paper_ids, papers, authors, references = set(), 0, 0, 0
+    for number, row in read_rows(path, "papers: line is not a JSON object", failures):
+        papers += 1
+        pid = row.get("paper_id")
+        if not isinstance(pid, str) or not pid or pid in paper_ids:
+            failures.add("papers: missing or duplicate paper_id", f"line {number}: {pid!r}")
+        else:
+            paper_ids.add(pid)
+        if not isinstance(row.get("title"), str) or not row["title"].strip():
+            failures.add("papers: missing title", f"line {number}: paper {pid!r}")
+        if row.get("venue_type") and row["venue_type"] not in VENUE_TYPES:
+            failures.add("papers: invalid venue_type", f"line {number}: {row['venue_type']!r}")
+        for author in row.get("authors") or []:
+            order = author.get("order") if isinstance(author, dict) else None
+            if not isinstance(author, dict) or not author.get("name") or isinstance(order, bool) or not isinstance(order, int):
+                failures.add("papers: author without a name or an integer order", f"line {number}: paper {pid!r}")
+            authors += 1
+        references += len(row.get("references") or [])
+    return paper_ids, papers, authors, references
 
-    for line in open(PAPERS_PATH, encoding="utf-8"):
-        if not line.strip():
-            continue
-        p = json.loads(line)
-        pid = p["paper_id"]
-        assert pid and isinstance(pid, str)
-        assert pid not in paper_ids, f"Duplicate paper_id {pid}"
-        paper_ids.add(pid)
-        paper_count += 1
 
-        assert p.get("title") and isinstance(p["title"], str)
-        if p.get("venue_type"):
-            assert p["venue_type"] in VENUE_TYPES
-            venue_count += 1
-        for a in p.get("authors", []):
-            assert a.get("name") and isinstance(a["order"], int)
-            author_count += 1
-        ref_count += len(p.get("references", []))
+def check_extractions(path, paper_ids, canonical, aliases, failures):
+    experiments = 0
+    for number, row in read_rows(path, "extractions: line is not a JSON object", failures):
+        experiments += 1
+        if row.get("paper_id") not in paper_ids:
+            failures.add("extractions: paper_id not in the papers file", f"line {number}: {row.get('paper_id')!r}")
+        for kind in TYPES:
+            value = row.get(kind)
+            if value:
+                normalized = str(value).lower().strip()
+                if normalized not in canonical[kind] and normalized not in aliases[kind]:
+                    failures.add("extractions: entity not in the vocabulary or its aliases",
+                                 f"line {number}: {kind} {value!r}")
+    return experiments
 
-    print(f"2. Papers: {paper_count} papers validated ({author_count} authors, {ref_count} citation edges).")
 
-    # 3. Extractions
-    exp_count = 0
-    unmapped_entities = 0
+def run_checks(vocab_path=VOCAB_PATH, papers_path=PAPERS_PATH, extractions_path=EXTRACTIONS_PATH):
+    """Run every check. Returns (what was read, Failures)."""
+    failures = Failures()
+    entries, canonical, aliases = check_vocabulary(vocab_path, failures)
+    paper_ids, papers, authors, references = check_papers(papers_path, failures)
+    experiments = check_extractions(extractions_path, paper_ids, canonical, aliases, failures)
+    read = {"vocabulary entries": entries, "papers": papers, "authors": authors, "citation edges": references,
+            "experiments": experiments}
+    return read, failures
 
-    for line in open(EXTRACTIONS_PATH, encoding="utf-8"):
-        if not line.strip():
-            continue
-        e = json.loads(line)
-        pid = e["paper_id"]
-        assert pid in paper_ids, f"Extracted paper_id {pid} missing from papers table"
 
-        for k in ("method", "dataset", "task", "setting"):
-            val = e.get(k)
-            if val:
-                v_norm = val.lower().strip()
-                if v_norm not in canonical_lookup[k] and v_norm not in alias_lookup[k]:
-                    unmapped_entities += 1
-        exp_count += 1
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Dry-run integrity check of the pilot data files.")
+    parser.add_argument("--vocab", default=str(VOCAB_PATH))
+    parser.add_argument("--papers", default=str(PAPERS_PATH))
+    parser.add_argument("--extractions", default=str(EXTRACTIONS_PATH))
+    args = parser.parse_args(argv)
 
-    print(f"3. Extractions: {exp_count} experiments validated.")
-    print(f"   Unmapped entities: {unmapped_entities} (0 required for clean load).")
-    print("\nResult: All 3 files pass 100% of Person 2's loader specifications!")
+    read, failures = run_checks(args.vocab, args.papers, args.extractions)
     print("=" * 60)
+    print("PILOT DATA INTEGRITY (dry run: this script's own checks, it does not call the loaders)")
+    print("=" * 60)
+    print(f"1. Vocabulary: {read['vocabulary entries']} entries read.")
+    print(f"2. Papers: {read['papers']} papers read ({read['authors']} authors, {read['citation edges']} citation edges).")
+    print(f"3. Extractions: {read['experiments']} experiments read.")
+    print("\nFailure counts (every one must be 0):")
+    for kind in FAILURE_KINDS:
+        print(f"   {failures.counts[kind]:5d}  {kind}")
+    if failures.total() == 0:
+        print("\nRESULT: PASS (every failure count is 0)")
+        print("=" * 60)
+        return 0
+    print(f"\nRESULT: FAIL ({failures.total()} failures)")
+    for kind in FAILURE_KINDS:
+        for example in failures.examples[kind]:
+            print(f"   {kind}: {example}")
+        if failures.counts[kind] > len(failures.examples[kind]):
+            print(f"   {kind}: ... and {failures.counts[kind] - len(failures.examples[kind])} more")
+    print("=" * 60)
+    return 1
 
 
 if __name__ == "__main__":
-    run_checks()
+    sys.exit(main())
