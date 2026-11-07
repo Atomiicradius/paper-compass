@@ -1,0 +1,130 @@
+{"type": "method", "canonical_name": "Knowledge Distillation", "aliases": ["KD", "teacher-student learning", "distillation"]}
+{"type": "method", "canonical_name": "Transformer", "aliases": ["Transformer architecture", "Vanilla Transformer", "Transformers"]}
+{"type": "method", "canonical_name": "Back-translation", "aliases": ["BT", "backtranslation", "iterative back-translation"]}
+{"type": "method", "canonical_name": "Byte-Pair Encoding", "aliases": ["BPE", "subword tokenization", "byte pair encoding"]}
+{"type": "method", "canonical_name": "SentencePiece", "aliases": ["SentencePiece tokenization", "SPM"]}
+{"type": "method", "canonical_name": "WordPiece", "aliases": ["WordPiece tokenization"]}
+{"type": "method", "canonical_name": "Transfer Learning", "aliases": ["cross-lingual transfer learning", "domain transfer", "parameter transfer"]}
+{"type": "method", "canonical_name": "Fine-tuning", "aliases": ["supervised fine-tuning", "full fine-tuning", "finetuning"]}
+{"type": "method", "canonical_name": "Low-Rank Adaptation", "aliases": ["LoRA", "low rank adaptation"]}
+{"type": "method", "canonical_name": "Adapter Tuning", "aliases": ["parameter-efficient adapter", "Pfeiffer adapter", "Houlsby adapter", "bottleneck adapters"]}
+{"type": "method", "canonical_name": "Prompt Tuning", "aliases": ["soft prompt tuning", "prompt-tuning"]}
+{"type": "method", "canonical_name": "Prefix Tuning", "aliases": ["prefix-tuning"]}
+{"type": "method", "canonical_name": "Bitext Mining", "aliases": ["bilingual sentence mining", "parallel sentence extraction", "sentence filtering"]}
+{"type": "method", "canonical_name": "Unsupervised Machine Translation", "aliases": ["UNMT", "unsupervised NMT"]}
+{"type": "method", "canonical_name": "Beam Search", "aliases": ["beam search decoding", "beam-search"]}
+{"type": "method", "canonical_name": "Contrastive Learning", "aliases": ["contrastive pre-training", "contrastive representation learning"]}
+{"type": "method", "canonical_name": "Dual Learning", "aliases": ["dual learning for MT", "dual learning framework"]}
+{"type": "method", "canonical_name": "Data Augmentation", "aliases": ["synthetic data augmentation", "paraphrase augmentation", "data-augmentation"]}
+{"type": "method", "canonical_name": "Curriculum Learning", "aliases": ["curriculum training"]}
+{"type": "method", "canonical_name": "Multi-Task Learning", "aliases": ["MTL", "multitask learning"]}
+{"type": "method", "canonical_name": "Self-Attention", "aliases": ["multi-head self-attention", "self attention"]}
+{"type": "method", "canonical_name": "Cross-Attention", "aliases": ["encoder-decoder attention", "cross attention"]}
+{"type": "method", "canonical_name": "Masked Language Modeling", "aliases": ["MLM", "masked LM"]}
+{"type": "method", "canonical_name": "Causal Language Modeling", "aliases": ["CLM", "autoregressive language modeling"]}
+{"type": "method", "canonical_name": "Recurrent Neural Network", "aliases": ["RNN", "vanilla RNN"]}
+{"type": "method", "canonical_name": "Long Short-Term Memory", "aliases": ["LSTM", "BiLSTM", "bidirectional LSTM"]}
+{"type": "method", "canonical_name": "Gated Recurrent Unit", "aliases": ["GRU", "bidirectional GRU"]}
+{"type": "method", "canonical_name": "Convolutional Sequence to Sequence", "aliases": ["ConvS2S", "convolutional seq2seq"]}
+{"type": "method", "canonical_name": "Statistical Machine Translation", "aliases": ["SMT", "phrase-based SMT"]}
+{"type": "method", "canonical_name": "Phrase-Based Statistical Machine Translation", "aliases": ["PBMT", "phrase-based translation"]}
+{"type": "method", "canonical_name": "Syntax-Based Machine Translation", "aliases": ["SBMT", "tree-to-string translation"]}
+{"type": "method", "canonical_name": "Rule-Based Machine Translation", "aliases": ["RBMT"]}
+{"type": "method", "canonical_name": "Word Alignment", "aliases": ["GIZA++", "fast_align"]}
+{"type": "method", "canonical_name": "Subword Regularization", "aliases": ["BPE-dropout"]}
+{"type": "method", "canonical_name": "Model Pruning", "aliases": ["structured pruning", "unstructured pruning", "network pruning"]}
+{"type": "method", "canonical_name": "Quantization", "aliases": ["INT8 quantization", "FP16 quantization", "post-training quantization"]}
+{"type": "method", "canonical_name": "Weight Averaging", "aliases": ["checkpoint averaging", "Stochastic Weight Averaging", "SWA"]}
+{"type": "method", "canonical_name": "Ensembling", "aliases": ["model ensembling", "checkpoint ensembling"]}
+{"type": "method", "canonical_name": "Reinforcement Learning from Human Feedback", "aliases": ["RLHF"]}
+{"type": "method", "canonical_name": "Minimum Risk Training", "aliases": ["MRT"]}
+{"type": "method", "canonical_name": "Label Smoothing", "aliases": ["label smoothed cross entropy"]}
+{"type": "method", "canonical_name": "Layer Normalization", "aliases": ["LayerNorm", "pre-layer norm", "post-layer norm"]}
+{"type": "method", "canonical_name": "Rotary Position Embedding", "aliases": ["RoPE"]}
+{"type": "method", "canonical_name": "Relative Position Encoding", "aliases": ["relative position embeddings"]}
+{"type": "method", "canonical_name": "Cross-Lingual Language Model Pretraining", "aliases": ["XLM", "cross-lingual pre-training"]}
+{"type": "method", "canonical_name": "Denoising Sequence-to-Sequence", "aliases": ["BART pre-training", "mBART pre-training"]}
+{"type": "method", "canonical_name": "Multilingual Pre-training", "aliases": ["mBERT pre-training", "XLM-RoBERTa pre-training"]}
+{"type": "method", "canonical_name": "Pivot Translation", "aliases": ["pivot-based translation", "bridge language translation"]}
+{"type": "method", "canonical_name": "Zero-Shot Translation", "aliases": ["zero-shot transfer"]}
+{"type": "method", "canonical_name": "Lexical Constrained Decoding", "aliases": ["constrained decoding", "lexically constrained MT"]}
+{"type": "method", "canonical_name": "Document-Level Context Modeling", "aliases": ["context-aware MT", "document-level NMT"]}
+{"type": "method", "canonical_name": "Word2Vec", "aliases": ["Skip-gram", "CBOW"]}
+{"type": "method", "canonical_name": "FastText", "aliases": ["subword word embeddings"]}
+{"type": "method", "canonical_name": "GloVe", "aliases": ["Global Vectors for Word Representation"]}
+{"type": "method", "canonical_name": "Reranking", "aliases": ["n-best rescoring", "BLEU rescoring", "hypothesis reranking"]}
+{"type": "method", "canonical_name": "FlashAttention", "aliases": ["flash-attention", "flash attention v2"]}
+{"type": "dataset", "canonical_name": "FLORES-200", "aliases": ["FLORES200", "Flores-200 benchmark", "FLORES 200"]}
+{"type": "dataset", "canonical_name": "FLORES-101", "aliases": ["FLORES101", "Flores-101 benchmark"]}
+{"type": "dataset", "canonical_name": "Samanantar", "aliases": ["Samanantar Indic corpus", "AI4Bharat Samanantar"]}
+{"type": "dataset", "canonical_name": "WMT14", "aliases": ["WMT 2014", "WMT-14", "WMT 14 English-German"]}
+{"type": "dataset", "canonical_name": "WMT16", "aliases": ["WMT 2016", "WMT-16"]}
+{"type": "dataset", "canonical_name": "WMT17", "aliases": ["WMT 2017", "WMT-17"]}
+{"type": "dataset", "canonical_name": "WMT18", "aliases": ["WMT 2018", "WMT-18"]}
+{"type": "dataset", "canonical_name": "WMT19", "aliases": ["WMT 2019", "WMT-19"]}
+{"type": "dataset", "canonical_name": "WMT20", "aliases": ["WMT 2020", "WMT-20"]}
+{"type": "dataset", "canonical_name": "WMT21", "aliases": ["WMT 2021", "WMT-21"]}
+{"type": "dataset", "canonical_name": "WMT22", "aliases": ["WMT 2022", "WMT-22"]}
+{"type": "dataset", "canonical_name": "WMT23", "aliases": ["WMT 2023", "WMT-23"]}
+{"type": "dataset", "canonical_name": "OPUS", "aliases": ["OPUS open parallel corpus"]}
+{"type": "dataset", "canonical_name": "OPUS-100", "aliases": ["OPUS100", "OPUS-100 corpus"]}
+{"type": "dataset", "canonical_name": "CCAligned", "aliases": ["CCAligned parallel corpus"]}
+{"type": "dataset", "canonical_name": "ParaCrawl", "aliases": ["ParaCrawl corpus", "ParaCrawl v9"]}
+{"type": "dataset", "canonical_name": "Europarl", "aliases": ["Europarl parallel corpus", "European Parliament Proceedings"]}
+{"type": "dataset", "canonical_name": "IWSLT", "aliases": ["IWSLT benchmark", "IWSLT translation corpus"]}
+{"type": "dataset", "canonical_name": "Multi30k", "aliases": ["Multi30K multimodal dataset"]}
+{"type": "dataset", "canonical_name": "Tatoeba", "aliases": ["Tatoeba challenge", "Tatoeba translation corpus"]}
+{"type": "dataset", "canonical_name": "PMIndia", "aliases": ["PM India parallel corpus", "PMIndia corpus"]}
+{"type": "dataset", "canonical_name": "IndicCorp", "aliases": ["IndicCorp monolingual corpus", "IndicCorp v2"]}
+{"type": "dataset", "canonical_name": "CCNet", "aliases": ["CCNet filtered Common Crawl"]}
+{"type": "dataset", "canonical_name": "Common Crawl", "aliases": ["CommonCrawl dump", "CommonCrawl"]}
+{"type": "dataset", "canonical_name": "WikiMatrix", "aliases": ["WikiMatrix parallel sentences"]}
+{"type": "dataset", "canonical_name": "XNLI", "aliases": ["Cross-lingual NLI"]}
+{"type": "dataset", "canonical_name": "TED Talks", "aliases": ["TED talks multilingual corpus"]}
+{"type": "dataset", "canonical_name": "News Commentary", "aliases": ["WMT News Commentary"]}
+{"type": "dataset", "canonical_name": "UN Parallel Corpus", "aliases": ["United Nations Parallel Corpus", "UNPC"]}
+{"type": "dataset", "canonical_name": "OpenSubtitles", "aliases": ["OpenSubtitles2018", "OpenSubtitles corpus"]}
+{"type": "dataset", "canonical_name": "JW300", "aliases": ["JW300 corpus", "Jehovah Witness parallel corpus"]}
+{"type": "dataset", "canonical_name": "MTNT", "aliases": ["Machine Translation of Noisy Text"]}
+{"type": "dataset", "canonical_name": "IITB Hindi-English", "aliases": ["IITB English-Hindi corpus", "IIT Bombay parallel corpus"]}
+{"type": "dataset", "canonical_name": "Bharat Parallel Corpus", "aliases": ["BPCC", "AI4Bharat BPCC"]}
+{"type": "dataset", "canonical_name": "CoNLL-2003", "aliases": ["CoNLL 2003 NER", "CoNLL03"]}
+{"type": "dataset", "canonical_name": "SQuAD", "aliases": ["Stanford Question Answering Dataset", "SQuAD v1.1", "SQuAD v2.0"]}
+{"type": "dataset", "canonical_name": "GLUE", "aliases": ["GLUE benchmark"]}
+{"type": "dataset", "canonical_name": "SuperGLUE", "aliases": ["SuperGLUE benchmark"]}
+{"type": "dataset", "canonical_name": "IndicGLUE", "aliases": ["IndicGLUE benchmark"]}
+{"type": "task", "canonical_name": "Machine Translation", "aliases": ["MT", "automatic translation"]}
+{"type": "task", "canonical_name": "Neural Machine Translation", "aliases": ["NMT"]}
+{"type": "task", "canonical_name": "Low-Resource Machine Translation", "aliases": ["low-resource MT", "low-resource translation"]}
+{"type": "task", "canonical_name": "Multilingual Machine Translation", "aliases": ["multilingual NMT", "MMT"]}
+{"type": "task", "canonical_name": "Unsupervised Machine Translation", "aliases": ["unsupervised translation"]}
+{"type": "task", "canonical_name": "Speech Translation", "aliases": ["spoken language translation", "ST"]}
+{"type": "task", "canonical_name": "Quality Estimation", "aliases": ["translation quality estimation", "QE"]}
+{"type": "task", "canonical_name": "Automatic Post-Editing", "aliases": ["APE", "post-editing"]}
+{"type": "task", "canonical_name": "Bitext Mining", "aliases": ["parallel sentence extraction", "bitext filtering"]}
+{"type": "task", "canonical_name": "Cross-Lingual Transfer", "aliases": ["cross-lingual generalization"]}
+{"type": "task", "canonical_name": "Language Modeling", "aliases": ["LM", "autoregressive generation"]}
+{"type": "task", "canonical_name": "Word Alignment", "aliases": ["bilingual word alignment"]}
+{"type": "task", "canonical_name": "Named Entity Recognition", "aliases": ["NER", "entity extraction"]}
+{"type": "task", "canonical_name": "Part-of-Speech Tagging", "aliases": ["POS tagging", "POS"]}
+{"type": "task", "canonical_name": "Dependency Parsing", "aliases": ["syntactic parsing"]}
+{"type": "task", "canonical_name": "Text Summarization", "aliases": ["abstractive summarization", "extractive summarization", "summarization"]}
+{"type": "task", "canonical_name": "Question Answering", "aliases": ["QA", "reading comprehension"]}
+{"type": "task", "canonical_name": "Sentiment Analysis", "aliases": ["sentiment classification"]}
+{"type": "task", "canonical_name": "Natural Language Inference", "aliases": ["NLI", "textual entailment"]}
+{"type": "task", "canonical_name": "Paraphrase Generation", "aliases": ["paraphrasing"]}
+{"type": "task", "canonical_name": "Text Classification", "aliases": ["document classification"]}
+{"type": "task", "canonical_name": "Domain Adaptation", "aliases": ["unsupervised domain adaptation"]}
+{"type": "task", "canonical_name": "Morphological Analysis", "aliases": ["morphology tagging"]}
+{"type": "setting", "canonical_name": "Low-resource", "aliases": []}
+{"type": "setting", "canonical_name": "High-resource", "aliases": []}
+{"type": "setting", "canonical_name": "Multilingual", "aliases": []}
+{"type": "setting", "canonical_name": "Bilingual", "aliases": []}
+{"type": "setting", "canonical_name": "Zero-shot", "aliases": []}
+{"type": "setting", "canonical_name": "Few-shot", "aliases": []}
+{"type": "setting", "canonical_name": "Unsupervised", "aliases": []}
+{"type": "setting", "canonical_name": "Semi-supervised", "aliases": []}
+{"type": "setting", "canonical_name": "Supervised", "aliases": []}
+{"type": "setting", "canonical_name": "Out-of-domain", "aliases": []}
+{"type": "setting", "canonical_name": "In-domain", "aliases": []}
+{"type": "setting", "canonical_name": "Cross-lingual", "aliases": []}

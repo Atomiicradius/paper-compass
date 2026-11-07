@@ -3,6 +3,8 @@ __pycache__/
 .venv/
 node_modules/
 data/
+!ingest/data/
+!extraction/data/
 *.log
 db/rejects/*
 !db/rejects/.gitkeep
