@@ -52,14 +52,14 @@ Edit only your own section under "Progress" to avoid merge conflicts. Decisions 
 Update after each task: what's done, what's next, blockers.
 
 ### Person 1: Data and extraction (then UI)
-- Status: Phase 1 complete (Data, Vocabulary, Extraction, 100-Abstract Benchmark, and Evaluation Report done).
+- Status: Phase 1 complete (Data, Vocabulary, Extraction, rule-generated reference set (preliminary; not a human-labeled benchmark), and Evaluation Report done).
 - Done:
   1. Accepted Person 2's paper metadata and vocabulary format proposals. Confirmed O3 (SPECTER2).
   2. Selected OpenAlex API as primary corpus source. Built and executed `ingest/fetch_openalex.py` (fixed cursor 401 error using standard page pagination); fetched 500-paper pilot into `ingest/data/papers_pilot.jsonl` (500 papers, 1,831 authors, 10,127 citation references).
   3. Curated controlled vocabulary in `ingest/data/vocabulary.jsonl` (130 entities: 56 methods, 39 datasets, 23 tasks, 12 settings with aliases).
   4. Built information extraction pipeline in `extraction/extract.py` with clean sentence segmentation, entity linking against canonical vocabulary/aliases, and provenance tracking. Generated `extraction/data/extractions_pilot.jsonl` (649 experiments across 317 papers).
-  5. Built 100-abstract labeled benchmark in `extraction/data/labeled_benchmark.jsonl`.
-  6. Evaluated precision, recall, F1, and coverage via `extraction/evaluate.py`. Documented findings in `extraction/accuracy_report.md` (Method precision: 98.0%, Recall: 67.1%, Dataset precision: 100%).
+  5. Built a rule-generated reference set (preliminary; not a human-labeled benchmark) for the first 100 papers in `extraction/data/labeled_benchmark.jsonl`.
+  6. Computed coverage, and precision, recall and F1 against the rule-generated reference set (these compare two rule-based systems and are not accuracy measurements), via `extraction/evaluate.py`. Documented findings in `extraction/accuracy_report.md` (Method precision: 98.0%, Recall: 67.1%, Dataset precision: 100%).
   7. Verified end-to-end data integrity via `ingest/test_pilot_integrity.py`: 100% compliance with Person 2's loaders with zero unmapped entities and zero missing foreign keys.
   8. Updated root `README.md` with PostgreSQL loading instructions for when Docker is running.
 - Next: Phase 2 (UI Preparation): Wireframe/mocks for Person 3, agree on API endpoint schemas (O10), and select UI stack (O4). Do not scaffold UI code until stack is locked.
