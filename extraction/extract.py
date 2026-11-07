@@ -39,6 +39,18 @@ def split_sentences(text):
     return sentences
 
 
+def ranked_matches(matches):
+    """Entity matches (canonical, is_canonical, length) in a fixed order: longest match first, then by name,
+    then canonical-name matches before alias matches. Python's set order changes from run to run, so a plain
+    sort by length alone would make equal-length matches come out in a different order every time."""
+    return sorted(matches, key=lambda m: (-m[2], m[0], not m[1]))
+
+
+def longest_first(names):
+    """Names in a fixed order: longest first, equal lengths alphabetically (never set order)."""
+    return sorted(names, key=lambda name: (-len(name), name))
+
+
 class VocabularyMatcher:
     """Fast regex-based entity matcher supporting canonical names and aliases."""
 
@@ -114,10 +126,10 @@ def extract_experiments_from_paper(paper, matcher, extractor_tag="rules-v1"):
 
     for sentence in sentences:
         s_matches = matcher.find_matches(sentence)
-        s_methods = sorted(s_matches["method"], key=lambda x: -x[2])  # longest match first
-        s_datasets = sorted(s_matches["dataset"], key=lambda x: -x[2])
-        s_tasks = sorted(s_matches["task"], key=lambda x: -x[2])
-        s_settings = sorted(s_matches["setting"], key=lambda x: -x[2])
+        s_methods = ranked_matches(s_matches["method"])  # longest match first, ties by name
+        s_datasets = ranked_matches(s_matches["dataset"])
+        s_tasks = ranked_matches(s_matches["task"])
+        s_settings = ranked_matches(s_matches["setting"])
 
         if not s_methods:
             continue
@@ -134,7 +146,7 @@ def extract_experiments_from_paper(paper, matcher, extractor_tag="rules-v1"):
             elif any("neural" in t.lower() for t in global_tasks):
                 task = "Neural Machine Translation"
             elif global_tasks:
-                task = sorted(global_tasks, key=len, reverse=True)[0]
+                task = longest_first(global_tasks)[0]
             elif "low-resource" in (title + " " + abstract).lower() and ("machine translation" in (title + " " + abstract).lower() or "nmt" in (title + " " + abstract).lower()):
                 task = "Low-Resource Machine Translation"
             elif "neural machine translation" in (title + " " + abstract).lower() or "nmt" in (title + " " + abstract).lower():
@@ -148,7 +160,7 @@ def extract_experiments_from_paper(paper, matcher, extractor_tag="rules-v1"):
             if s_settings:
                 setting = s_settings[0][0]
             elif global_settings:
-                setting = sorted(global_settings, key=len, reverse=True)[0]
+                setting = longest_first(global_settings)[0]
             elif "low-resource" in (title + " " + abstract).lower() or "low resource" in (title + " " + abstract).lower():
                 setting = "Low-resource"
             else:
@@ -185,10 +197,10 @@ def extract_experiments_from_paper(paper, matcher, extractor_tag="rules-v1"):
 
     # Fallback: if no sentence-level method was extracted, check title
     if not experiments and title_matches["method"]:
-        for m_canonical, _, _ in title_matches["method"]:
-            d = list(global_datasets)[0] if global_datasets else None
-            t = list(global_tasks)[0] if global_tasks else ("Machine Translation" if "machine translation" in title.lower() else None)
-            s = list(global_settings)[0] if global_settings else None
+        for m_canonical in sorted({c for c, _, _ in title_matches["method"]}):
+            d = longest_first(global_datasets)[0] if global_datasets else None
+            t = longest_first(global_tasks)[0] if global_tasks else ("Machine Translation" if "machine translation" in title.lower() else None)
+            s = longest_first(global_settings)[0] if global_settings else None
 
             key = (paper_id, m_canonical, d, t, s)
             if key not in seen_tuples:
@@ -220,7 +232,8 @@ def run_extraction(papers_file, vocab_file, output_file, extractor_tag="rules-v1
     papers_with_experiments = 0
     total_experiments = 0
 
-    with open(papers_path, "r", encoding="utf-8") as fin, open(output_path, "w", encoding="utf-8") as fout:
+    # newline="\n": the same bytes on every platform (text mode would write CRLF on Windows)
+    with open(papers_path, "r", encoding="utf-8") as fin, open(output_path, "w", encoding="utf-8", newline="\n") as fout:
         for line in fin:
             line = line.strip()
             if not line:
