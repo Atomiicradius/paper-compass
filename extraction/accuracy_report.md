@@ -69,3 +69,15 @@ All generated files were tested via [`db/test_pilot_loaders.py`](../db/test_pilo
 * `papers_pilot.jsonl`: **500 papers, 1,831 authors, 10,127 citation references** (0 schema errors).
 * `vocabulary.jsonl`: **130 entities** across 4 types with alias mappings (0 duplicate keys).
 * `extractions_pilot.jsonl`: **649 experiment records** (0 unmapped vocabulary entities, 0 missing paper references).
+
+---
+
+## 5. Limitations
+
+1. **The reference set is rule-generated, not hand-labeled.** `extraction/create_labeled_benchmark.py` generates it from keyword rules plus fallbacks, for the first 100 papers of `ingest/data/papers_pilot.jsonl`. It has 143 rows, and all 143 have setting `Low-resource`. 37 rows (25.9%) come from the fallbacks (29 `Transformer`, 8 `Transfer Learning`). Three keyword tests in that script are identical to tests in `extraction/extract.py`. The precision, recall and F1 in section 3 therefore compare two rule-based systems and are not accuracy measurements.
+2. **The extractor is not reproducible.** Three default runs of `extraction/extract.py` gave 651, 647 and 649 rows. The committed `extraction/data/extractions_pilot.jsonl` is one snapshot of a process that does not give the same output twice.
+3. **Confidence values are rule scores, not probabilities.** They lie between 0.65 and 0.95 and are not calibrated probabilities.
+4. **The corpus is narrow.** 494 of 500 titles contain "low-resource" or "low resource". 591 of 649 experiments (91.1%) carry one of the three labels Neural Machine Translation (278), Machine Translation (203) or Low-Resource Machine Translation (110), and the setting `Low-resource` is on 462 of 649 experiments (71.2%). The label distributions describe this pilot, not machine translation in general.
+5. **Dataset coverage is very low.** 23 of 649 experiments name a dataset (3.5%), covering 10 distinct datasets in 19 papers. Anything computed on datasets rests on very few experiments.
+6. **The citation graph inside the pilot is sparse.** The 500 papers list 10,127 references, but only 749 (7.4%) point to papers in the pilot, and 170 papers list none.
+7. **The vocabulary is curated manually** in `ingest/create_vocabulary.py`. The extractor only finds terms that are in it.
