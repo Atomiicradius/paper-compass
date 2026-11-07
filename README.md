@@ -20,8 +20,8 @@ python ingest/create_vocabulary.py
 # Run extraction to produce experiment tuples (method, dataset, task, setting, confidence, source_sentence)
 python extraction/extract.py --papers ingest/data/papers_pilot.jsonl --vocab ingest/data/vocabulary.jsonl --out extraction/data/extractions_pilot.jsonl
 
-# Verify data integrity and loader compatibility (dry-run)
-python db/test_pilot_loaders.py
+# Check the integrity of the three data files (dry run: it does not call the loaders)
+python ingest/test_pilot_integrity.py
 ```
 
 ### 2. How to Load into PostgreSQL (When Docker is Running)

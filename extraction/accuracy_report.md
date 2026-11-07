@@ -64,7 +64,7 @@ Evaluation conducted using [`extraction/evaluate.py`](evaluate.py) against the r
 
 ## 4. Contract and Loader Compliance
 
-All generated files were tested via [`db/test_pilot_loaders.py`](../db/test_pilot_loaders.py) against Person 2's loader functions ([`db/loaders/papers.py`](../db/loaders/papers.py), [`db/loaders/vocabulary.py`](../db/loaders/vocabulary.py), [`db/loaders/extractions.py`](../db/loaders/extractions.py)):
+All generated files were checked by [`ingest/test_pilot_integrity.py`](../ingest/test_pilot_integrity.py), a dry-run integrity script whose rules mirror Person 2's loaders ([`db/loaders/papers.py`](../db/loaders/papers.py), [`db/loaders/vocabulary.py`](../db/loaders/vocabulary.py), [`db/loaders/extractions.py`](../db/loaders/extractions.py)); it does not import or call them:
 
 * `papers_pilot.jsonl`: **500 papers, 1,831 authors, 10,127 citation references** (0 schema errors).
 * `vocabulary.jsonl`: **130 entities** across 4 types with alias mappings (0 duplicate keys).

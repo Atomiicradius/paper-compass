@@ -60,7 +60,7 @@ Update after each task: what's done, what's next, blockers.
   4. Built information extraction pipeline in `extraction/extract.py` with clean sentence segmentation, entity linking against canonical vocabulary/aliases, and provenance tracking. Generated `extraction/data/extractions_pilot.jsonl` (649 experiments across 317 papers).
   5. Built 100-abstract labeled benchmark in `extraction/data/labeled_benchmark.jsonl`.
   6. Evaluated precision, recall, F1, and coverage via `extraction/evaluate.py`. Documented findings in `extraction/accuracy_report.md` (Method precision: 98.0%, Recall: 67.1%, Dataset precision: 100%).
-  7. Verified end-to-end data integrity via `db/test_pilot_loaders.py`: 100% compliance with Person 2's loaders with zero unmapped entities and zero missing foreign keys.
+  7. Verified end-to-end data integrity via `ingest/test_pilot_integrity.py`: 100% compliance with Person 2's loaders with zero unmapped entities and zero missing foreign keys.
   8. Updated root `README.md` with PostgreSQL loading instructions for when Docker is running.
 - Next: Phase 2 (UI Preparation): Wireframe/mocks for Person 3, agree on API endpoint schemas (O10), and select UI stack (O4). Do not scaffold UI code until stack is locked.
 

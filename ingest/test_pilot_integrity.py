@@ -1,18 +1,18 @@
-"""Dry-run loader simulation and integrity checker for pilot data.
+"""Dry-run integrity checker for the pilot data (run from anywhere: python ingest/test_pilot_integrity.py).
 
-Validates that:
-1. ingest/data/vocabulary.jsonl passes check_entry()
-2. ingest/data/papers_pilot.jsonl passes check_paper()
-3. extraction/data/extractions_pilot.jsonl passes check_row()
-4. All foreign key references between papers and extractions resolve
-5. All entity names in extractions map to canonical vocabulary or aliases
+Checks, with its own rules written to mirror the format rules of Person 2's loaders (it does not import the
+loaders):
+1. ingest/data/vocabulary.jsonl: valid types, settings without aliases
+2. ingest/data/papers_pilot.jsonl: unique paper_id, title, venue_type, author order
+3. extraction/data/extractions_pilot.jsonl: every paper_id exists in the papers file
+4. every entity name in the extractions maps to a canonical vocabulary name or an alias
 """
 
 import json
 from pathlib import Path
 
-DB_DIR = Path(__file__).resolve().parent
-ROOT_DIR = DB_DIR.parent
+INGEST_DIR = Path(__file__).resolve().parent
+ROOT_DIR = INGEST_DIR.parent
 
 VOCAB_PATH = ROOT_DIR / "ingest" / "data" / "vocabulary.jsonl"
 PAPERS_PATH = ROOT_DIR / "ingest" / "data" / "papers_pilot.jsonl"
