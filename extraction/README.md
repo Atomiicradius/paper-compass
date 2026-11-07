@@ -29,7 +29,7 @@ python extraction/extract.py --papers ingest/data/papers_pilot.jsonl --vocab ing
 # 2. Check coverage report
 python extraction/evaluate.py --preds extraction/data/extractions_pilot.jsonl
 
-# 3. Evaluate precision and recall against labeled benchmarks
+# 3. Compare with the rule-generated reference set (preliminary; the file keeps its old name labeled_benchmark.jsonl)
 python extraction/evaluate.py --preds extraction/data/extractions_pilot.jsonl --labels extraction/data/labeled_benchmark.jsonl
 ```
 
