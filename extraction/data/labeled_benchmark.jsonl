@@ -1,143 +1,79 @@
-{"paper_id": "W3198189804", "method": "Transfer Learning", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2337363174", "method": "Transfer Learning", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2337363174", "method": "Syntax-Based Machine Translation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2337363174", "method": "Ensembling", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3173162544", "method": "Transfer Learning", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2888541716", "method": "Transfer Learning", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2888541716", "method": "Rotary Position Embedding", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2610850660", "method": "Back-translation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2610850660", "method": "Data Augmentation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2949973181", "method": "Statistical Machine Translation", "dataset": "IWSLT", "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2949973181", "method": "Phrase-Based Statistical Machine Translation", "dataset": "IWSLT", "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3193077216", "method": "Transfer Learning", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4226241048", "method": "Back-translation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3169369929", "method": "Transformer", "dataset": "FLORES-101", "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2892004290", "method": "Transfer Learning", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3094981855", "method": "Transformer", "dataset": "IWSLT", "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4283220248", "method": "Transfer Learning", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3168236275", "method": "Transformer", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2756566411", "method": "Back-translation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2963993537", "method": "Transformer", "dataset": null, "task": "Neural Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2745341416", "method": "Statistical Machine Translation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2745341416", "method": "Phrase-Based Statistical Machine Translation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2745341416", "method": "Word Alignment", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3145700684", "method": "Rotary Position Embedding", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4390616332", "method": "Transformer", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4401752421", "method": "Statistical Machine Translation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4401752421", "method": "Rule-Based Machine Translation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2767982226", "method": "Transformer", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W65082245", "method": "Transformer", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4300963525", "method": "Transformer", "dataset": "FLORES-101", "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4200562820", "method": "Transformer", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W1508577659", "method": "Statistical Machine Translation", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4225929449", "method": "Transfer Learning", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3088331602", "method": "Byte-Pair Encoding", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3088331602", "method": "Fine-tuning", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3088331602", "method": "Data Augmentation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3127887696", "method": "Transformer", "dataset": "TED Talks", "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3127887696", "method": "Transfer Learning", "dataset": "TED Talks", "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3127887696", "method": "Recurrent Neural Network", "dataset": "TED Talks", "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4409640671", "method": "Transfer Learning", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4409640671", "method": "Data Augmentation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4289828703", "method": "Data Augmentation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4221017237", "method": "Transformer", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4299128337", "method": "Transfer Learning", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4299128337", "method": "Statistical Machine Translation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3003980343", "method": "Statistical Machine Translation", "dataset": null, "task": "Neural Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3175630950", "method": "Transformer", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4386487605", "method": "Knowledge Distillation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4386487605", "method": "Rotary Position Embedding", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2786790428", "method": "Back-translation", "dataset": "WMT20", "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2786790428", "method": "Fine-tuning", "dataset": "WMT20", "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3203385474", "method": "Transformer", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W1767788615", "method": "Statistical Machine Translation", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2983691795", "method": "Byte-Pair Encoding", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2983691795", "method": "Statistical Machine Translation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2983691795", "method": "Phrase-Based Statistical Machine Translation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3092614733", "method": "Transformer", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3156854462", "method": "Statistical Machine Translation", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4393632272", "method": "Transformer", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W7132432999", "method": "Transformer", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3126910220", "method": "Back-translation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3126910220", "method": "Data Augmentation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3126910220", "method": "Self-Attention", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4287854507", "method": "Transformer", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4395065284", "method": "Knowledge Distillation", "dataset": "FLORES-200", "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4366506185", "method": "Transfer Learning", "dataset": null, "task": "Neural Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4285165208", "method": "Transformer", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4225670297", "method": "Transformer", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2263606537", "method": "Statistical Machine Translation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4401043056", "method": "Transformer", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4401043056", "method": "Beam Search", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4401043056", "method": "Data Augmentation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3134205307", "method": "Transformer", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3134205307", "method": "Back-translation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4402670476", "method": "Transformer", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4412944362", "method": "Fine-tuning", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3188239957", "method": "Transfer Learning", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3188239957", "method": "Rotary Position Embedding", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4388953014", "method": "Transfer Learning", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W7154597966", "method": "Transfer Learning", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W7154597966", "method": "Data Augmentation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3115362515", "method": "Transformer", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3115362515", "method": "Curriculum Learning", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3022088813", "method": "Byte-Pair Encoding", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3022088813", "method": "Self-Attention", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3040449765", "method": "Back-translation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3040449765", "method": "Data Augmentation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3040449765", "method": "Statistical Machine Translation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2772120246", "method": "Transfer Learning", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2772120246", "method": "Statistical Machine Translation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2772120246", "method": "Phrase-Based Statistical Machine Translation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2946926542", "method": "Statistical Machine Translation", "dataset": "IWSLT", "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2946926542", "method": "Phrase-Based Statistical Machine Translation", "dataset": "IWSLT", "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4403786858", "method": "Transfer Learning", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4403786858", "method": "Fine-tuning", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4392623252", "method": "Unsupervised Machine Translation", "dataset": "Multi30k", "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4392623252", "method": "Masked Language Modeling", "dataset": "Multi30k", "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4403570475", "method": "Transformer", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W7133186254", "method": "Back-translation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W7133186254", "method": "Transfer Learning", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2970009562", "method": "Transformer", "dataset": "WMT19", "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2970009562", "method": "Back-translation", "dataset": "WMT19", "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2970009562", "method": "Long Short-Term Memory", "dataset": "WMT19", "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2523478734", "method": "Statistical Machine Translation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2523478734", "method": "Word Alignment", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2752630748", "method": "Byte-Pair Encoding", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2752630748", "method": "Transfer Learning", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W7133196831", "method": "Transformer", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4407571966", "method": "Transformer", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4416036861", "method": "Transformer", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W7124389128", "method": "Transformer", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4283213265", "method": "Transformer", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4411119785", "method": "Transfer Learning", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3202849793", "method": "Statistical Machine Translation", "dataset": "IWSLT", "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2913659301", "method": "Transformer", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2968447912", "method": "Knowledge Distillation", "dataset": "TED Talks", "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3022839720", "method": "Data Augmentation", "dataset": "IWSLT", "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4411143885", "method": "Transfer Learning", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4411143885", "method": "Data Augmentation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3097573162", "method": "Transformer", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4289521458", "method": "Transfer Learning", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4289521458", "method": "Data Augmentation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4295529409", "method": "Statistical Machine Translation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W1649009502", "method": "Transformer", "dataset": "Europarl", "task": "Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4389524596", "method": "Transformer", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4406892196", "method": "Fine-tuning", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3116178498", "method": "Back-translation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3116178498", "method": "Rotary Position Embedding", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2970223278", "method": "Transformer", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W7140087451", "method": "Transformer", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W7220137900", "method": "Transformer", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3022741208", "method": "Back-translation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W7140274180", "method": "Transfer Learning", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2973585401", "method": "Rotary Position Embedding", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3021357296", "method": "Knowledge Distillation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4386249236", "method": "Transformer", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W7126155351", "method": "Transfer Learning", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4391591249", "method": "Fine-tuning", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W4285732289", "method": "Transformer", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2971459527", "method": "Back-translation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2971459527", "method": "Data Augmentation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W2987582383", "method": "Transformer", "dataset": "IWSLT", "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
-{"paper_id": "W3120090562", "method": "Statistical Machine Translation", "dataset": null, "task": "Low-Resource Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W4322718421", "method": null, "dataset": null, "task": "Language Modeling", "setting": null}
+{"paper_id": "W4406171371", "method": "Transformer", "dataset": "OPUS", "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W4406171371", "method": "Back-translation", "dataset": "OPUS", "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W4406171371", "method": "Self-Attention", "dataset": "OPUS", "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W4406171371", "method": "Curriculum Learning", "dataset": "OPUS", "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W4402670476", "method": null, "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W2952230511", "method": null, "dataset": null, "task": "Named Entity Recognition", "setting": null}
+{"paper_id": "W7155358362", "method": null, "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W7168386590", "method": "Transfer Learning", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W3155542537", "method": null, "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W3197059061", "method": "GloVe", "dataset": null, "task": null, "setting": null}
+{"paper_id": "W2998617917", "method": null, "dataset": null, "task": "Question Answering", "setting": null}
+{"paper_id": "W2963967291", "method": null, "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W3104415840", "method": "Transformer", "dataset": "CoNLL-2003", "task": "Language Modeling", "setting": null}
+{"paper_id": "W3104415840", "method": "Self-Attention", "dataset": "CoNLL-2003", "task": "Language Modeling", "setting": null}
+{"paper_id": "W2970009562", "method": "Transformer", "dataset": "WMT19", "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W2970009562", "method": "Back-translation", "dataset": "WMT19", "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W4403786858", "method": "Transfer Learning", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W4403786858", "method": "Fine-tuning", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W4385573489", "method": "Back-translation", "dataset": "WMT17", "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W4385573489", "method": "Transfer Learning", "dataset": "WMT17", "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W7163374232", "method": "Transformer", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W7163374232", "method": "Fine-tuning", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W7197638580", "method": "Transformer", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W7197638580", "method": "Long Short-Term Memory", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W7197638580", "method": "Fine-tuning", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W7197638580", "method": "Data Augmentation", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W7197638580", "method": "Transfer Learning", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W4367051110", "method": null, "dataset": null, "task": "Language Modeling", "setting": null}
+{"paper_id": "W3091940082", "method": "Contrastive Learning", "dataset": null, "task": null, "setting": "Unsupervised"}
+{"paper_id": "W4388953014", "method": null, "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W4385571271", "method": null, "dataset": null, "task": "Language Modeling", "setting": null}
+{"paper_id": "W3198736145", "method": "Transformer", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W3198736145", "method": "Back-translation", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W3198736145", "method": "Transfer Learning", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W3023911605", "method": "Cross-Lingual Language Model Pretraining", "dataset": null, "task": "Question Answering", "setting": "Cross-lingual"}
+{"paper_id": "W2971255462", "method": "Transformer", "dataset": "WMT19", "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W2971255462", "method": "Self-Attention", "dataset": "WMT19", "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W1508165687", "method": null, "dataset": null, "task": "Language Modeling", "setting": null}
+{"paper_id": "W4313485929", "method": "Transformer", "dataset": null, "task": "Language Modeling", "setting": "Unsupervised"}
+{"paper_id": "W3015468748", "method": "Transformer", "dataset": null, "task": "Language Modeling", "setting": null}
+{"paper_id": "W3015468748", "method": "Self-Attention", "dataset": null, "task": "Language Modeling", "setting": null}
+{"paper_id": "W2756566411", "method": "Back-translation", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W2805790316", "method": "Recurrent Neural Network", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W2805790316", "method": "Statistical Machine Translation", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W4416053382", "method": "Fine-tuning", "dataset": null, "task": "Language Modeling", "setting": "Supervised"}
+{"paper_id": "W2153653739", "method": "Phrase-Based Statistical Machine Translation", "dataset": null, "task": "Machine Translation", "setting": null}
+{"paper_id": "W3118883478", "method": "Byte-Pair Encoding", "dataset": "WMT20", "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W7138162944", "method": null, "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W7106804983", "method": null, "dataset": "FLORES-200", "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W3046375318", "method": "Fine-tuning", "dataset": null, "task": "Language Modeling", "setting": null}
+{"paper_id": "W3033389262", "method": "Back-translation", "dataset": "IWSLT", "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W1843891098", "method": null, "dataset": null, "task": "Text Summarization", "setting": null}
+{"paper_id": "W1579903274", "method": null, "dataset": null, "task": "Machine Translation", "setting": null}
+{"paper_id": "W3130033937", "method": null, "dataset": null, "task": "Question Answering", "setting": null}
+{"paper_id": "W4362515116", "method": "Fine-tuning", "dataset": null, "task": "Language Modeling", "setting": "Supervised"}
+{"paper_id": "W7220137900", "method": null, "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W3169483174", "method": "Transformer", "dataset": null, "task": null, "setting": "Multilingual"}
+{"paper_id": "W3173220247", "method": "Transformer", "dataset": null, "task": "Language Modeling", "setting": null}
+{"paper_id": "W4405632958", "method": null, "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W4416048079", "method": null, "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W3214040319", "method": null, "dataset": null, "task": "Language Modeling", "setting": null}
+{"paper_id": "W4384071683", "method": "Prompt Tuning", "dataset": null, "task": "Language Modeling", "setting": null}
+{"paper_id": "W7133223072", "method": null, "dataset": null, "task": "Question Answering", "setting": "Few-shot"}
+{"paper_id": "W4296406182", "method": "Transformer", "dataset": null, "task": "Language Modeling", "setting": "Multilingual"}
+{"paper_id": "W7155043127", "method": "Fine-tuning", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W7204966702", "method": "Transformer", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W4386249236", "method": null, "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W4409569111", "method": "Transformer", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W4409569111", "method": "Fine-tuning", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W3015883388", "method": null, "dataset": null, "task": "Question Answering", "setting": null}
+{"paper_id": "W4292641180", "method": "Transformer", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W4292641180", "method": "Statistical Machine Translation", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W3100649225", "method": "Back-translation", "dataset": "IWSLT", "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W4413147844", "method": "Fine-tuning", "dataset": null, "task": "Language Modeling", "setting": null}
+{"paper_id": "W7164145391", "method": "Back-translation", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W2405756170", "method": "Recurrent Neural Network", "dataset": null, "task": null, "setting": null}
+{"paper_id": "W7140128285", "method": null, "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W2792764867", "method": null, "dataset": null, "task": "Machine Translation", "setting": null}

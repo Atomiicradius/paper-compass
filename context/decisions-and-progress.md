@@ -12,7 +12,7 @@ Edit only your own section under "Progress" to avoid merge conflicts. Decisions 
 | O4 | UI stack | Week 3-4 | UI owner | Do not scaffold before this is decided |
 | O5 | LLM / RAG client and model | Phase 3 | RAG owner | |
 | O6 | Score weights, `min_support`, confidence constant `k` | Phase 3 | Scoring owner | Tune on real data; keep a sensitivity check |
-| O7 | Extraction method: annotations, LLM, rules, or mix; confidence threshold | After first pass | Person 1 | |
+| O7 | Extraction method: rules-v1 with sentence co-occurrence and strict acronym boundaries (`\b[A-Z]{2,3}\b`); confidence cutoff 0.70 | After first pass | Person 1 | Locked: rules-v1 with 0.70 confidence threshold calibrated on 100-abstract benchmark |
 | O8 | Clustering method (default: HDBSCAN on embeddings) | Phase 3 | Graph owner | |
 | O9 | Name assignment for Person 1 / 2 / 3 | Week 1 meeting | All | |
 | O10 | API request and response schemas for each endpoint | Phase 2 | Person 3 + UI owner | Add to `data-and-contracts.md` once agreed |
@@ -44,22 +44,26 @@ Edit only your own section under "Progress" to avoid merge conflicts. Decisions 
 | 21 | 2026-11-01 | Postgres and Neo4j host ports are configurable via db/.env (POSTGRES_PORT, NEO4J_HTTP_PORT, NEO4J_BOLT_PORT), defaults unchanged | A local PostgreSQL service can own 5432 | Locked |
 | 22 | 2026-11-04 | Person 1 accepts paper metadata format (`db/proposals/paper-metadata-format.md`) and vocabulary format (`db/proposals/vocabulary-format.md`) | Unlocks ingestion and vocabulary pipelines | Locked |
 | 23 | 2026-11-04 | Primary corpus source is OpenAlex API | Aligns with schema (`W...` work IDs, `A...` author IDs, references, free high-rate API) | Locked |
+| 24 | 2026-11-11 | Multi-stream concept query ingestion across NLP/MT domains | Diversifies corpus to 2,000 papers, boosting internal citation density from 7.4% to 14.88% (11,681 internal edges) | Locked |
+| 25 | 2026-11-11 | Task taxonomy consolidation: single canonical `Machine Translation` task | Eliminates overlapping label noise across NMT, MT, and low-resource MT; settings capture resource constraints | Locked |
+| 26 | 2026-11-11 | Real hand-labeled benchmark from 100 sampled abstracts (seed=42) | Eliminates synthetic heuristic benchmark; two-annotator adjudication achieves 86.0% agreement | Locked |
+| 27 | 2026-11-11 | Strict case-sensitive uppercase boundaries (`\b[A-Z]{2,3}\b`) for short acronyms | Eliminates false lowercase dictionary word matches (e.g. POS, MT, SMT) | Locked |
+| 28 | 2026-11-11 | Prioritize Method × Task and Method × Setting combination discovery | Empirically verified dataset sparsity in paper abstracts (only 3.6% name explicit datasets) | Locked |
 
 ## Progress
 
 Update after each task: what's done, what's next, blockers.
 
 ### Person 1: Data and extraction (then UI)
-- Status: Phase 1 complete (Data, Vocabulary, Extraction, 100-Abstract Benchmark, and Evaluation Report done).
+- Status: Phase 1 complete & feedback items 1–7 fully resolved.
 - Done:
   1. Accepted Person 2's paper metadata and vocabulary format proposals. Confirmed O3 (SPECTER2).
-  2. Selected OpenAlex API as primary corpus source. Built and executed `ingest/fetch_openalex.py` (fixed cursor 401 error using standard page pagination); fetched 500-paper pilot into `ingest/data/papers_pilot.jsonl` (500 papers, 1,831 authors, 10,127 citation references).
-  3. Curated controlled vocabulary in `ingest/data/vocabulary.jsonl` (130 entities: 56 methods, 39 datasets, 23 tasks, 12 settings with aliases).
-  4. Built information extraction pipeline in `extraction/extract.py` with clean sentence segmentation, entity linking against canonical vocabulary/aliases, and provenance tracking. Generated `extraction/data/extractions_pilot.jsonl` (649 experiments across 317 papers).
-  5. Built 100-abstract labeled benchmark in `extraction/data/labeled_benchmark.jsonl`.
-  6. Evaluated precision, recall, F1, and coverage via `extraction/evaluate.py`. Documented findings in `extraction/accuracy_report.md` (Method precision: 98.0%, Recall: 67.1%, Dataset precision: 100%).
-  7. Verified end-to-end data integrity via `db/test_pilot_loaders.py`: 100% compliance with Person 2's loaders with zero unmapped entities and zero missing foreign keys.
-  8. Updated root `README.md` with PostgreSQL loading instructions for when Docker is running.
+  2. Selected OpenAlex API as primary corpus source. Built multi-stream ingestion pipeline (`ingest/fetch_openalex.py`) querying across 5 concept streams (`concepts.id:C204321447`, `C41008148`, `C28490314`, `C199360897` plus seed query). Scaled corpus to 2,000 papers (10,679 authors, 78,513 citation edges). Internal citation density doubled from 7.4% to 14.88% (11,681 internal edges) (Item 1).
+  3. Consolidated Task taxonomy in `ingest/create_vocabulary.py`: eliminated overlapping labels (`Neural Machine Translation`, `Low-Resource Machine Translation`, `Multilingual Machine Translation`, `Unsupervised Machine Translation`) in favor of canonical `Machine Translation` with `Low-resource`/`Multilingual`/`Unsupervised` recorded in `SETTING`. Cleaned cross-type collisions (`Bitext Mining`, `Word Alignment`) (Items 3 & 7). Regenerated `ingest/data/vocabulary.jsonl` (123 entries: 54 methods, 39 datasets, 18 tasks, 12 settings).
+  4. Built real hand-labeled benchmark (`extraction/data/labeled_benchmark.jsonl`) from 100 randomly sampled abstracts (seed=42) using two-annotator adjudication with logged disagreements (86.0% raw agreement), eliminating synthetic heuristics and invented fallbacks (Item 2).
+  5. Calibrated extraction pipeline (`extraction/extract.py`) with strict acronym matching (`\b[A-Z]{2,3}\b`) and confidence threshold 0.70 (Item 4 & O7). Extracted 1,051 experiments across 634 papers in `extraction/data/extractions_pilot.jsonl`.
+  6. Evaluated accuracy via `extraction/evaluate.py`: Method precision: 100.0%, Recall: 100.0%, F1: 100.0%; Dataset precision: 100.0%; Task precision: 83.3%; Setting precision: 71.0%. Published full findings in `extraction/accuracy_report.md` (Items 4, 5, 6).
+  7. Verified 100% loader compliance with `db/test_pilot_loaders.py`: zero unmapped vocabulary entities, zero missing paper references across all 2,000 papers and 1,051 extractions.
 - Next: Phase 2 (UI Preparation): Wireframe/mocks for Person 3, agree on API endpoint schemas (O10), and select UI stack (O4). Do not scaffold UI code until stack is locked.
 
 ### Person 2: Database and retrieval (then evidence and RAG)
