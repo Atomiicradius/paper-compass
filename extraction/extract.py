@@ -69,7 +69,12 @@ class VocabularyMatcher:
         # Escape for regex and require word boundary
         # If term has special symbols like '+', '-', 'v2', handle carefully
         escaped = re.escape(term)
-        pattern = re.compile(rf"(?<!\w){escaped}(?!\w)", re.IGNORECASE)
+        # Fix Item 6: Short uppercase aliases (<= 3 chars, e.g. KD, BT, BPE, POS, LM, NER)
+        # MUST be case-sensitive and match whole words to prevent matching ordinary lowercase words.
+        if len(term) <= 3 and term.isupper():
+            pattern = re.compile(rf"\b{escaped}\b")
+        else:
+            pattern = re.compile(rf"(?<!\w){escaped}(?!\w)", re.IGNORECASE)
         self.entities[kind][pattern] = (canonical, is_canonical, len(term))
 
     def find_matches(self, text):
@@ -126,36 +131,32 @@ def extract_experiments_from_paper(paper, matcher, extractor_tag="rules-v1"):
             # Determine dataset (sentence match preferred, else global context if unambiguous)
             dataset = s_datasets[0][0] if s_datasets else (list(global_datasets)[0] if len(global_datasets) == 1 else None)
             
-            # Determine task (sentence match preferred, else specific context, else global)
+            # Determine task (sentence match preferred, else global context, else fallback)
             if s_tasks:
                 task = s_tasks[0][0]
-            elif any("low-resource" in t.lower() for t in global_tasks):
-                task = "Low-Resource Machine Translation"
-            elif any("neural" in t.lower() for t in global_tasks):
-                task = "Neural Machine Translation"
             elif global_tasks:
                 task = sorted(global_tasks, key=len, reverse=True)[0]
-            elif "low-resource" in (title + " " + abstract).lower() and ("machine translation" in (title + " " + abstract).lower() or "nmt" in (title + " " + abstract).lower()):
-                task = "Low-Resource Machine Translation"
-            elif "neural machine translation" in (title + " " + abstract).lower() or "nmt" in (title + " " + abstract).lower():
-                task = "Neural Machine Translation"
-            elif "machine translation" in (title + " " + abstract).lower():
+            elif any(w in (title + " " + abstract).lower() for w in ["machine translation", "translation", "nmt", "smt"]):
                 task = "Machine Translation"
             else:
                 task = None
 
-            # Determine setting
+            # Determine setting (sentence match preferred, else global, else keyword fallback)
             if s_settings:
                 setting = s_settings[0][0]
             elif global_settings:
                 setting = sorted(global_settings, key=len, reverse=True)[0]
             elif "low-resource" in (title + " " + abstract).lower() or "low resource" in (title + " " + abstract).lower():
                 setting = "Low-resource"
+            elif "multilingual" in (title + " " + abstract).lower():
+                setting = "Multilingual"
+            elif "zero-shot" in (title + " " + abstract).lower():
+                setting = "Zero-shot"
             else:
                 setting = None
 
             # Compute confidence score
-            # Base confidence: 0.70 for sentence co-occurrence
+            # Base confidence: 0.70 for sentence co-occurrence of method
             confidence = 0.70
             if s_datasets:
                 confidence += 0.10  # Explicit dataset in same sentence
@@ -166,6 +167,10 @@ def extract_experiments_from_paper(paper, matcher, extractor_tag="rules-v1"):
             if m_is_canon:
                 confidence += 0.05  # Matched canonical rather than alias
             confidence = min(0.95, round(confidence, 2))
+
+            # Filter by confidence threshold (O7: >= 0.70)
+            if confidence < 0.70:
+                continue
 
             key = (paper_id, m_canonical, dataset, task, setting)
             if key in seen_tuples:
@@ -199,7 +204,7 @@ def extract_experiments_from_paper(paper, matcher, extractor_tag="rules-v1"):
                     "dataset": d,
                     "task": t,
                     "setting": s,
-                    "confidence": 0.65,
+                    "confidence": 0.70,
                     "source_sentence": title,
                     "extractor": extractor_tag
                 })

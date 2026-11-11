@@ -10,8 +10,7 @@
 {"type": "method", "canonical_name": "Adapter Tuning", "aliases": ["parameter-efficient adapter", "Pfeiffer adapter", "Houlsby adapter", "bottleneck adapters"]}
 {"type": "method", "canonical_name": "Prompt Tuning", "aliases": ["soft prompt tuning", "prompt-tuning"]}
 {"type": "method", "canonical_name": "Prefix Tuning", "aliases": ["prefix-tuning"]}
-{"type": "method", "canonical_name": "Bitext Mining", "aliases": ["bilingual sentence mining", "parallel sentence extraction", "sentence filtering"]}
-{"type": "method", "canonical_name": "Unsupervised Machine Translation", "aliases": ["UNMT", "unsupervised NMT"]}
+{"type": "method", "canonical_name": "Sentence Embeddings", "aliases": ["bilingual sentence embeddings", "cross-lingual sentence embeddings", "LASER", "LaBSE"]}
 {"type": "method", "canonical_name": "Beam Search", "aliases": ["beam search decoding", "beam-search"]}
 {"type": "method", "canonical_name": "Contrastive Learning", "aliases": ["contrastive pre-training", "contrastive representation learning"]}
 {"type": "method", "canonical_name": "Dual Learning", "aliases": ["dual learning for MT", "dual learning framework"]}
@@ -30,7 +29,7 @@
 {"type": "method", "canonical_name": "Phrase-Based Statistical Machine Translation", "aliases": ["PBMT", "phrase-based translation"]}
 {"type": "method", "canonical_name": "Syntax-Based Machine Translation", "aliases": ["SBMT", "tree-to-string translation"]}
 {"type": "method", "canonical_name": "Rule-Based Machine Translation", "aliases": ["RBMT"]}
-{"type": "method", "canonical_name": "Word Alignment", "aliases": ["GIZA++", "fast_align"]}
+{"type": "method", "canonical_name": "Statistical Alignment Model", "aliases": ["GIZA++", "fast_align"]}
 {"type": "method", "canonical_name": "Subword Regularization", "aliases": ["BPE-dropout"]}
 {"type": "method", "canonical_name": "Model Pruning", "aliases": ["structured pruning", "unstructured pruning", "network pruning"]}
 {"type": "method", "canonical_name": "Quantization", "aliases": ["INT8 quantization", "FP16 quantization", "post-training quantization"]}
@@ -46,7 +45,6 @@
 {"type": "method", "canonical_name": "Denoising Sequence-to-Sequence", "aliases": ["BART pre-training", "mBART pre-training"]}
 {"type": "method", "canonical_name": "Multilingual Pre-training", "aliases": ["mBERT pre-training", "XLM-RoBERTa pre-training"]}
 {"type": "method", "canonical_name": "Pivot Translation", "aliases": ["pivot-based translation", "bridge language translation"]}
-{"type": "method", "canonical_name": "Zero-Shot Translation", "aliases": ["zero-shot transfer"]}
 {"type": "method", "canonical_name": "Lexical Constrained Decoding", "aliases": ["constrained decoding", "lexically constrained MT"]}
 {"type": "method", "canonical_name": "Document-Level Context Modeling", "aliases": ["context-aware MT", "document-level NMT"]}
 {"type": "method", "canonical_name": "Word2Vec", "aliases": ["Skip-gram", "CBOW"]}
@@ -93,18 +91,14 @@
 {"type": "dataset", "canonical_name": "GLUE", "aliases": ["GLUE benchmark"]}
 {"type": "dataset", "canonical_name": "SuperGLUE", "aliases": ["SuperGLUE benchmark"]}
 {"type": "dataset", "canonical_name": "IndicGLUE", "aliases": ["IndicGLUE benchmark"]}
-{"type": "task", "canonical_name": "Machine Translation", "aliases": ["MT", "automatic translation"]}
-{"type": "task", "canonical_name": "Neural Machine Translation", "aliases": ["NMT"]}
-{"type": "task", "canonical_name": "Low-Resource Machine Translation", "aliases": ["low-resource MT", "low-resource translation"]}
-{"type": "task", "canonical_name": "Multilingual Machine Translation", "aliases": ["multilingual NMT", "MMT"]}
-{"type": "task", "canonical_name": "Unsupervised Machine Translation", "aliases": ["unsupervised translation"]}
-{"type": "task", "canonical_name": "Speech Translation", "aliases": ["spoken language translation", "ST"]}
+{"type": "task", "canonical_name": "Machine Translation", "aliases": ["MT", "NMT", "Neural Machine Translation", "Statistical Machine Translation", "SMT", "Multilingual Machine Translation", "MMT", "automatic translation"]}
+{"type": "task", "canonical_name": "Speech Translation", "aliases": ["spoken language translation", "speech-to-text translation"]}
 {"type": "task", "canonical_name": "Quality Estimation", "aliases": ["translation quality estimation", "QE"]}
 {"type": "task", "canonical_name": "Automatic Post-Editing", "aliases": ["APE", "post-editing"]}
-{"type": "task", "canonical_name": "Bitext Mining", "aliases": ["parallel sentence extraction", "bitext filtering"]}
+{"type": "task", "canonical_name": "Bitext Mining", "aliases": ["parallel sentence extraction", "bitext filtering", "sentence mining"]}
 {"type": "task", "canonical_name": "Cross-Lingual Transfer", "aliases": ["cross-lingual generalization"]}
 {"type": "task", "canonical_name": "Language Modeling", "aliases": ["LM", "autoregressive generation"]}
-{"type": "task", "canonical_name": "Word Alignment", "aliases": ["bilingual word alignment"]}
+{"type": "task", "canonical_name": "Word Alignment", "aliases": ["bilingual word alignment", "word-level alignment"]}
 {"type": "task", "canonical_name": "Named Entity Recognition", "aliases": ["NER", "entity extraction"]}
 {"type": "task", "canonical_name": "Part-of-Speech Tagging", "aliases": ["POS tagging", "POS"]}
 {"type": "task", "canonical_name": "Dependency Parsing", "aliases": ["syntactic parsing"]}
@@ -114,7 +108,6 @@
 {"type": "task", "canonical_name": "Natural Language Inference", "aliases": ["NLI", "textual entailment"]}
 {"type": "task", "canonical_name": "Paraphrase Generation", "aliases": ["paraphrasing"]}
 {"type": "task", "canonical_name": "Text Classification", "aliases": ["document classification"]}
-{"type": "task", "canonical_name": "Domain Adaptation", "aliases": ["unsupervised domain adaptation"]}
 {"type": "task", "canonical_name": "Morphological Analysis", "aliases": ["morphology tagging"]}
 {"type": "setting", "canonical_name": "Low-resource", "aliases": []}
 {"type": "setting", "canonical_name": "High-resource", "aliases": []}
