@@ -26,11 +26,11 @@ This report fulfills the Phase 1 evaluation mandate for Person 1 as specified in
 | :--- | :---: | :---: |
 | **Total Papers Processed** | 2,000 | 100.0% |
 | **Papers with Extracted Experiments** | 634 | 31.7% |
-| **Total Experiment Tuples** | 1,051 | — |
-| **Experiments with `method`** | 1,051 | 100.0% |
-| **Experiments with `task`** | 715 | 68.0% |
-| **Experiments with `setting`** | 725 | 69.0% |
-| **Experiments with `dataset`** | 38 | 3.6% |
+| **Total Experiment Tuples** | 1,054 | — |
+| **Experiments with `method`** | 1,054 | 100.0% |
+| **Experiments with `task`** | 718 | 68.1% |
+| **Experiments with `setting`** | 727 | 69.0% |
+| **Experiments with `dataset`** | 40 | 3.8% |
 
 ### Key Architectural Observation: Dataset Sparsity in Abstracts (Item 5)
 As observed in the pilot and re-confirmed across 2,000 papers:

@@ -68,6 +68,8 @@ METHODS = [
 
 # Datasets: (canonical_name, [aliases])
 DATASETS = [
+    ("WMT", ["WMT benchmark", "WMT shared task", "WMT evaluation", "WMT test set"]),
+    ("FLORES", ["Flores benchmark", "FLORES evaluation"]),
     ("FLORES-200", ["FLORES200", "Flores-200 benchmark", "FLORES 200"]),
     ("FLORES-101", ["FLORES101", "Flores-101 benchmark"]),
     ("Samanantar", ["Samanantar Indic corpus", "AI4Bharat Samanantar"]),

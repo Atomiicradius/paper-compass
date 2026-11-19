@@ -74,9 +74,9 @@
     "title": "MAD-X: An Adapter-Based Framework for Multi-Task Cross-Lingual Transfer",
     "diff_task": [],
     "diff_setting": [
-      "Low-resource",
       "Zero-shot",
       "Few-shot",
+      "Low-resource",
       "Multilingual"
     ],
     "diff_method": [],

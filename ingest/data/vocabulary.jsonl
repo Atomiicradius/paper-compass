@@ -52,6 +52,8 @@
 {"type": "method", "canonical_name": "GloVe", "aliases": ["Global Vectors for Word Representation"]}
 {"type": "method", "canonical_name": "Reranking", "aliases": ["n-best rescoring", "BLEU rescoring", "hypothesis reranking"]}
 {"type": "method", "canonical_name": "FlashAttention", "aliases": ["flash-attention", "flash attention v2"]}
+{"type": "dataset", "canonical_name": "WMT", "aliases": ["WMT benchmark", "WMT shared task", "WMT evaluation", "WMT test set"]}
+{"type": "dataset", "canonical_name": "FLORES", "aliases": ["Flores benchmark", "FLORES evaluation"]}
 {"type": "dataset", "canonical_name": "FLORES-200", "aliases": ["FLORES200", "Flores-200 benchmark", "FLORES 200"]}
 {"type": "dataset", "canonical_name": "FLORES-101", "aliases": ["FLORES101", "Flores-101 benchmark"]}
 {"type": "dataset", "canonical_name": "Samanantar", "aliases": ["Samanantar Indic corpus", "AI4Bharat Samanantar"]}
