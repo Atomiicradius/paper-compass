@@ -115,3 +115,11 @@ CREATE UNIQUE INDEX ON mv_setting_count_ms (setting_id);
 
 - [ ] **Person 2:** Confirm materialized view DDL compatibility with Docker PostgreSQL 16 container and refresh script.
 - [ ] **Person 3:** Confirm candidate scoring query integration for `method_setting` pairs.
+
+---
+
+## 5. Review notes (2026-11-20, added during review; the status stays "Proposed")
+
+- (a) `mv_setting_count_ms` duplicates `mv_setting_count` (the proposal itself says they are identical), so one of the two should go. The existing contract has no `mv_setting_count` and no `*_ms` views, so adding both is redundant.
+- (b) It extends `mv_universe_size` with a `method_setting` row. That changes a contract view (`mv_universe_size` in `context/data-and-contracts.md` and `db/init.sql`), so it needs the team agreement process in `context/AGENTS.md`.
+- (c) `MIN_EXPECTED_FOR_INFERENCE` (1.0) and `LOW_CONFIDENCE_BELOW_EXPECTED` (5.0) in `rag/summary.py` have not been tested for `method_setting`; the setting labels here are few and skewed (`Low-resource` is on 43.7% of experiments), so the thresholds may behave differently for this pair type.

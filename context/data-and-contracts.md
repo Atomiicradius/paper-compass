@@ -219,10 +219,11 @@ Count **distinct papers**, not experiment rows, so a paper with several experime
 |---|---|---|---|
 | method × dataset | experiments with a dataset | `mv_method_count_md`, `mv_dataset_count` | `mv_universe_size` row `method_dataset` |
 | method × task | experiments with a task | `mv_method_count_mt`, `mv_task_count` | `mv_universe_size` row `method_task` |
-| method × setting | experiments with a setting | `mv_method_count_ms`, `mv_setting_count_ms` | `mv_universe_size` row `method_setting` |
 | dataset × task | experiments with both | `mv_dataset_count_dt`, `mv_task_count_dt` | `mv_universe_size` row `dataset_task` |
 
 `mv_dataset_count` and `mv_task_count` already filter to non-null values, so they match the method × dataset and method × task universes. `mv_method_count` (all papers with a method) is for method popularity only, never for pair expected counts.
+
+Proposed, not yet agreed by Person 2 and Person 3: a `method × setting` pair type (extra `mv_*` views and a `method_setting` row in `mv_universe_size`). It is **not** part of this contract or of `db/init.sql`. See `db/proposals/method-setting-views.md`.
 
 ```sql
 -- Individual frequencies
@@ -238,10 +239,6 @@ CREATE MATERIALIZED VIEW mv_task_count AS
 SELECT task_id, COUNT(DISTINCT paper_id) AS n_papers
 FROM experiment WHERE task_id IS NOT NULL GROUP BY task_id;
 
-CREATE MATERIALIZED VIEW mv_setting_count AS
-SELECT setting_id, COUNT(DISTINCT paper_id) AS n_papers
-FROM experiment WHERE setting_id IS NOT NULL GROUP BY setting_id;
-
 -- Pair frequencies
 CREATE MATERIALIZED VIEW mv_method_dataset AS
 SELECT method_id, dataset_id, COUNT(DISTINCT paper_id) AS n_papers
@@ -252,11 +249,6 @@ CREATE MATERIALIZED VIEW mv_method_task AS
 SELECT method_id, task_id, COUNT(DISTINCT paper_id) AS n_papers
 FROM experiment WHERE task_id IS NOT NULL
 GROUP BY method_id, task_id;
-
-CREATE MATERIALIZED VIEW mv_method_setting AS
-SELECT method_id, setting_id, COUNT(DISTINCT paper_id) AS n_papers
-FROM experiment WHERE setting_id IS NOT NULL
-GROUP BY method_id, setting_id;
 
 CREATE MATERIALIZED VIEW mv_dataset_task AS
 SELECT dataset_id, task_id, COUNT(DISTINCT paper_id) AS n_papers
@@ -271,14 +263,6 @@ FROM experiment WHERE dataset_id IS NOT NULL GROUP BY method_id;
 CREATE MATERIALIZED VIEW mv_method_count_mt AS
 SELECT method_id, COUNT(DISTINCT paper_id) AS n_papers
 FROM experiment WHERE task_id IS NOT NULL GROUP BY method_id;
-
-CREATE MATERIALIZED VIEW mv_method_count_ms AS
-SELECT method_id, COUNT(DISTINCT paper_id) AS n_papers
-FROM experiment WHERE setting_id IS NOT NULL GROUP BY method_id;
-
-CREATE MATERIALIZED VIEW mv_setting_count_ms AS
-SELECT setting_id, COUNT(DISTINCT paper_id) AS n_papers
-FROM experiment WHERE setting_id IS NOT NULL GROUP BY setting_id;
 
 CREATE MATERIALIZED VIEW mv_dataset_count_dt AS
 SELECT dataset_id, COUNT(DISTINCT paper_id) AS n_papers
@@ -298,9 +282,6 @@ UNION ALL
 SELECT 'method_task', COUNT(DISTINCT paper_id)
 FROM experiment WHERE task_id IS NOT NULL
 UNION ALL
-SELECT 'method_setting', COUNT(DISTINCT paper_id)
-FROM experiment WHERE setting_id IS NOT NULL
-UNION ALL
 SELECT 'dataset_task', COUNT(DISTINCT paper_id)
 FROM experiment WHERE dataset_id IS NOT NULL AND task_id IS NOT NULL;
 
@@ -317,12 +298,8 @@ GROUP BY method_id, dataset_id, task_id;
 CREATE UNIQUE INDEX ON mv_method_count (method_id);
 CREATE UNIQUE INDEX ON mv_dataset_count (dataset_id);
 CREATE UNIQUE INDEX ON mv_task_count (task_id);
-CREATE UNIQUE INDEX ON mv_setting_count (setting_id);
 CREATE UNIQUE INDEX ON mv_method_dataset (method_id, dataset_id);
 CREATE UNIQUE INDEX ON mv_method_task (method_id, task_id);
-CREATE UNIQUE INDEX ON mv_method_setting (method_id, setting_id);
-CREATE UNIQUE INDEX ON mv_method_count_ms (method_id);
-CREATE UNIQUE INDEX ON mv_setting_count_ms (setting_id);
 CREATE UNIQUE INDEX ON mv_dataset_task (dataset_id, task_id);
 CREATE UNIQUE INDEX ON mv_method_count_md (method_id);
 CREATE UNIQUE INDEX ON mv_method_count_mt (method_id);
