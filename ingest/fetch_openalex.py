@@ -127,8 +127,17 @@ def transform_work(work):
     }
 
 
-def fetch_openalex_papers(query="machine translation", target_count=500, output_file="data/papers.jsonl", email=None):
-    """Fetch works from OpenAlex with cursor/page pagination until target_count is reached."""
+DEFAULT_FETCH_STREAMS = [
+    ("MT-TopCited", "concepts.id:C204321447,has_abstract:true", "cited_by_count:desc", 500),
+    ("MT-Recent", "concepts.id:C204321447,publication_year:>2019,has_abstract:true", "cited_by_count:desc", 400),
+    ("NLP-Representations", "concepts.id:C41008148,has_abstract:true", "cited_by_count:desc", 400),
+    ("Speech-Processing", "concepts.id:C28490314,has_abstract:true", "cited_by_count:desc", 350),
+    ("Question-Answering", "concepts.id:C199360897,has_abstract:true", "cited_by_count:desc", 350),
+]
+
+
+def fetch_openalex_papers(target_count=2000, output_file="ingest/data/papers_pilot.jsonl", email=None, preserve_existing=True):
+    """Fetch diverse NLP/MT papers from OpenAlex using structured concept filters to avoid rate limits."""
     output_path = Path(output_file)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -136,22 +145,45 @@ def fetch_openalex_papers(query="machine translation", target_count=500, output_
         "User-Agent": f"PaperCompass/1.0 (mailto:{email})" if email else USER_AGENT
     }
 
-    per_page = 100
-    page = 1
-    collected = 0
     seen_ids = set()
+    papers_list = []
 
-    logger.info(f"Starting fetch from OpenAlex: query={query!r}, target={target_count}")
+    # Preserve existing papers if present
+    if preserve_existing and output_path.exists():
+        logger.info(f"Loading existing papers from {output_path} to preserve low-resource MT seed...")
+        with open(output_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    p = json.loads(line)
+                    pid = p.get("paper_id")
+                    if pid and pid not in seen_ids:
+                        seen_ids.add(pid)
+                        papers_list.append(p)
+        logger.info(f"Loaded {len(papers_list)} existing papers.")
 
-    with open(output_path, "w", encoding="utf-8") as f:
-        while collected < target_count:
+    collected = len(papers_list)
+    per_page = 100
+
+    logger.info(f"Starting multi-stream fetch from OpenAlex for target ~{target_count} papers...")
+
+    for stream_name, filter_str, sort_str, s_target in DEFAULT_FETCH_STREAMS:
+        if collected >= target_count:
+            break
+        s_collected = 0
+        page = 1
+        empty_pages = 0
+        logger.info(f"Stream '{stream_name}' (target: {s_target}, sort: {sort_str})...")
+
+        while s_collected < s_target and collected < target_count:
             params = {
-                "filter": "has_abstract:true",
-                "search": query,
-                "per-page": min(per_page, target_count - collected),
+                "filter": filter_str,
+                "per-page": min(per_page, s_target - s_collected),
                 "page": page,
                 "select": "id,title,abstract_inverted_index,publication_year,doi,primary_location,authorships,referenced_works"
             }
+            if sort_str:
+                params["sort"] = sort_str
             if email:
                 params["mailto"] = email
             url = f"{OPENALEX_WORKS_URL}?{urlencode(params)}"
@@ -164,21 +196,22 @@ def fetch_openalex_papers(query="machine translation", target_count=500, output_
                 err_body = e.read().decode("utf-8", errors="replace")
                 logger.error(f"OpenAlex HTTP {e.code} error on page {page}: {err_body}")
                 if e.code in (401, 403, 400):
-                    logger.error("Stopping due to client/auth error.")
+                    logger.error("Stopping this stream due to client/auth error.")
                     break
-                logger.info("Retrying in 3 seconds...")
-                time.sleep(3)
+                logger.info("Retrying in 5 seconds...")
+                time.sleep(5)
                 continue
             except URLError as e:
-                logger.error(f"OpenAlex connection error: {e}. Retrying in 3 seconds...")
-                time.sleep(3)
+                logger.error(f"OpenAlex connection error: {e}. Retrying in 5 seconds...")
+                time.sleep(5)
                 continue
 
             results = data.get("results") or []
             if not results:
-                logger.info("No more results returned from OpenAlex.")
+                logger.info(f"No more results for stream {stream_name!r}.")
                 break
 
+            page_added = 0
             for work in results:
                 transformed = transform_work(work)
                 if not transformed:
@@ -186,29 +219,58 @@ def fetch_openalex_papers(query="machine translation", target_count=500, output_
                 if transformed["paper_id"] in seen_ids:
                     continue
                 seen_ids.add(transformed["paper_id"])
+                papers_list.append(transformed)
 
-                f.write(json.dumps(transformed, ensure_ascii=False) + "\n")
                 collected += 1
-                if collected >= target_count:
+                s_collected += 1
+                page_added += 1
+                if s_collected >= s_target or collected >= target_count:
                     break
 
-            logger.info(f"Fetched {collected}/{target_count} papers so far (page {page})...")
-            page += 1
-            time.sleep(0.2)  # Polite pool delay
+            if page_added == 0:
+                empty_pages += 1
+                if empty_pages >= 2:
+                    logger.info(f"Stream '{stream_name}' yielded no new unique papers after {page} pages; moving to next stream.")
+                    break
+            else:
+                empty_pages = 0
 
-    logger.info(f"Finished! Successfully wrote {collected} papers to {output_path}")
+            logger.info(f"  [{stream_name}] Added {s_collected}/{s_target} (total unique: {collected})...")
+            page += 1
+            time.sleep(0.1)
+
+    # Write all papers
+    with open(output_path, "w", encoding="utf-8") as f:
+        for p in papers_list:
+            f.write(json.dumps(p, ensure_ascii=False) + "\n")
+
+    # Compute citation metrics
+    all_paper_ids = {p["paper_id"] for p in papers_list}
+    total_citations = sum(len(p.get("references", [])) for p in papers_list)
+    internal_citations = sum(
+        sum(1 for ref in p.get("references", []) if ref in all_paper_ids)
+        for p in papers_list
+    )
+    density = (internal_citations / total_citations * 100) if total_citations else 0.0
+
+    logger.info("=" * 60)
+    logger.info(f"FETCH COMPLETE: {collected} papers written to {output_path}")
+    logger.info(f"Total citations: {total_citations}")
+    logger.info(f"Internal corpus citations: {internal_citations} ({density:.2f}% density)")
+    logger.info("=" * 60)
+
     return collected
 
 
 def main():
     parser = argparse.ArgumentParser(description="Fetch papers from OpenAlex for Paper Compass.")
-    parser.add_argument("--query", default="machine translation low-resource", help="Search query (default: 'machine translation low-resource')")
-    parser.add_argument("--count", type=int, default=500, help="Target number of papers (default: 500)")
-    parser.add_argument("--out", default="data/papers_pilot.jsonl", help="Output JSONL path")
+    parser.add_argument("--query", default=None, help="Search query (if omitted, runs balanced multi-query bundle)")
+    parser.add_argument("--count", type=int, default=2000, help="Target number of papers (default: 2000)")
+    parser.add_argument("--out", default="ingest/data/papers_pilot.jsonl", help="Output JSONL path")
     parser.add_argument("--email", default="student@rvce.edu.in", help="Contact email for OpenAlex polite pool")
     args = parser.parse_args()
 
-    fetch_openalex_papers(query=args.query, target_count=args.count, output_file=args.out, email=args.email)
+    fetch_openalex_papers(target_count=args.count, output_file=args.out, email=args.email)
 
 
 if __name__ == "__main__":

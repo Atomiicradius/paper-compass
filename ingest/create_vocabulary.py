@@ -24,8 +24,7 @@ METHODS = [
     ("Adapter Tuning", ["parameter-efficient adapter", "Pfeiffer adapter", "Houlsby adapter", "bottleneck adapters"]),
     ("Prompt Tuning", ["soft prompt tuning", "prompt-tuning"]),
     ("Prefix Tuning", ["prefix-tuning"]),
-    ("Bitext Mining", ["bilingual sentence mining", "parallel sentence extraction", "sentence filtering"]),
-    ("Unsupervised Machine Translation", ["UNMT", "unsupervised NMT"]),
+    ("Sentence Embeddings", ["bilingual sentence embeddings", "cross-lingual sentence embeddings", "LASER", "LaBSE"]),
     ("Beam Search", ["beam search decoding", "beam-search"]),
     ("Contrastive Learning", ["contrastive pre-training", "contrastive representation learning"]),
     ("Dual Learning", ["dual learning for MT", "dual learning framework"]),
@@ -44,7 +43,7 @@ METHODS = [
     ("Phrase-Based Statistical Machine Translation", ["PBMT", "phrase-based translation"]),
     ("Syntax-Based Machine Translation", ["SBMT", "tree-to-string translation"]),
     ("Rule-Based Machine Translation", ["RBMT"]),
-    ("Word Alignment", ["GIZA++", "fast_align"]),
+    ("Statistical Alignment Model", ["GIZA++", "fast_align"]),
     ("Subword Regularization", ["BPE-dropout"]),
     ("Model Pruning", ["structured pruning", "unstructured pruning", "network pruning"]),
     ("Quantization", ["INT8 quantization", "FP16 quantization", "post-training quantization"]),
@@ -60,7 +59,6 @@ METHODS = [
     ("Denoising Sequence-to-Sequence", ["BART pre-training", "mBART pre-training"]),
     ("Multilingual Pre-training", ["mBERT pre-training", "XLM-RoBERTa pre-training"]),
     ("Pivot Translation", ["pivot-based translation", "bridge language translation"]),
-    ("Zero-Shot Translation", ["zero-shot transfer", "zero-shot translation"]),
     ("Lexical Constrained Decoding", ["constrained decoding", "lexically constrained MT"]),
     ("Document-Level Context Modeling", ["context-aware MT", "document-level NMT"]),
     ("Word2Vec", ["Skip-gram", "CBOW"]),
@@ -72,6 +70,8 @@ METHODS = [
 
 # Datasets: (canonical_name, [aliases])
 DATASETS = [
+    ("WMT", ["WMT benchmark", "WMT shared task", "WMT evaluation", "WMT test set"]),
+    ("FLORES", ["Flores benchmark", "FLORES evaluation"]),
     ("FLORES-200", ["FLORES200", "Flores-200 benchmark", "FLORES 200"]),
     ("FLORES-101", ["FLORES101", "Flores-101 benchmark"]),
     ("Samanantar", ["Samanantar Indic corpus", "AI4Bharat Samanantar"]),
@@ -114,19 +114,17 @@ DATASETS = [
 ]
 
 # Tasks: (canonical_name, [aliases])
+# Unified taxonomy: Machine Translation is the canonical task.
+# Sub-types like low-resource/multilingual are Settings; neural/statistical are Methods.
 TASKS = [
-    ("Machine Translation", ["MT", "automatic translation"]),
-    ("Neural Machine Translation", ["NMT"]),
-    ("Low-Resource Machine Translation", ["low-resource MT", "low-resource translation"]),
-    ("Multilingual Machine Translation", ["multilingual NMT", "MMT"]),
-    ("Unsupervised Machine Translation", ["unsupervised translation"]),
-    ("Speech Translation", ["spoken language translation", "ST"]),
+    ("Machine Translation", ["MT", "NMT", "Neural Machine Translation", "Multilingual Machine Translation", "MMT", "automatic translation"]),
+    ("Speech Translation", ["spoken language translation", "speech-to-text translation"]),
     ("Quality Estimation", ["translation quality estimation", "QE"]),
     ("Automatic Post-Editing", ["APE", "post-editing"]),
-    ("Bitext Mining", ["parallel sentence extraction", "bitext filtering"]),
-    ("Cross-Lingual Transfer", ["cross-lingual generalization"]),
+    ("Bitext Mining", ["parallel sentence extraction", "bitext filtering", "sentence mining"]),
+    ("Cross-Lingual Transfer", ["cross-lingual generalization", "cross-lingual transfer"]),
     ("Language Modeling", ["LM", "autoregressive generation"]),
-    ("Word Alignment", ["bilingual word alignment"]),
+    ("Word Alignment", ["bilingual word alignment", "word-level alignment"]),
     ("Named Entity Recognition", ["NER", "entity extraction"]),
     ("Part-of-Speech Tagging", ["POS tagging", "POS"]),
     ("Dependency Parsing", ["syntactic parsing"]),
@@ -136,7 +134,6 @@ TASKS = [
     ("Natural Language Inference", ["NLI", "textual entailment"]),
     ("Paraphrase Generation", ["paraphrasing"]),
     ("Text Classification", ["document classification"]),
-    ("Domain Adaptation", ["unsupervised domain adaptation"]),
     ("Morphological Analysis", ["morphology tagging"]),
 ]
 
@@ -189,7 +186,8 @@ def generate_vocabulary(output_path="ingest/data/vocabulary.jsonl"):
                 "aliases": cleaned_aliases
             })
 
-    with open(out, "w", encoding="utf-8") as f:
+    # newline="\n": the same bytes on every platform
+    with open(out, "w", encoding="utf-8", newline="\n") as f:
         for entry in entries:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 

@@ -223,6 +223,8 @@ Count **distinct papers**, not experiment rows, so a paper with several experime
 
 `mv_dataset_count` and `mv_task_count` already filter to non-null values, so they match the method × dataset and method × task universes. `mv_method_count` (all papers with a method) is for method popularity only, never for pair expected counts.
 
+Proposed, not yet agreed by Person 2 and Person 3: a `method × setting` pair type (extra `mv_*` views and a `method_setting` row in `mv_universe_size`). It is **not** part of this contract or of `db/init.sql`. See `db/proposals/method-setting-views.md`.
+
 ```sql
 -- Individual frequencies
 CREATE MATERIALIZED VIEW mv_method_count AS

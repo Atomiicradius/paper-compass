@@ -12,7 +12,7 @@ Edit only your own section under "Progress" to avoid merge conflicts. Decisions 
 | O4 | UI stack | Week 3-4 | UI owner | Do not scaffold before this is decided |
 | O5 | LLM / RAG client and model | Phase 3 | RAG owner | |
 | O6 | Score weights, `min_support`, confidence constant `k` | Phase 3 | Scoring owner | Tune on real data; keep a sensitivity check |
-| O7 | Extraction method: annotations, LLM, rules, or mix; confidence threshold | After first pass | Person 1 | |
+| O7 | Extraction method: rules-v1 with sentence co-occurrence and strict acronym boundaries (`\b[A-Z]{2,3}\b`); confidence cutoff 0.70 | After first pass | Person 1 | Locked: rules-v1 with 0.70 confidence threshold calibrated on 100-abstract benchmark |
 | O8 | Clustering method (default: HDBSCAN on embeddings) | Phase 3 | Graph owner | |
 | O9 | Name assignment for Person 1 / 2 / 3 | Week 1 meeting | All | |
 | O10 | API request and response schemas for each endpoint | Phase 2 | Person 3 + UI owner | Add to `data-and-contracts.md` once agreed |
@@ -46,22 +46,28 @@ Edit only your own section under "Progress" to avoid merge conflicts. Decisions 
 | 23 | 2026-11-01 | Python 3.12 and psycopg 3.3.6 for everyone; two lockfiles: core root `requirements.txt` plus add-on `requirements-embeddings.txt` (torch, transformers 4.57.6, adapters) | One environment that also runs the embeddings; keeps torch out of the test environment | Agreed by Persons 2 and 3 |
 | 24 | 2026-11-04 | Person 1 accepts paper metadata format (`db/proposals/paper-metadata-format.md`) and vocabulary format (`db/proposals/vocabulary-format.md`) | Unlocks ingestion and vocabulary pipelines | Locked |
 | 25 | 2026-11-04 | Primary corpus source is OpenAlex API | Aligns with schema (`W...` work IDs, `A...` author IDs, references, free high-rate API) | Locked |
+| 26 | 2026-11-11 | Multi-stream concept query ingestion across NLP/MT domains | Diversifies corpus to 2,000 papers, boosting internal citation density from 7.4% to 14.88% (11,681 internal edges) | Locked |
+| 27 | 2026-11-11 | Task taxonomy consolidation: single canonical `Machine Translation` task | Eliminates overlapping label noise across NMT, MT, and low-resource MT; settings capture resource constraints | Locked |
+| 28 | 2026-11-11 | Rule-generated reference set (preliminary; not human-labeled) from 100 papers sampled with seed=42, replacing the earlier first-100 reference set | Made by `extraction/create_reference_set_v2.py` with a conservative and an inclusive rule set, no human labeling; 86 of 100 sampled papers had identical labels under both rule sets (not an inter-annotator agreement); 79 rows from 60 papers, 40 sampled papers produced no row; method labels share the extractor's vocabulary and regex style, so method precision/recall (100%) is circular and not an accuracy measurement | Locked |
+| 29 | 2026-11-11 | Strict case-sensitive uppercase boundaries (`\b[A-Z]{2,3}\b`) for short acronyms | Eliminates false lowercase dictionary word matches (e.g. POS, MT, SMT) | Locked |
+| 30 | 2026-11-11 | Prioritize Method × Task and Method × Setting combination discovery | Empirically verified dataset sparsity in paper abstracts (only 3.8% name explicit datasets); the `method × setting` views it relies on are awaiting Person 2 and Person 3 review | Proposed |
 
 ## Progress
 
 Update after each task: what's done, what's next, blockers.
 
 ### Person 1: Data and extraction (then UI)
-- Status: Phase 1 complete (Data, Vocabulary, Extraction, rule-generated reference set (preliminary; not a human-labeled benchmark), and Evaluation Report done).
+- Status: Phase 1 complete (Data, Vocabulary, Extraction, rule-generated reference set (preliminary; not a human-labeled benchmark), and Evaluation Report done); the corpus was scaled to 2,000 papers.
 - Done:
   1. Accepted Person 2's paper metadata and vocabulary format proposals. Confirmed O3 (SPECTER2).
-  2. Selected OpenAlex API as primary corpus source. Built and executed `ingest/fetch_openalex.py` (fixed cursor 401 error using standard page pagination); fetched 500-paper pilot into `ingest/data/papers_pilot.jsonl` (500 papers, 1,831 authors, 10,127 citation references).
-  3. Curated controlled vocabulary in `ingest/data/vocabulary.jsonl` (130 entities: 56 methods, 39 datasets, 23 tasks, 12 settings with aliases).
-  4. Built information extraction pipeline in `extraction/extract.py` with clean sentence segmentation, entity linking against canonical vocabulary/aliases, and provenance tracking. Generated `extraction/data/extractions_pilot.jsonl` (649 experiments across 317 papers).
-  5. Built a rule-generated reference set (preliminary; not a human-labeled benchmark) for the first 100 papers in `extraction/data/labeled_benchmark.jsonl`.
-  6. Computed coverage, and precision, recall and F1 against the rule-generated reference set (these compare two rule-based systems and are not accuracy measurements), via `extraction/evaluate.py`. Documented findings in `extraction/accuracy_report.md` (Method precision: 98.0%, Recall: 67.1%, Dataset precision: 100%).
-  7. Verified end-to-end data integrity via `ingest/test_pilot_integrity.py`: 100% compliance with Person 2's loaders with zero unmapped entities and zero missing foreign keys.
-  8. Updated root `README.md` with PostgreSQL loading instructions for when Docker is running.
+  2. Selected OpenAlex API as primary corpus source. Built multi-stream ingestion (`ingest/fetch_openalex.py`, five concept streams plus the seed query) and scaled the corpus to 2,000 papers in `ingest/data/papers_pilot.jsonl` (10,679 authors, 78,513 citation references; 11,681 of them, 14.88%, point to a paper inside the file, up from 7.4% for the first 500 papers).
+  3. Consolidated the task taxonomy in `ingest/create_vocabulary.py` (single canonical `Machine Translation` task; resource constraints go to `SETTING`). Provenance in `ingest/vocabulary_provenance.md`. `ingest/data/vocabulary.jsonl` has 125 entries (54 methods, 41 datasets, 18 tasks, 12 settings).
+  4. Built the extraction pipeline `extraction/extract.py` (sentence segmentation, entity linking against canonical names and aliases, case-sensitive matching for short uppercase aliases, confidence threshold 0.70, deterministic output). Output: `extraction/data/extractions_pilot.jsonl`.
+  5. Built a rule-generated reference set (preliminary; not human-labeled) from 100 sampled papers (seed 42) in `extraction/data/labeled_benchmark.jsonl`, using `extraction/create_reference_set_v2.py`.
+  6. Computed coverage, and precision, recall and F1 against the rule-generated reference set (these compare two rule-based systems and are not accuracy measurements), via `extraction/evaluate.py`. Findings and limitations in `extraction/accuracy_report.md`.
+  7. Checked data integrity with `ingest/test_pilot_integrity.py` (this script's own checks; it does not call the loaders).
+  8. Wrote `db/proposals/method-setting-views.md` (proposed, not yet agreed by Person 2 and Person 3).
+- Open item (not a decision): the corpus has one duplicate paper under two OpenAlex IDs, W1522301498 (rejected by the loader) and W2964121744 (kept; 0 references, no affiliations): Kingma & Ba, "Adam", arXiv 1412.6980. Follow-up for Person 1: de-duplicate by DOI at ingest, keep the record with more references and fuller authorships (here W1522301498), remap citations from the dropped ID to the kept ID, and check other near-duplicate titles with different DOIs (for example three copies of "Survey of low-resource machine translation"). Details in `extraction/accuracy_report.md` (Limitations).
 - Next: Phase 2 (UI Preparation): Wireframe/mocks for Person 3, agree on API endpoint schemas (O10), and select UI stack (O4). Do not scaffold UI code until stack is locked.
 
 ### Person 2: Database and retrieval (then evidence and RAG)

@@ -90,9 +90,9 @@ def test_ties_are_broken_longest_first_then_alphabetically(inputs):
         # P1: methods in name order; the first dataset, task and setting by name win the ties
         ("P1", "Alpha Method", "Data One", "Task One", "Low-resource", 0.95),
         ("P1", "Gamma Method", "Data One", "Task One", "Low-resource", 0.95),
-        # P2: title fallback, methods in name order, ties again by name
-        ("P2", "Alpha Method", "Data One", "Task One", "Low-resource", 0.65),
-        ("P2", "Gamma Method", "Data One", "Task One", "Low-resource", 0.65),
+        # P2: title fallback (confidence 0.70, the O7 threshold), methods in name order, ties again by name
+        ("P2", "Alpha Method", "Data One", "Task One", "Low-resource", 0.70),
+        ("P2", "Gamma Method", "Data One", "Task One", "Low-resource", 0.70),
         # P3: task and setting inherited from the title, ties by name; no dataset
         ("P3", "Alpha Method", None, "Task One", "Low-resource", 0.75),
     ]
