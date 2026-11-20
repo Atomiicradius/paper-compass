@@ -10,16 +10,16 @@
 
 ## 1. Problem Statement & Motivation
 
-During Phase 1 pilot extraction across 2,000 academic papers (1,051 experiment tuples), empirical analysis revealed a severe imbalance in entity reporting in academic abstracts:
-- **`method`**: Extracted in 100% of experiment tuples (1,051 / 1,051).
-- **`task`**: Extracted in 68.0% of experiment tuples (715 / 1,051).
-- **`setting`**: Extracted in 69.0% of experiment tuples (725 / 1,051) across 10+ diverse settings (`Low-resource`, `Multilingual`, `Zero-shot`, `Supervised`, `Cross-lingual`, `Unsupervised`, etc.).
-- **`dataset`**: Explicitly named in only **3.6% of experiment tuples (38 / 1,051 across 30 distinct papers)**.
+During Phase 1 pilot extraction across 2,000 academic papers (1,054 experiment tuples), empirical analysis revealed a severe imbalance in entity reporting in academic abstracts:
+- **`method`**: Extracted in 100% of experiment tuples (1,054 / 1,054).
+- **`task`**: Extracted in 68.1% of experiment tuples (718 / 1,054).
+- **`setting`**: Extracted in 69.0% of experiment tuples (727 / 1,054) across 10+ diverse settings (`Low-resource`, `Multilingual`, `Zero-shot`, `Supervised`, `Cross-lingual`, `Unsupervised`, etc.).
+- **`dataset`**: Explicitly named in only **3.8% of experiment tuples (40 / 1,054 across 32 distinct papers, 17 distinct datasets)**.
 
 ### Why This Matters for Downstream Modules
 In academic NLP literature, abstracts almost never name the specific benchmark dataset (e.g., authors write *"evaluated on five low-resource African languages in a zero-shot cross-lingual setting"* rather than *"evaluated on FLORES-200"*).
 
-Under the **Same-Universe Rule** (contract §1.1), `method × dataset` expected counts are restricted strictly to papers naming a dataset ($N \approx 30$). With $N=30$, any combination pair has insufficient statistical power, yielding high variance and artificial sparsity. In contrast, `setting` is populated in 725 experiments across hundreds of papers, providing rich signal for research opportunity discovery (e.g., *Has Adapter Tuning been applied in Low-resource settings?* or *Has Minimum Risk Training been tested in Multilingual settings?*).
+Under the **Same-Universe Rule** (contract §1.1), `method × dataset` expected counts are restricted strictly to papers naming a dataset ($N \approx 32$). With $N=32$, any combination pair has insufficient statistical power, yielding high variance and artificial sparsity. In contrast, `setting` is populated in 727 experiments across hundreds of papers, providing rich signal for research opportunity discovery (e.g., *Has Adapter Tuning been applied in Low-resource settings?* or *Has Minimum Risk Training been tested in Multilingual settings?*).
 
 ---
 
@@ -30,7 +30,7 @@ We propose adding `method × setting` combination tracking alongside `method × 
 ### 2.1 Universe Definition
 - **Pair Type:** `method_setting`
 - **Universe Filter:** `experiment.setting_id IS NOT NULL`
-- **Total $N$:** Distinct `paper_id` in experiments where `setting_id IS NOT NULL` (~725 experiments).
+- **Total $N$:** Distinct `paper_id` in experiments where `setting_id IS NOT NULL` (727 experiments, 411 papers).
 
 ### 2.2 Schema Additions (for `db/init.sql` / Materialized Views)
 

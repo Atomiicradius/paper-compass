@@ -50,7 +50,7 @@ Edit only your own section under "Progress" to avoid merge conflicts. Decisions 
 | 27 | 2026-11-11 | Task taxonomy consolidation: single canonical `Machine Translation` task | Eliminates overlapping label noise across NMT, MT, and low-resource MT; settings capture resource constraints | Locked |
 | 28 | 2026-11-11 | Rule-generated reference set (preliminary; not human-labeled) from 100 papers sampled with seed=42, replacing the earlier first-100 reference set | Made by `extraction/create_reference_set_v2.py` with a conservative and an inclusive rule set, no human labeling; 86 of 100 sampled papers had identical labels under both rule sets (not an inter-annotator agreement); 79 rows from 60 papers, 40 sampled papers produced no row; method labels share the extractor's vocabulary and regex style, so method precision/recall (100%) is circular and not an accuracy measurement | Locked |
 | 29 | 2026-11-11 | Strict case-sensitive uppercase boundaries (`\b[A-Z]{2,3}\b`) for short acronyms | Eliminates false lowercase dictionary word matches (e.g. POS, MT, SMT) | Locked |
-| 30 | 2026-11-11 | Prioritize Method × Task and Method × Setting combination discovery | Empirically verified dataset sparsity in paper abstracts (only 3.6% name explicit datasets) | Locked |
+| 30 | 2026-11-11 | Prioritize Method × Task and Method × Setting combination discovery | Empirically verified dataset sparsity in paper abstracts (only 3.8% name explicit datasets) | Locked |
 
 ## Progress
 

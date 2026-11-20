@@ -18,7 +18,7 @@ This report fulfills the Phase 1 evaluation mandate for Person 1 as specified in
 - **Rule-Generated Reference Set (Item 2):** 100 papers were sampled at random (`seed=42`) and labeled by keyword and regex rules (a "conservative" and an "inclusive" rule set), not by people. 86 of the 100 sampled papers had identical labels under both rule sets; this is not an inter-annotator agreement. 79 rows come from 60 papers; the other 40 sampled papers produced no row (see section 3).
 - **Calibrated Extraction & Threshold (Item 4, O7):** Extraction confidence calibrated to $\ge 0.70$ with strict regex boundaries.
 - **Short-Alias Filtering (Item 6):** Enforced case-sensitive word-boundary matching (`\b[A-Z]{2,3}\b`) for short acronyms, completely eliminating false lowercase substring collisions.
-- **Dataset Sparsity Analysis (Item 5):** Empirically verified dataset reporting frequency (only 3.6% in abstracts), justifying prioritization of `method × task` and `method × setting` pairs for combination discovery.
+- **Dataset Sparsity Analysis (Item 5):** Empirically verified dataset reporting frequency (only 3.8% in abstracts), justifying prioritization of `method × task` and `method × setting` pairs for combination discovery.
 
 ---
 
@@ -36,9 +36,9 @@ This report fulfills the Phase 1 evaluation mandate for Person 1 as specified in
 
 ### Key Architectural Observation: Dataset Sparsity in Abstracts (Item 5)
 As observed in the pilot and re-confirmed across 2,000 papers:
-- Only **38 of 1,051 experiment tuples (3.6%)** across 30 distinct papers explicitly name a recognized benchmark dataset (e.g. WMT, IWSLT, Europarl, SQuAD, GLUE) in their title or abstract.
+- Only **40 of 1,054 experiment tuples (3.8%)** across 32 distinct papers (17 distinct datasets) explicitly name a recognized benchmark dataset (e.g. WMT, IWSLT, Europarl, SQuAD, GLUE) in their title or abstract.
 - Authors rarely name benchmark dataset titles in abstracts; instead, they report resource conditions ("tested on 4 low-resource Indian languages", "in zero-shot bilingual settings") or model architectures.
-- **Recommendation:** Combination detection must prioritize **`method × task`** and **`method × setting`** pairs (which have rich representation across 1,051 experiments) before requiring `method × dataset`.
+- **Recommendation:** Combination detection must prioritize **`method × task`** and **`method × setting`** pairs (which have rich representation across 1,054 experiments) before requiring `method × dataset`.
 
 ---
 
@@ -116,9 +116,9 @@ All generated files were checked by [`ingest/test_pilot_integrity.py`](../ingest
 ## 6. Limitations
 
 1. **The reference set is rule-generated (preliminary; not human-labeled).** `extraction/create_reference_set_v2.py` (earlier `generate_real_benchmark.py`) labels 100 sampled papers with keyword and regex rules; it has 79 rows from 60 papers, and 40 sampled papers produced no row. Its method labels use the same vocabulary and a similar regex style as `extraction/extract.py`, so method precision and recall (100%) are circular. The precision, recall and F1 in section 3 compare two rule-based systems and are not accuracy measurements. The earlier version of the reference set, for the first 100 papers (`create_labeled_benchmark.py`), is replaced by this one.
-2. **The committed extractions are an old, non-reproducible snapshot.** Before the determinism fix, three default runs of `extraction/extract.py` gave 651, 647 and 649 rows. `extract.py` is now deterministic (ties are broken by an explicit order, and a test checks that runs with different hash seeds write byte-identical output). `extraction/data/extractions_pilot.jsonl` was **not** regenerated: it is still the old snapshot, and the figures in this report describe that snapshot.
-3. **Confidence values are rule scores, not probabilities.** They lie between 0.65 and 0.95 and are not calibrated probabilities.
-4. **The corpus is narrow.** 494 of 500 titles contain "low-resource" or "low resource". 591 of 649 experiments (91.1%) carry one of the three labels Neural Machine Translation (278), Machine Translation (203) or Low-Resource Machine Translation (110), and the setting `Low-resource` is on 462 of 649 experiments (71.2%). The label distributions describe this pilot, not machine translation in general.
-5. **Dataset coverage is very low.** 23 of 649 experiments name a dataset (3.5%), covering 10 distinct datasets in 19 papers. Anything computed on datasets rests on very few experiments.
-6. **The citation graph inside the pilot is sparse.** The 500 papers list 10,127 references, but only 749 (7.4%) point to papers in the pilot, and 170 papers list none.
+2. **The committed extractions are an old, non-reproducible snapshot.** Before the determinism fix, the 2,000-paper file produced a different output for each of 12 `PYTHONHASHSEED` values (1,049 to 1,060 rows), and the committed `extraction/data/extractions_pilot.jsonl` (1,054 rows) matched none of them. `extract.py` is now deterministic (ties are broken by an explicit order, and a test checks that runs with different hash seeds write byte-identical output), but the committed file has **not** been regenerated yet: the figures in this report describe that old snapshot.
+3. **Confidence values are rule scores, not probabilities.** They lie between 0.7 and 0.95 and are not calibrated probabilities.
+4. **The corpus is still skewed toward one theme.** 494 of 2,000 titles still contain "low-resource" or "low resource" (24.7%). Machine Translation covers 621 of 1,054 experiments (58.9%), and 336 (31.9%) have no task. The setting `Low-resource` is on 461 experiments (43.7%). The label distributions describe this corpus, not machine translation in general.
+5. **Dataset coverage is very low.** 40 of 1,054 experiments name a dataset (3.8%), covering 17 distinct datasets in 32 papers. Anything computed on datasets rests on very few experiments.
+6. **The citation graph inside the corpus is still sparse.** The 2,000 papers list 78,513 references, of which 11,681 (14.88%) point to papers in the corpus.
 7. **The vocabulary is curated manually** in `ingest/create_vocabulary.py`. The extractor only finds terms that are in it.

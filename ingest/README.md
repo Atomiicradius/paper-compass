@@ -35,43 +35,45 @@ The 2,000-paper corpus spans foundational NLP (1950s–2000s) to modern transfor
 
 | Epoch | Years | Paper Count |
 | :--- | :--- | :---: |
-| Historical / Foundational | 1951 – 1999 | 338 |
-| Statistical MT & Early Neural | 2000 – 2016 | 450 |
+| Historical / Foundational | 1951 – 1999 | 349 |
+| Statistical MT & Early Neural | 2000 – 2016 | 479 |
 | Transformer & Pretraining Emergence | 2017 – 2019 | 216 |
-| Modern Deep Learning & LLMs | 2020 – 2026 | 988 |
+| Modern Deep Learning & LLMs | 2020 – 2026 | 948 |
 | Undated / Missing | — | 8 |
 
 ### Task Distribution (from Extractions)
 
-| Task | Extraction Count | Share |
+| Task | Experiments | Share of all 1,054 experiments |
 | :--- | :---: | :---: |
-| **Machine Translation** | 618 | 86.4% |
-| **Language Modeling** | 38 | 5.3% |
-| **Question Answering** | 10 | 1.4% |
-| **Cross-Lingual Transfer** | 9 | 1.3% |
-| **Quality Estimation** | 7 | 1.0% |
-| **Text Classification** | 7 | 1.0% |
-| **Natural Language Inference** | 5 | 0.7% |
-| **Text Summarization** | 5 | 0.7% |
-| **Named Entity Recognition** | 4 | 0.6% |
-| **Sentiment Analysis** | 4 | 0.6% |
-| Other Tasks | 8 | 1.1% |
+| **Machine Translation** | 621 | 58.9% |
+| **Language Modeling** | 38 | 3.6% |
+| **Question Answering** | 10 | 0.9% |
+| **Cross-Lingual Transfer** | 9 | 0.9% |
+| **Quality Estimation** | 7 | 0.7% |
+| **Text Classification** | 7 | 0.7% |
+| **Natural Language Inference** | 5 | 0.5% |
+| **Text Summarization** | 5 | 0.5% |
+| **Part-of-Speech Tagging** | 4 | 0.4% |
+| **Sentiment Analysis** | 4 | 0.4% |
+| Other tasks (4 labels) | 8 | 0.8% |
+| *No task* | 336 | 31.9% |
 
 ### Setting Distribution (from Extractions)
 
-| Setting | Extraction Count | Share |
+| Setting | Experiments | Share of all 1,054 experiments |
 | :--- | :---: | :---: |
-| **Low-resource** | 451 | 62.2% |
-| **Multilingual** | 77 | 10.6% |
-| **Supervised** | 42 | 5.8% |
-| **Zero-shot** | 39 | 5.4% |
-| **Cross-lingual** | 29 | 4.0% |
-| **High-resource** | 24 | 3.3% |
-| **Unsupervised** | 21 | 2.9% |
-| **Bilingual** | 19 | 2.6% |
-| **Semi-supervised** | 10 | 1.4% |
-| **In-domain** | 6 | 0.8% |
-| Other Settings | 7 | 1.0% |
+| **Low-resource** | 461 | 43.7% |
+| **Multilingual** | 74 | 7.0% |
+| **Supervised** | 42 | 4.0% |
+| **Zero-shot** | 40 | 3.8% |
+| **Cross-lingual** | 29 | 2.8% |
+| **High-resource** | 24 | 2.3% |
+| **Bilingual** | 19 | 1.8% |
+| **Unsupervised** | 16 | 1.5% |
+| **Semi-supervised** | 10 | 0.9% |
+| **In-domain** | 5 | 0.5% |
+| Other settings (2 labels) | 7 | 0.7% |
+| *No setting* | 327 | 31.0% |
 
 ---
 
