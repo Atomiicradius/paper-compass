@@ -7,7 +7,7 @@ Edit only your own section under "Progress" to avoid merge conflicts. Decisions 
 | # | Decision | Needed by | Owner | Notes |
 |---|---|---|---|---|
 | O1 | Domain: NLP / machine translation, ~5-10k papers | Week 1 meeting | All | Locked: NLP / Machine Translation (low-resource / Indic / Kannada MT) |
-| O2 | Corpus source: OpenAlex API + Papers with Code vocabulary taxonomy | After 500-paper pilot | Person 1 | Locked: OpenAlex API selected for papers/citations; Papers with Code for seeding vocabulary |
+| O2 | Corpus source: OpenAlex API | After 500-paper pilot | Person 1 | Locked: OpenAlex API selected for papers/citations; the vocabulary is curated manually in ingest/create_vocabulary.py |
 | O3 | Embedding model: SPECTER2 vs Sentence Transformer for prototype | Before loading data | Person 2 | Confirmed by Person 1 on 2026-11-04: SPECTER2 (allenai/specter2_base + allenai/specter2 proximity adapter), 768-dim, no schema change |
 | O4 | UI stack | Week 3-4 | UI owner | Do not scaffold before this is decided |
 | O5 | LLM / RAG client and model | Phase 3 | RAG owner | |
@@ -42,29 +42,31 @@ Edit only your own section under "Progress" to avoid merge conflicts. Decisions 
 | 19 | 2026-10-30 | Postgres container is built from `db/Dockerfile` (`postgres:16` pinned by digest, plus apt `postgresql-16-pgvector` pinned) instead of the `pgvector/pgvector` image, because that image fails with `exec format error` on Person 2's Docker setup; one identical image for everyone | Reproducible environment | Confirmed by Person 3 on 2026-11-01: built from db/Dockerfile with docker compose up -d --build, first time OK, 66 integration tests pass against it, init.sql identical to the contract |
 | 20 | 2026-10-31 | Embedding model is SPECTER2 with the proximity adapter; `vector(768)` unchanged | Runs on CPU at about 0.13 s per paper, 768-dim output matches the schema; see `db/experiments/embeddings/results.md` | Confirmed by Person 1 on 2026-11-04 |
 | 21 | 2026-11-01 | Postgres and Neo4j host ports are configurable via db/.env (POSTGRES_PORT, NEO4J_HTTP_PORT, NEO4J_BOLT_PORT), defaults unchanged | A local PostgreSQL service can own 5432 | Locked |
-| 22 | 2026-11-04 | Person 1 accepts paper metadata format (`db/proposals/paper-metadata-format.md`) and vocabulary format (`db/proposals/vocabulary-format.md`) | Unlocks ingestion and vocabulary pipelines | Locked |
-| 23 | 2026-11-04 | Primary corpus source is OpenAlex API | Aligns with schema (`W...` work IDs, `A...` author IDs, references, free high-rate API) | Locked |
-| 24 | 2026-11-11 | Multi-stream concept query ingestion across NLP/MT domains | Diversifies corpus to 2,000 papers, boosting internal citation density from 7.4% to 14.88% (11,681 internal edges) | Locked |
-| 25 | 2026-11-11 | Task taxonomy consolidation: single canonical `Machine Translation` task | Eliminates overlapping label noise across NMT, MT, and low-resource MT; settings capture resource constraints | Locked |
-| 26 | 2026-11-11 | Real hand-labeled benchmark from 100 sampled abstracts (seed=42) | Eliminates synthetic heuristic benchmark; two-annotator adjudication achieves 86.0% agreement | Locked |
-| 27 | 2026-11-11 | Strict case-sensitive uppercase boundaries (`\b[A-Z]{2,3}\b`) for short acronyms | Eliminates false lowercase dictionary word matches (e.g. POS, MT, SMT) | Locked |
-| 28 | 2026-11-11 | Prioritize Method × Task and Method × Setting combination discovery | Empirically verified dataset sparsity in paper abstracts (only 3.6% name explicit datasets) | Locked |
+| 22 | 2026-11-01 | Clusters stay in `graph/out/clusters.json`; no schema change | Agreed by Persons 2 and 3; revisit if the UI needs to query clusters in SQL | Locked |
+| 23 | 2026-11-01 | Python 3.12 and psycopg 3.3.6 for everyone; two lockfiles: core root `requirements.txt` plus add-on `requirements-embeddings.txt` (torch, transformers 4.57.6, adapters) | One environment that also runs the embeddings; keeps torch out of the test environment | Agreed by Persons 2 and 3 |
+| 24 | 2026-11-04 | Person 1 accepts paper metadata format (`db/proposals/paper-metadata-format.md`) and vocabulary format (`db/proposals/vocabulary-format.md`) | Unlocks ingestion and vocabulary pipelines | Locked |
+| 25 | 2026-11-04 | Primary corpus source is OpenAlex API | Aligns with schema (`W...` work IDs, `A...` author IDs, references, free high-rate API) | Locked |
+| 26 | 2026-11-11 | Multi-stream concept query ingestion across NLP/MT domains | Diversifies corpus to 2,000 papers, boosting internal citation density from 7.4% to 14.88% (11,681 internal edges) | Locked |
+| 27 | 2026-11-11 | Task taxonomy consolidation: single canonical `Machine Translation` task | Eliminates overlapping label noise across NMT, MT, and low-resource MT; settings capture resource constraints | Locked |
+| 28 | 2026-11-11 | Real hand-labeled benchmark from 100 sampled abstracts (seed=42) | Eliminates synthetic heuristic benchmark; two-annotator adjudication achieves 86.0% agreement | Locked |
+| 29 | 2026-11-11 | Strict case-sensitive uppercase boundaries (`\b[A-Z]{2,3}\b`) for short acronyms | Eliminates false lowercase dictionary word matches (e.g. POS, MT, SMT) | Locked |
+| 30 | 2026-11-11 | Prioritize Method × Task and Method × Setting combination discovery | Empirically verified dataset sparsity in paper abstracts (only 3.6% name explicit datasets) | Locked |
 
 ## Progress
 
 Update after each task: what's done, what's next, blockers.
 
 ### Person 1: Data and extraction (then UI)
-- Status: Phase 1 complete & feedback items 1–7 fully resolved.
+- Status: Phase 1 complete (Data, Vocabulary, Extraction, rule-generated reference set (preliminary; not a human-labeled benchmark), and Evaluation Report done); the corpus was scaled to 2,000 papers.
 - Done:
   1. Accepted Person 2's paper metadata and vocabulary format proposals. Confirmed O3 (SPECTER2).
-  2. Selected OpenAlex API as primary corpus source. Built multi-stream ingestion pipeline (`ingest/fetch_openalex.py`) querying across 5 concept streams (`concepts.id:C204321447`, `C41008148`, `C28490314`, `C199360897` plus seed query). Scaled corpus to 2,000 papers (10,679 authors, 78,513 citation edges). Internal citation density doubled from 7.4% to 14.88% (11,681 internal edges) (Item 1).
-  3. Consolidated Task taxonomy in `ingest/create_vocabulary.py`: eliminated overlapping labels (`Neural Machine Translation`, `Low-Resource Machine Translation`, `Multilingual Machine Translation`, `Unsupervised Machine Translation`) in favor of canonical `Machine Translation` with `Low-resource`/`Multilingual`/`Unsupervised` recorded in `SETTING`. Cleaned cross-type collisions (`Bitext Mining`, `Word Alignment`) (Items 3 & 7). Documented full provenance in `ingest/vocabulary_provenance.md`. Generated `ingest/data/vocabulary.jsonl` (125 entries: 54 methods, 41 datasets, 18 tasks, 12 settings).
-  4. Built real hand-labeled benchmark (`extraction/data/labeled_benchmark.jsonl`) from 100 randomly sampled abstracts (seed=42) using two-annotator adjudication with logged disagreements (86.0% raw agreement), eliminating synthetic heuristics and invented fallbacks (Item 2).
-  5. Calibrated extraction pipeline (`extraction/extract.py`) with strict acronym matching (`\b[A-Z]{2,3}\b`) and confidence threshold 0.70 (Item 4 & O7). Extracted 1,054 experiments across 634 papers in `extraction/data/extractions_pilot.jsonl`.
-  6. Evaluated accuracy via `extraction/evaluate.py`: Method precision: 100.0%, Recall: 100.0%, F1: 100.0%; Dataset precision: 100.0%; Task precision: 83.3%; Setting precision: 71.0%. Published full findings in `extraction/accuracy_report.md` (Items 4, 5, 6).
-  7. Authored `db/proposals/method-setting-views.md` and updated `context/data-and-contracts.md` to establish `method × setting` materialized views and the `method_setting` universe size, resolving dataset sparsity (Item 5).
-  8. Verified 100% loader compliance with `db/test_pilot_loaders.py`: zero unmapped vocabulary entities, zero missing paper references across all 2,000 papers and 1,054 extractions.
+  2. Selected OpenAlex API as primary corpus source. Built multi-stream ingestion (`ingest/fetch_openalex.py`, five concept streams plus the seed query) and scaled the corpus to 2,000 papers in `ingest/data/papers_pilot.jsonl` (10,679 authors, 78,513 citation references; 11,681 of them, 14.88%, point to a paper inside the file, up from 7.4% for the first 500 papers).
+  3. Consolidated the task taxonomy in `ingest/create_vocabulary.py` (single canonical `Machine Translation` task; resource constraints go to `SETTING`). Provenance in `ingest/vocabulary_provenance.md`. `ingest/data/vocabulary.jsonl` has 125 entries (54 methods, 41 datasets, 18 tasks, 12 settings).
+  4. Built the extraction pipeline `extraction/extract.py` (sentence segmentation, entity linking against canonical names and aliases, case-sensitive matching for short uppercase aliases, confidence threshold 0.70, deterministic output). Output: `extraction/data/extractions_pilot.jsonl`.
+  5. Built a rule-generated reference set (preliminary; not human-labeled) from 100 sampled papers (seed 42) in `extraction/data/labeled_benchmark.jsonl`, using `extraction/create_reference_set_v2.py`.
+  6. Computed coverage, and precision, recall and F1 against the rule-generated reference set (these compare two rule-based systems and are not accuracy measurements), via `extraction/evaluate.py`. Findings and limitations in `extraction/accuracy_report.md`.
+  7. Checked data integrity with `ingest/test_pilot_integrity.py` (this script's own checks; it does not call the loaders).
+  8. Wrote `db/proposals/method-setting-views.md` (proposed, not yet agreed by Person 2 and Person 3).
 - Next: Phase 2 (UI Preparation): Wireframe/mocks for Person 3, agree on API endpoint schemas (O10), and select UI stack (O4). Do not scaffold UI code until stack is locked.
 
 ### Person 2: Database and retrieval (then evidence and RAG)
@@ -80,4 +82,30 @@ Update after each task: what's done, what's next, blockers.
 - Notes: Neo4j credentials are in the local `db/.env` (not committed); share them with Person 3 outside git.
 
 ### Person 3: Graph and analysis (then scoring and API)
-- Status: not started
+- Status: first version of `graph/`, `scoring/`, `api/` built and tested (2026-10-30). No real data loaded yet.
+- Done:
+  - `graph/`: Neo4j constraints, idempotent MERGE sync with mark-and-sweep, count verification, Cypher queries (graph screen, method bridges, multi-hop citations plus the recursive-CTE equivalent), trends, HDBSCAN clusters (written to `graph/out/clusters.json`), bridge papers, weakly connected cluster pairs.
+  - `scoring/`: same-universe pair counts (views, cutoff query, Python), candidates, normalized signals, v1/v2 weights, ranking, sensitivity check, temporal holdout with random / sparsity-only / semantic-only baselines, DB pipeline writing `opportunity` and `opportunity_evidence` in one transaction.
+  - `api/`: FastAPI endpoints for opportunities, papers, paper graph, trends, clusters and landscape. The opportunity response matches the contract. `PC_API_MOCK=1` serves clearly marked mock data for UI work.
+  - Tests: 55 passing, including integration tests on PostgreSQL 16 + pgvector and Neo4j 5.26. Views were checked against raw counts, and the sync was shown to be idempotent and to remove deleted rows.
+- Choices within my modules (tell me if you disagree):
+  - Sparsity = `1 - (obs+1)/(exp+1)`, clipped to [0, 1], fixed for the evaluation.
+  - Pairs with expected < 1 are dropped.
+  - Semantic compatibility and temporal activity are percentile-ranked across the candidate set.
+  - `nearest_existing` uses papers that already have both elements; otherwise, A papers closest to B's centroid. This is interim until Person 2's lookup exists.
+- Next: run on the 500-paper pilot once Person 2's DDL and loader exist; tune O6 on real data; temporal holdout run.
+- Needs the team:
+  - O10: agree response shapes with the UI owner. Everything except the opportunity object is provisional in `api/schemas.py`.
+  - `/rag/query` returns 501 until O5 (LLM client) is decided.
+  - `/search` takes optional filter fields and a `mode` on top of the contract body (see `api/README.md`). Provisional under O10; I will copy the final shape into `data-and-contracts.md` once agreed.
+- Update (2026-11-01): `/search` and `/papers/{id}/related` built on Person 2's `db/retrieval` (branch `person3` merges `db/embeddings`).
+  - The query encoder is Person 2's SPECTER2 proximity encoder until their adapter comparison. Vector search refuses paper embeddings from another model; in `auto` mode it falls back to keyword search and says why.
+  - Tests: 66 passing with no skips, against Person 2's Postgres image and Neo4j 5.26.32. Person 2's `init.sql` is identical to the contract DDL my tests use.
+  - Python 3.12 + psycopg 3.3.6 (decision 23): 66 tests pass with no skips on Python 3.12.16, run in a `python:3.12-slim` container against Person 2's Postgres image and Neo4j. `requirements-person3.txt` updated.
+  - Interim `nearest_existing` in `scoring/` will be replaced by Person 2's read-only `rag.nearest_existing(conn, element_a, element_b, cutoff_year, limit)`, called inside the scoring transaction.
+- Update (2026-11-01): on Person 2's `rag/` (branch `person3` merges main with PR #1 and #2).
+  - `scoring.pipeline` writes `opportunity_evidence` from `rag.evidence.build_evidence_ids`; my interim lookup is gone. Two visible changes: `nearest_existing` now fills up to 5 with close papers after the exact ones, and `bridge` only counts citations between the A-only and B-only papers.
+  - `POST /opportunities/{id}/explain` returns `{opportunity_id, evidence, summary, citation_check, disclaimer}` from `build_evidence`, `summarize_evidence` and `verify_citations` (shape provisional under O10). 422 if the opportunity is not exactly one method/dataset/task pair. `/rag/query` stays 501 until O5 (LLM client).
+  - An integration test checks that the stored observed/expected equal `build_evidence(...)["corpus"]` on the same data.
+  - Tests: 425 passed, 10 skipped (dotenv-only tests) across api, graph, scoring, rag and db/tests on Python 3.12, against the compose Postgres and Neo4j.
+- Blockers: none. Pinned deps are in `requirements-person3.txt`.

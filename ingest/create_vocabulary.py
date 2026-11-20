@@ -1,4 +1,6 @@
-"""Generate curated controlled vocabulary for NLP / Machine Translation.
+"""Generate the controlled vocabulary for NLP / Machine Translation.
+
+The vocabulary is curated manually in ingest/create_vocabulary.py: the entries and aliases are the lists below.
 
 Conforms strictly to Person 2's loader specifications:
 - db/proposals/vocabulary-format.md

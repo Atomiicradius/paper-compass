@@ -4,6 +4,10 @@ Research Paper Discovery and Exploration System (DBMS course CD252IA, RV College
 
 **Pipeline:** Discover -> Connect -> Map -> Detect -> Score -> Explain. It retrieves papers for a research idea, maps how the surrounding work is connected, and flags potentially underexplored combinations of research elements (methods, tasks, datasets, settings), ranked and backed by evidence. A candidate opportunity is a signal for human review, not proof of a research gap.
 
+## Start here
+
+All project context lives in [`context/`](context/). **Read [`context/AGENTS.md`](context/AGENTS.md) first**; it says which file to read for which task. The table of context files is at the bottom of this page; the data and database setup follows right below.
+
 ---
 
 ## Quickstart: Data & Database Setup
@@ -14,14 +18,14 @@ Research Paper Discovery and Exploration System (DBMS course CD252IA, RV College
 # Ingest pilot corpus from OpenAlex API (~500 papers in Machine Translation / Low-Resource NLP)
 python ingest/fetch_openalex.py --query "machine translation low-resource" --count 500 --out ingest/data/papers_pilot.jsonl
 
-# Generate controlled vocabulary & aliases
+# Write the controlled vocabulary & aliases (curated manually in ingest/create_vocabulary.py)
 python ingest/create_vocabulary.py
 
 # Run extraction to produce experiment tuples (method, dataset, task, setting, confidence, source_sentence)
 python extraction/extract.py --papers ingest/data/papers_pilot.jsonl --vocab ingest/data/vocabulary.jsonl --out extraction/data/extractions_pilot.jsonl
 
-# Verify data integrity and loader compatibility (dry-run)
-python db/test_pilot_loaders.py
+# Check the integrity of the three data files (dry run: it does not call the loaders)
+python ingest/test_pilot_integrity.py
 ```
 
 ### 2. How to Load into PostgreSQL (When Docker is Running)

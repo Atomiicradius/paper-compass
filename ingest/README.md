@@ -87,6 +87,10 @@ python ingest/fetch_openalex.py --count 2000 --out ingest/data/papers_pilot.json
 python db/test_pilot_loaders.py
 ```
 
+## Vocabulary
+
+`ingest/data/vocabulary.jsonl` is written by `ingest/create_vocabulary.py`. The vocabulary is curated manually in ingest/create_vocabulary.py: its entries and aliases are the lists in that file. Format: `db/proposals/vocabulary-format.md`.
+
 ## Schema output
 
 Every line in `papers_pilot.jsonl` is a JSON object with:
