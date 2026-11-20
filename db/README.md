@@ -89,7 +89,7 @@ How the loaders behave:
 - **Idempotent.** Running a load twice changes nothing; the second run reports everything as skipped.
 - **Nothing is invented.** A value outside the vocabulary (or a missing `paper_id`) is not inserted. The row is written to `db/rejects/<kind>-<timestamp>.jsonl` with the original row and a reason. A file is only written when something was rejected. Rejects are ignored by git; delete old ones by hand.
 - Names and aliases match ignoring case and extra whitespace.
-- Authors are matched by `external_id`, or by normalized name when there is none. If the institution differs, the first one is kept and a warning is printed. Citations to papers that are not in the database are skipped and counted; no stub papers are created.
+- Authors are matched by `external_id`, or by normalized name when there is none. If the author's stored institution is empty and a later paper gives one, it is filled in. If both are set and they differ, the first one is kept; the summary shows one line with the number of conflicts plus the first 5 examples, and the full list is written to `db/rejects/institution_conflicts.log` (ignored by git). Citations to papers that are not in the database are skipped and counted; no stub papers are created.
 - Embedding columns are left NULL.
 - Each command prints a summary: rows read, inserted, skipped, rejected, warnings.
 
