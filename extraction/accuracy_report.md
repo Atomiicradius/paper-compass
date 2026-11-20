@@ -28,17 +28,17 @@ This report fulfills the Phase 1 evaluation mandate for Person 1 as specified in
 | :--- | :---: | :---: |
 | **Total Papers Processed** | 2,000 | 100.0% |
 | **Papers with Extracted Experiments** | 634 | 31.7% |
-| **Total Experiment Tuples** | 1,054 | — |
-| **Experiments with `method`** | 1,054 | 100.0% |
-| **Experiments with `task`** | 718 | 68.1% |
-| **Experiments with `setting`** | 727 | 69.0% |
+| **Total Experiment Tuples** | 1,055 | — |
+| **Experiments with `method`** | 1,055 | 100.0% |
+| **Experiments with `task`** | 719 | 68.2% |
+| **Experiments with `setting`** | 728 | 69.0% |
 | **Experiments with `dataset`** | 40 | 3.8% |
 
 ### Key Architectural Observation: Dataset Sparsity in Abstracts (Item 5)
 As observed in the pilot and re-confirmed across 2,000 papers:
-- Only **40 of 1,054 experiment tuples (3.8%)** across 32 distinct papers (17 distinct datasets) explicitly name a recognized benchmark dataset (e.g. WMT, IWSLT, Europarl, SQuAD, GLUE) in their title or abstract.
+- Only **40 of 1,055 experiment tuples (3.8%)** across 32 distinct papers (17 distinct datasets) explicitly name a recognized benchmark dataset (e.g. WMT, IWSLT, Europarl, SQuAD, GLUE) in their title or abstract.
 - Authors rarely name benchmark dataset titles in abstracts; instead, they report resource conditions ("tested on 4 low-resource Indian languages", "in zero-shot bilingual settings") or model architectures.
-- **Recommendation:** Combination detection must prioritize **`method × task`** and **`method × setting`** pairs (which have rich representation across 1,054 experiments) before requiring `method × dataset`.
+- **Recommendation:** Combination detection must prioritize **`method × task`** and **`method × setting`** pairs (which have rich representation across 1,055 experiments) before requiring `method × dataset`.
 
 ---
 
@@ -73,33 +73,33 @@ Evaluation conducted using [`extraction/evaluate.py`](evaluate.py) against the r
 
 ## 4. Short-Alias False-Match Analysis (Item 6)
 
-Aliases with length $\le 3$ characters were evaluated to measure the impact of strict uppercase word-boundary matching (`\b[A-Z]{2,3}\b`) versus case-insensitive matching:
+Aliases with length $\le 3$ characters were counted over the title and abstract of all 2,000 papers, with case-insensitive matching and with case-sensitive whole-word matching (`` + the uppercase alias + ``). The counts were recomputed by code on 2026-11-20; the earlier version of this table could not be reproduced. A non-uppercase occurrence (for example "pos", "Mt" or "qa") is what case-sensitive matching removes.
 
-| Alias | Target Entity | Case-Insensitive Hits | Case-Sensitive Hits (`\b[A-Z]\b`) | False Lowercase Hits Eliminated |
-| :--- | :--- | :---: | :---: | :---: |
-| `KD` | Knowledge Distillation | 6 | 6 | 0 |
-| `BT` | Back-translation | 18 | 18 | 0 |
-| `BPE` | Byte-Pair Encoding | 16 | 16 | 0 |
-| `SPM` | SentencePiece | 0 | 0 | 0 |
-| `MTL` | Multi-Task Learning | 7 | 7 | 0 |
-| `MLM` | Masked Language Modeling | 1 | 1 | 0 |
-| `CLM` | Causal Language Modeling | 1 | 1 | 0 |
-| `RNN` | Recurrent Neural Network | 4 | 4 | 0 |
-| `GRU` | Gated Recurrent Unit | 6 | 6 | 0 |
-| `SMT` | Statistical Machine Translation | 59 | 56 | **3** (e.g. typos/OCR) |
-| `SWA` | Weight Averaging | 0 | 0 | 0 |
-| `MRT` | Minimum Risk Training | 0 | 0 | 0 |
-| `XLM` | Cross-Lingual LM Pretraining | 4 | 4 | 0 |
-| `MT` | Machine Translation | 332 | 329 | **3** (e.g. metric suffixes) |
-| `NMT` | Neural Machine Translation | 432 | 432 | 0 |
-| `MMT` | Multilingual Machine Translation | 5 | 5 | 0 |
-| `QE` | Quality Estimation | 33 | 33 | 0 |
-| `APE` | Automatic Post-Editing | 0 | 0 | 0 |
-| `LM` | Language Modeling | 6 | 6 | 0 |
-| `NER` | Named Entity Recognition | 2 | 2 | 0 |
-| `POS` | Part-of-Speech Tagging | 16 | 16 | 0 |
-| `QA` | Question Answering | 0 | 0 | 0 |
-| `NLI` | Natural Language Inference | 0 | 0 | 0 |
+| Alias | Target Entity | Papers (case-insensitive) | Papers (case-sensitive) | Occurrences (case-insensitive) | Occurrences (case-sensitive) | Non-uppercase occurrences removed |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| `KD` | Knowledge Distillation (method) | 5 | 5 | 10 | 10 | 0 |
+| `BT` | Back-translation (method) | 6 | 6 | 18 | 18 | 0 |
+| `BPE` | Byte-Pair Encoding (method) | 11 | 11 | 16 | 16 | 0 |
+| `SPM` | SentencePiece (method) | 0 | 0 | 0 | 0 | 0 |
+| `MTL` | Multi-Task Learning (method) | 2 | 2 | 7 | 7 | 0 |
+| `MLM` | Masked Language Modeling (method) | 11 | 10 | 14 | 13 | 1 |
+| `CLM` | Causal Language Modeling (method) | 1 | 1 | 1 | 1 | 0 |
+| `RNN` | Recurrent Neural Network (method) | 15 | 14 | 25 | 24 | 1 |
+| `GRU` | Gated Recurrent Unit (method) | 6 | 6 | 9 | 9 | 0 |
+| `SMT` | Statistical Machine Translation (method) | 34 | 34 | 64 | 61 | 3 |
+| `SWA` | Weight Averaging (method) | 0 | 0 | 0 | 0 | 0 |
+| `MRT` | Minimum Risk Training (method) | 0 | 0 | 0 | 0 | 0 |
+| `XLM` | Cross-Lingual Language Model Pretraining (method) | 8 | 8 | 9 | 9 | 0 |
+| `MT` | Machine Translation (task) | 131 | 130 | 351 | 345 | 6 |
+| `NMT` | Machine Translation (task) | 175 | 175 | 456 | 456 | 0 |
+| `MMT` | Machine Translation (task) | 2 | 2 | 5 | 5 | 0 |
+| `QE` | Quality Estimation (task) | 5 | 5 | 33 | 33 | 0 |
+| `APE` | Automatic Post-Editing (task) | 1 | 1 | 3 | 3 | 0 |
+| `LM` | Language Modeling (task) | 14 | 13 | 38 | 37 | 1 |
+| `NER` | Named Entity Recognition (task) | 10 | 10 | 36 | 36 | 0 |
+| `POS` | Part-of-Speech Tagging (task) | 8 | 8 | 21 | 21 | 0 |
+| `QA` | Question Answering (task) | 20 | 19 | 41 | 40 | 1 |
+| `NLI` | Natural Language Inference (task) | 2 | 2 | 5 | 5 | 0 |
 
 ---
 
@@ -109,16 +109,16 @@ All generated files were checked by [`ingest/test_pilot_integrity.py`](../ingest
 
 * `papers_pilot.jsonl`: **2,000 papers, 10,679 authors, 78,513 citation references** (0 schema errors).
 * `vocabulary.jsonl`: **125 entities** across 4 types with alias mappings (0 duplicate keys).
-* `extractions_pilot.jsonl`: **1,054 experiment records** (0 unmapped vocabulary entities, 0 missing paper references).
+* `extractions_pilot.jsonl`: **1,055 experiment records** (0 unmapped vocabulary entities, 0 missing paper references).
 
 ---
 
 ## 6. Limitations
 
 1. **The reference set is rule-generated (preliminary; not human-labeled).** `extraction/create_reference_set_v2.py` (earlier `generate_real_benchmark.py`) labels 100 sampled papers with keyword and regex rules; it has 79 rows from 60 papers, and 40 sampled papers produced no row. Its method labels use the same vocabulary and a similar regex style as `extraction/extract.py`, so method precision and recall (100%) are circular. The precision, recall and F1 in section 3 compare two rule-based systems and are not accuracy measurements. The earlier version of the reference set, for the first 100 papers (`create_labeled_benchmark.py`), is replaced by this one.
-2. **The committed extractions are an old, non-reproducible snapshot.** Before the determinism fix, the 2,000-paper file produced a different output for each of 12 `PYTHONHASHSEED` values (1,049 to 1,060 rows), and the committed `extraction/data/extractions_pilot.jsonl` (1,054 rows) matched none of them. `extract.py` is now deterministic (ties are broken by an explicit order, and a test checks that runs with different hash seeds write byte-identical output), but the committed file has **not** been regenerated yet: the figures in this report describe that old snapshot.
+2. **The extractions were regenerated with the deterministic extractor.** The earlier committed `extraction/data/extractions_pilot.jsonl` (1,054 rows) was not reproduced by any of 12 `PYTHONHASHSEED` values: the old extractor gave 12 different outputs with 1,049 to 1,060 rows. The file was regenerated with the deterministic `extract.py` and the vocabulary in which `SMT` is no longer a task alias: it now has **1,055 rows** (old: 1,054) and the 12 seeds give one identical output. All figures in this report describe the regenerated file.
 3. **Confidence values are rule scores, not probabilities.** They lie between 0.7 and 0.95 and are not calibrated probabilities.
-4. **The corpus is still skewed toward one theme.** 494 of 2,000 titles still contain "low-resource" or "low resource" (24.7%). Machine Translation covers 621 of 1,054 experiments (58.9%), and 336 (31.9%) have no task. The setting `Low-resource` is on 461 experiments (43.7%). The label distributions describe this corpus, not machine translation in general.
-5. **Dataset coverage is very low.** 40 of 1,054 experiments name a dataset (3.8%), covering 17 distinct datasets in 32 papers. Anything computed on datasets rests on very few experiments.
+4. **The corpus is still skewed toward one theme.** 494 of 2,000 titles still contain "low-resource" or "low resource" (24.7%). Machine Translation covers 621 of 1,055 experiments (58.9%), and 336 (31.8%) have no task. The setting `Low-resource` is on 462 experiments (43.8%). The label distributions describe this corpus, not machine translation in general.
+5. **Dataset coverage is very low.** 40 of 1,055 experiments name a dataset (3.8%), covering 17 distinct datasets in 32 papers. Anything computed on datasets rests on very few experiments.
 6. **The citation graph inside the corpus is still sparse.** The 2,000 papers list 78,513 references, of which 11,681 (14.88%) point to papers in the corpus.
 7. **The vocabulary is curated manually** in `ingest/create_vocabulary.py`. The extractor only finds terms that are in it.

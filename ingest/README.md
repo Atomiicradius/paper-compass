@@ -43,7 +43,7 @@ The 2,000-paper corpus spans foundational NLP (1950s–2000s) to modern transfor
 
 ### Task Distribution (from Extractions)
 
-| Task | Experiments | Share of all 1,054 experiments |
+| Task | Experiments | Share of all 1,055 experiments |
 | :--- | :---: | :---: |
 | **Machine Translation** | 621 | 58.9% |
 | **Language Modeling** | 38 | 3.6% |
@@ -54,24 +54,24 @@ The 2,000-paper corpus spans foundational NLP (1950s–2000s) to modern transfor
 | **Natural Language Inference** | 5 | 0.5% |
 | **Text Summarization** | 5 | 0.5% |
 | **Part-of-Speech Tagging** | 4 | 0.4% |
-| **Sentiment Analysis** | 4 | 0.4% |
-| Other tasks (4 labels) | 8 | 0.8% |
-| *No task* | 336 | 31.9% |
+| **Named Entity Recognition** | 4 | 0.4% |
+| Other tasks (4 labels) | 9 | 0.9% |
+| *No task* | 336 | 31.8% |
 
 ### Setting Distribution (from Extractions)
 
-| Setting | Experiments | Share of all 1,054 experiments |
+| Setting | Experiments | Share of all 1,055 experiments |
 | :--- | :---: | :---: |
-| **Low-resource** | 461 | 43.7% |
+| **Low-resource** | 462 | 43.8% |
 | **Multilingual** | 74 | 7.0% |
 | **Supervised** | 42 | 4.0% |
-| **Zero-shot** | 40 | 3.8% |
-| **Cross-lingual** | 29 | 2.8% |
+| **Zero-shot** | 39 | 3.7% |
+| **Cross-lingual** | 29 | 2.7% |
 | **High-resource** | 24 | 2.3% |
 | **Bilingual** | 19 | 1.8% |
 | **Unsupervised** | 16 | 1.5% |
 | **Semi-supervised** | 10 | 0.9% |
-| **In-domain** | 5 | 0.5% |
+| **In-domain** | 6 | 0.6% |
 | Other settings (2 labels) | 7 | 0.7% |
 | *No setting* | 327 | 31.0% |
 

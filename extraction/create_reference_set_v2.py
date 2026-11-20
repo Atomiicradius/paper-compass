@@ -169,10 +169,10 @@ def build_reference_set():
             disagreements.append({
                 "paper_id": pid,
                 "title": title,
-                "diff_task": list(diff_task),
-                "diff_setting": list(diff_setting),
-                "diff_method": list(diff_method),
-                "diff_dataset": list(diff_dataset)
+                "diff_task": sorted(diff_task),
+                "diff_setting": sorted(diff_setting),
+                "diff_method": sorted(diff_method),
+                "diff_dataset": sorted(diff_dataset)
             })
 
         # Combining the two rule sets: the conservative result if it is not empty, else the first inclusive one.
@@ -180,7 +180,7 @@ def build_reference_set():
         consensus_tasks = a1_tasks if a1_tasks else a2_tasks[:1]
         consensus_settings = a1_settings if a1_settings else a2_settings[:1]
         consensus_datasets = a1_datasets if a1_datasets else a2_datasets[:1]
-        consensus_methods = list(set(a1_methods) | set(a2_methods))
+        consensus_methods = sorted(set(a1_methods) | set(a2_methods))  # sorted: set order changes between runs
 
         # A paper with no task and no method under the combined rules gets no row (it is dropped)
         if not consensus_tasks and not consensus_methods:
