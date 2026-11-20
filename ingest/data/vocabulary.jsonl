@@ -93,7 +93,7 @@
 {"type": "dataset", "canonical_name": "GLUE", "aliases": ["GLUE benchmark"]}
 {"type": "dataset", "canonical_name": "SuperGLUE", "aliases": ["SuperGLUE benchmark"]}
 {"type": "dataset", "canonical_name": "IndicGLUE", "aliases": ["IndicGLUE benchmark"]}
-{"type": "task", "canonical_name": "Machine Translation", "aliases": ["MT", "NMT", "Neural Machine Translation", "Statistical Machine Translation", "Multilingual Machine Translation", "MMT", "automatic translation"]}
+{"type": "task", "canonical_name": "Machine Translation", "aliases": ["MT", "NMT", "Neural Machine Translation", "Multilingual Machine Translation", "MMT", "automatic translation"]}
 {"type": "task", "canonical_name": "Speech Translation", "aliases": ["spoken language translation", "speech-to-text translation"]}
 {"type": "task", "canonical_name": "Quality Estimation", "aliases": ["translation quality estimation", "QE"]}
 {"type": "task", "canonical_name": "Automatic Post-Editing", "aliases": ["APE", "post-editing"]}

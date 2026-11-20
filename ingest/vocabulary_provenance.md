@@ -88,9 +88,11 @@ To avoid semantic overlap and label noise (e.g., distinguishing between "Neural 
 - **Linguistic Scopes:** `Multilingual`, `Bilingual`, `Cross-lingual`.
 - **Domain Scopes:** `In-domain`, `Out-of-domain`.
 
-## Note on `SMT` (2026-11-20)
+## Note on `SMT` and "Statistical Machine Translation" (2026-11-20)
 
 `SMT` was an alias of both the method "Statistical Machine Translation" and the task "Machine Translation". It is
-a method, so it was removed from the task entry; it stays a method alias. The task entry still lists the full
-phrase "Statistical Machine Translation" as an alias, which is also the name of that method; the aliases `MT`,
-`NMT` and `MMT` are fine as aliases of the task "Machine Translation".
+a method, so it was removed from the task entry and stays a method alias. The full phrase "Statistical Machine
+Translation" was also listed as an alias of the task "Machine Translation", although it is the name of that method;
+it was removed from the task entry too. The aliases `MT`, `NMT` and `MMT` stay as aliases of the task "Machine
+Translation". Re-running `extraction/extract.py` after both removals gives the same 1,055 rows as before, so no
+extraction numbers changed.

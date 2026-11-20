@@ -117,7 +117,7 @@ DATASETS = [
 # Unified taxonomy: Machine Translation is the canonical task.
 # Sub-types like low-resource/multilingual are Settings; neural/statistical are Methods.
 TASKS = [
-    ("Machine Translation", ["MT", "NMT", "Neural Machine Translation", "Statistical Machine Translation", "Multilingual Machine Translation", "MMT", "automatic translation"]),
+    ("Machine Translation", ["MT", "NMT", "Neural Machine Translation", "Multilingual Machine Translation", "MMT", "automatic translation"]),
     ("Speech Translation", ["spoken language translation", "speech-to-text translation"]),
     ("Quality Estimation", ["translation quality estimation", "QE"]),
     ("Automatic Post-Editing", ["APE", "post-editing"]),
