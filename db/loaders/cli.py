@@ -58,7 +58,17 @@ def run(conn, args):
         show(refresh_views(conn))
 
 
+def use_utf8_output():
+    """Print UTF-8 whatever the console code page is. A redirected stdout on Windows is cp1252, which cannot encode
+    many author names (for example U+2010), and the CLI used to crash while printing the summary after the data
+    was stored. Characters that still cannot be written are replaced instead of raising."""
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
+
 def main(argv=None):
+    use_utf8_output()
     args = build_parser().parse_args(argv)
     try:
         with connect(args.dbname) as conn:

@@ -476,3 +476,31 @@ def test_institution_reload_is_idempotent(conn, rejects, tmp_path):
     assert second.details["author_institutions_filled"] == 0
     assert second.details["institution_conflicts"] == first.details["institution_conflicts"] == 1, "same conflict, none new"
     assert (rejects / "institution_conflicts.log").read_text(encoding="utf-8") == log_before
+
+
+def test_cli_does_not_crash_when_stdout_is_a_cp1252_pipe_and_a_name_is_not_ascii(test_db_conninfo, conn, tmp_path):
+    """Windows redirects stdout with the cp1252 code page. A character it cannot encode (here U+2010 and a Greek
+    letter, in an author name that appears in an institution conflict) used to end the CLI with
+    UnicodeEncodeError after the data was already stored."""
+    import os
+    import subprocess
+    import sys
+
+    import psycopg
+    dbname = psycopg.conninfo.conninfo_to_dict(test_db_conninfo)["dbname"]
+    name = "Peng‐Jen Σtella"
+    path = write_jsonl(tmp_path / "p.jsonl", [
+        {"paper_id": "MOCK_1", "title": "MOCK: one", "references": [], "authors": [
+            {"name": name, "external_id": "MOCK_X", "institution": "First University", "order": 1}]},
+        {"paper_id": "MOCK_2", "title": "MOCK: two", "references": [], "authors": [
+            {"name": name, "external_id": "MOCK_X", "institution": "Second University", "order": 1}]},
+    ])
+    env = {**os.environ, "PYTHONIOENCODING": "cp1252", "PYTHONUTF8": "0"}  # what a redirected Windows console gives
+    done = subprocess.run([sys.executable, "-m", "loaders", "load-papers", str(path), "--dbname", dbname,
+                           "--reject-dir", str(tmp_path / "rejects")],
+                          cwd=DB_DIR, env=env, capture_output=True)  # capture_output: stdout and stderr are pipes
+    assert done.returncode == 0, done.stderr.decode("utf-8", "replace")
+    out = done.stdout.decode("utf-8")
+    assert "inserted:   2" in out
+    assert "Peng‐Jen Σtella" in out, "the name must be printed, not replaced"
+    assert count(conn, "paper") == 2
