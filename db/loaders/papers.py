@@ -1,7 +1,10 @@
 """load-papers: paper metadata with venues, institutions, authors and citations."""
+from pathlib import Path
+
 from .common import REJECT_DIR, Summary, clean, normalize, read_jsonl, reject
 
 VENUE_TYPES = ("conference", "journal", "workshop", "preprint", "other")
+CONFLICT_EXAMPLES = 5  # conflicts shown in the summary; all of them go to institution_conflicts.log
 
 
 def check_paper(row):
@@ -40,6 +43,7 @@ class AuthorBook:
 
     def __init__(self, conn, summary):
         self.conn, self.summary = conn, summary
+        self.conflicts = []
         self.institutions = {n: i for i, n in conn.execute("SELECT institution_id, name FROM institution")}
         self.institution_names = {i: n for n, i in self.institutions.items()}
         self.by_external, self.by_name = {}, {}
@@ -69,11 +73,17 @@ class AuthorBook:
         if found:
             author_id, stored_inst = found
             stored = self.institution_names.get(stored_inst)
-            if institution and (stored is None or normalize(stored) != normalize(institution)):
-                who = external_id or name
-                self.summary.warn(
-                    f"author {name!r} ({who}) in {paper_id}: institution {institution!r} differs from the stored "
-                    f"{stored!r}; keeping the first value")
+            if institution and stored is None:
+                # The first paper gave no institution, this one does: fill it in (only a NULL is ever replaced).
+                inst_id = self.institution_id(institution)
+                self.conn.execute("UPDATE author SET institution_id = %s WHERE author_id = %s AND institution_id IS NULL",
+                                  (inst_id, author_id))
+                (self.by_external if external_id else self.by_name)[external_id or normalize(name)] = (author_id, inst_id)
+                self.summary.add("author_institutions_filled")
+            elif institution and normalize(stored) != normalize(institution):
+                # Both are set and they differ: the first value stays. Collected, reported once at the end.
+                self.conflicts.append(f"author {name!r} ({external_id or name}) in {paper_id}: institution "
+                                      f"{institution!r} differs from the stored {stored!r}; kept the first value")
             return author_id
 
         inst_id = self.institution_id(institution) if institution else None
@@ -119,11 +129,27 @@ def insert_citations(conn, pairs, summary):
     summary.details["cited_ids_not_in_corpus"] = sorted(missing)
 
 
+def report_institution_conflicts(conflicts, summary, reject_dir):
+    """One summary line and the first few examples; the whole list goes to <reject_dir>/institution_conflicts.log."""
+    if not conflicts:
+        return
+    log = Path(reject_dir) / "institution_conflicts.log"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    with open(log, "w", encoding="utf-8", newline="\n") as f:
+        f.writelines(c + "\n" for c in conflicts)
+    summary.details["institution_conflicts"] = len(conflicts)
+    summary.warn(f"{len(conflicts)} author institution conflicts (the first value was kept); first {CONFLICT_EXAMPLES} "
+                 f"below, all in {log}")
+    for example in conflicts[:CONFLICT_EXAMPLES]:
+        summary.warn(example)
+
+
 def load_papers(conn, path, reject_dir=REJECT_DIR):
     summary = Summary("load-papers", str(path))
     rows, rejects = read_jsonl(path)
     summary.read = len(rows) + len(rejects)
-    for key in ("venues_inserted", "institutions_inserted", "authors_inserted", "author_links_inserted"):
+    for key in ("venues_inserted", "institutions_inserted", "authors_inserted", "author_links_inserted",
+                "author_institutions_filled"):
         summary.details[key] = 0
 
     with conn.transaction():
@@ -172,4 +198,5 @@ def load_papers(conn, path, reject_dir=REJECT_DIR):
         # Citations go last so a paper can cite one that appears later in the same file.
         insert_citations(conn, citation_pairs, summary)
 
+    report_institution_conflicts(book.conflicts, summary, reject_dir)
     return summary.finish(rejects, "papers", reject_dir)

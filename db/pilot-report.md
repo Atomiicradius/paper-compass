@@ -1,0 +1,253 @@
+# Pilot report: 2,000-paper corpus loaded and embedded (database `pc_pilot`)
+
+Branch `db/pilot`, 2026-11-20. Every number below comes from a run on that date (output kept in the working notes of the run); nothing is estimated.
+
+## 1. Load (Part 3)
+
+`python -m loaders load-all --refresh` on `ingest/data/vocabulary.jsonl`, `ingest/data/papers_pilot.jsonl` and `extraction/data/extractions_pilot.jsonl` into a new database `pc_pilot` created from `db/init.sql`.
+
+| Item | Count |
+| --- | ---: |
+| Vocabulary entries inserted | 125 (aliases inserted: 224) |
+| Paper rows read | 2000 |
+| Papers inserted | 1999 |
+| Papers rejected | 1 |
+| Venues inserted | 535 |
+| Institutions inserted | 993 |
+| Authors inserted | 8157 |
+| Paper-author links inserted | 10662 |
+| Author institutions filled in later (NULL, then a value) | 223 |
+| Author institution conflicts (first value kept; full list in `db/rejects/institution_conflicts.log`, not committed) | 616 |
+| Citations stored | 11542 |
+| Citations skipped (cited paper not in the corpus) | 66949 |
+| Experiments inserted | 1055 of 1055 read (0 rejected) |
+| Method / dataset / task / setting entities | 54 / 41 / 18 / 12 |
+| Authors without an institution (query on `pc_pilot`) | 2,396 of 8,157 |
+
+`mv_universe_size` (distinct papers per pair type, after `--refresh`):
+
+| pair_type | n_papers |
+| --- | ---: |
+| dataset_task | 27 |
+| method_dataset | 32 |
+| method_task | 399 |
+
+Other warnings in the papers summary: 15 authors listed twice on one paper (second entry ignored).
+
+**Rejected paper.** `W1522301498` (Kingma & Ba, "Adam") is rejected because its DOI `10.48550/arxiv.1412.6980` already belongs to `W2964121744`. They are two OpenAlex records for the same paper.
+
+**Idempotence.** A second `load-all --refresh` inserted 0 rows in every table (papers skipped 1,999, citations already present 11,542, experiments skipped 1,055); the row counts of paper, author, institution, venue, paper_author, citation, experiment, method_alias and task_alias were identical before and after, and the institution conflict list (616) was identical, with no new conflicts.
+
+## 2. Embedding (Part 4)
+
+`python -m embeddings embed-papers --dbname pc_pilot` with the existing code and the pinned environment (`db/embeddings/requirements-embeddings.txt`; torch 2.15.0, transformers 4.57.6, adapters 1.3.0). Model `allenai/specter2_base@3447645e...` with the proximity adapter `allenai/specter2@20815596...`, text = title + [SEP] + abstract, `vector(768)`.
+
+| Item | Value |
+| --- | --- |
+| Device | CPU (torch 2.15.0+cpu, CUDA not available; 14 torch threads on 20 logical CPUs) |
+| Batch size | 1 (the existing pipeline encodes one paper per call; chunks of papers share one database transaction) |
+| Total wall time | 344 s (start of the command to its end, including model load) |
+| Seconds per paper (encoding only, as reported by the CLI) | 0.124 |
+| Papers with an embedding | 1,999 of 1,999 |
+| NULL embeddings / zero-norm embeddings | 0 / 0 |
+| Embedding norm (min, max) | 21.280, 22.524 |
+| Dimensions (min, max) | 768, 768 |
+| `embedding_model` values | 1 distinct value (the string above) |
+| HNSW index | `idx_paper_embedding_hnsw` on `paper` using `hnsw (embedding vector_cosine_ops)`; pgvector 0.8.7 |
+| `hnsw.iterative_scan` in the search session | `strict_order` (`SHOW` inside the search transaction) |
+
+The log prints "There are adapters available but none are activated for the forward pass" once at start. To check that the adapter really is active, the stored vectors of the 5 pilot papers that also exist in the earlier experiment (`db/experiments/embeddings`, made with the adapter verified active by `verify_adapter.py`) were compared with it: cosine 1.000000 for all 5 (min and mean). The model cache stays in the ignored `data/` folder.
+
+## 3. Sample searches (Part 5)
+
+Run by `db/retrieval/pilot_queries.py`. Each query text is encoded the same way a paper is (proximity adapter, no abstract); there is no separate query encoder yet. Vector search = `search(top_k=5)`; keyword search = `keyword_search(top_k=5)` (PostgreSQL full text, all query words must match). Times are the median of 5 runs after one warm-up.
+
+| Query | Vector ms | Keyword ms | Shared top-5 |
+| --- | ---: | ---: | ---: |
+| low-resource neural machine translation | 47.7 | 245.4 | 1 of 5 (keyword returned 5) |
+| back-translation for low-resource languages | 47.9 | 225.4 | 0 of 5 (keyword returned 5) |
+| multilingual pretraining for translation | 47.7 | 220.4 | 0 of 5 (keyword returned 5) |
+| zero-shot translation | 47.8 | 213.2 | 3 of 5 (keyword returned 5) |
+| unsupervised machine translation | 47.7 | 218.4 | 1 of 5 (keyword returned 5) |
+| quality estimation for machine translation | 47.9 | 216.7 | 0 of 5 (keyword returned 5) |
+| adam optimizer | 47.7 | 209.5 | 2 of 5 (keyword returned 4) |
+| speech translation | 48.0 | 213.0 | 0 of 5 (keyword returned 5) |
+
+Top 5 by vector search (similarity = 1 - cosine distance):
+
+**low-resource neural machine translation**
+
+1. Low-Resource Neural Machine Translation: A Systematic Literature Review (2023), 0.975
+2. Low-resource Neural Machine Translation: Methods and Trends (2022), 0.973
+3. A Survey on Low-Resource Neural Machine Translation (2021), 0.972
+4. Neural machine translation for low-resource languages (2017), 0.970
+5. Neural Machine Translation for Low-resource Languages: A Survey (2022), 0.967
+
+**back-translation for low-resource languages**
+
+1. Survey of Low-Resource Machine Translation (2022), 0.953
+2. Survey of Low-Resource Machine Translation (2021), 0.953
+3. Survey of Low-Resource Machine Translation (2022), 0.952
+4. Neural Machine Translation for Low-Resource Languages: Challenges and Solutions (2018), 0.947
+5. Creating a High-Quality Machine Translation System for a Low-Resource Language: Yiddish (2009), 0.946
+
+**multilingual pretraining for translation**
+
+1. Cross-lingual Language Model Pretraining (2019), 0.956
+2. Multilingual Neural Machine Translation for Low Resource Languages (2017), 0.956
+3. Improving Neural Machine Translation Models with Monolingual Data (2016), 0.953
+4. Exploiting Multilingualism and Transfer Learning for Low Resource Machine Translation (2018), 0.952
+5. Google's Neural Machine Translation System: Bridging the Gap between Human and Machine Translat (2016), 0.951
+
+**zero-shot translation**
+
+1. Google’s Multilingual Neural Machine Translation System: Enabling Zero-Shot Translation (2017), 0.946
+2. Multilingual Neural Machine Translation for Low-Resource Languages (2018), 0.933
+3. A Comparison of Different NMT Approaches to Low-Resource Dutch-Albanian Machine Translation (2021), 0.932
+4. Improving Zero-shot Multilingual Neural Machine Translation for Low-Resource Languages (2021), 0.932
+5. Back-Translation Still Matters: Leveraging Monolingual Data for Low-Resource Machine Translatio (2026), 0.932
+
+**unsupervised machine translation**
+
+1. A Simplified Training Pipeline for Low-Resource and Unsupervised Machine Translation (2023), 0.945
+2. Unsupervised Source Hierarchies for Low-Resource Neural Machine Translation (2018), 0.941
+3. Neural Machine Translation for Low-Resource Languages: Challenges and Solutions (2018), 0.938
+4. Neural Machine Translation for Low-Resource Languages from a Chinese-centric Perspective: A Sur (2024), 0.937
+5. BLEU (2001), 0.937
+
+**quality estimation for machine translation**
+
+1. BLEU (2001), 0.961
+2. Survey of Low-Resource Machine Translation (2022), 0.954
+3. Survey of Low-Resource Machine Translation (2022), 0.954
+4. Survey of Low-Resource Machine Translation (2021), 0.954
+5. LIFT: A Quality-Aware Data Selection Framework for Low-Resource Machine Translation (2026), 0.947
+
+**adam optimizer**
+
+1. Adam: A Method for Stochastic Optimization (2015), 0.955
+2. Decoupled Weight Decay Regularization (2017), 0.932
+3. The Elements of Statistical Learning: Data Mining, Inference, and Prediction (2013), 0.927
+4. Neural Networks: A Comprehensive Foundation (1998), 0.927
+5. Statistical Learning Theory (1999), 0.925
+
+**speech translation**
+
+1. Speech Acts (1969), 0.930
+2. Moses (2007), 0.930
+3. Tacotron: Towards End-to-End Speech Synthesis (2017), 0.929
+4. Neural Machine Translation for Low-Resource Languages: Challenges and Solutions (2018), 0.928
+5. Machine Translation of Low-Resource Spoken Dialects: Strategies for Normalizing Swiss German (2018), 0.927
+
+Top 5 by keyword search (ts_rank score):
+
+**low-resource neural machine translation**
+
+1. Based on Gated Dynamic Encoding Optimization, the LGE-Transformer Method for Low-Resource Neura (2024), 1.000
+2. Low-Resource Neural Machine Translation: A Systematic Literature Review (2023), 1.000
+3. A Joint Back-Translation and Transfer Learning Method for Low-Resource Neural Machine Translati (2020), 0.999
+4. MTNLP-IIITH: Machine Translation for Low-Resource Indic Languages (2024), 0.999
+5. Review of Research on Knowledge Distillation Methods for Low-Resource Machine Translation (2026), 0.999
+
+**back-translation for low-resource languages**
+
+1. A Joint Back-Translation and Transfer Learning Method for Low-Resource Neural Machine Translati (2020), 1.000
+2. Evaluation of the effect of back-translation direction on machine translation quality for low-r (2025), 0.999
+3. Back-Translation Still Matters: Leveraging Monolingual Data for Low-Resource Machine Translatio (2026), 0.998
+4. Revisiting Back-Translation for Low-Resource Machine Translation Between Chinese and Vietnamese (2020), 0.997
+5. Improving Low Resource Machine Translation via Round-Trip Reinforcement Learning (2026), 0.996
+
+**multilingual pretraining for translation**
+
+1. Low-Resource Machine Translation Systems for Indic Languages (2023), 0.668
+2. IOL Research Machine Translation Systems for WMT23 Low-Resource Indic Language Translation Shar (2023), 0.628
+3. A Data-Efficient Multilingual Neural Machine Translation Model for Low-Resource Indic Languages (2026), 0.406
+4. Disentangling Pretrained Representation to Leverage Low-Resource Languages in Multilingual Mach (2024), 0.401
+5. Disentangling Pretrained Representation to Incorporate Unseen Low-Resource Languages in Multili (2024), 0.384
+
+**zero-shot translation**
+
+1. Improving Zero-shot Multilingual Neural Machine Translation for Low-Resource Languages (2021), 0.980
+2. Scaling Zero-shot Machine Translation on Low-Resource Languages with Linguistic Grammars (2026), 0.844
+3. Google’s Multilingual Neural Machine Translation System: Enabling Zero-Shot Translation (2017), 0.839
+4. Multilingual Neural Machine Translation for Low-Resource Languages (2018), 0.718
+5. Fully Attentional Network for Low-Resource Academic Machine Translation and Post Editing (2022), 0.560
+
+**unsupervised machine translation**
+
+1. Machine Translation and Transliteration Involving Related and Low-resource Languages (2021), 0.745
+2. Unsupervised Multimodal Machine Translation for Low-resource Distant Language Pairs (2024), 0.700
+3. Visual Pivoting Unsupervised Multimodal Machine Translation in Low-Resource Distant Language Pa (2024), 0.564
+4. Unsupervised Source Hierarchies for Low-Resource Neural Machine Translation (2018), 0.555
+5. Cross-lingual Language Model Pretraining (2019), 0.519
+
+**quality estimation for machine translation**
+
+1. Ensemble-based Transfer Learning for Low-resource Machine Translation Quality Estimation (2021), 0.957
+2. Domain-Specific Quality Estimation for Machine Translation in Low-Resource Scenarios (2026), 0.861
+3. Domain-Specific Quality Estimation for Machine Translation in Low-Resource Scenarios (2026), 0.861
+4. Filtered Pseudo-parallel Corpus Improves Low-resource Neural Machine Translation (2019), 0.808
+5. Quality Estimation for Machine Translation in Low-Resource Settings (2026), 0.781
+
+**adam optimizer**
+
+1. Adam: A Method for Stochastic Optimization (2015), 0.308
+2. An explorative Investigation into Neural Machine Translation: the Case of Low-Resource Language (2020), 0.099
+3. Transformer-Based Optimization for Text-to-Gloss in Low-Resource Neural Machine Translation (2025), 0.081
+4. Decoupled Weight Decay Regularization (2017), 0.004
+
+**speech translation**
+
+1. AudioPaLM: A Large Language Model That Can Speak and Listen (2023), 0.441
+2. Advances in natural language processing (2015), 0.338
+3. XLS-R: Self-supervised Cross-lingual Speech Representation Learning at Scale (2022), 0.265
+4. Transformer-Based Optimization for Text-to-Gloss in Low-Resource Neural Machine Translation (2025), 0.183
+5. A Hybrid mT5-Based Machine Translation System for Kanuri–English Educational Translation in a L (2026), 0.181
+
+(Titles are cut at 95 characters.)
+
+### Results that look off-topic
+
+The counts below are `ILIKE` counts on the title, and on title plus abstract, in `pc_pilot`.
+
+- **quality estimation for machine translation:** the vector top 5 has no quality-estimation paper (BLEU, three records titled "Survey of Low-Resource Machine Translation", and a data-selection paper), while the keyword search finds real ones (e.g. "Ensemble-based Transfer Learning for Low-resource Machine Translation Quality Estimation"). The corpus has 5 titles and 8 title-or-abstract mentions of "quality estimation", so there are papers to find. This is a vector miss. Likely cause (not tested): a short query, encoded without an abstract, lands near the dominant "machine translation, low-resource" region of this corpus.
+- **back-translation for low-resource languages:** none of the vector top 5 is about back-translation (three "Survey of Low-Resource Machine Translation" records, two general low-resource MT papers), while four of the five keyword results are about back-translation (the fifth is about round-trip reinforcement learning). The corpus has 13 titles and 59 title-or-abstract mentions of back-translation. Same likely cause.
+- **speech translation:** the vector top 5 is off-topic ("Speech Acts" from 1969, Moses, Tacotron, two low-resource MT papers). The corpus has 0 titles and 3 title-or-abstract mentions of "speech translation", so there is almost nothing to retrieve; the keyword top 5 (AudioPaLM, XLS-R, ...) are the speech-related papers it has.
+- **unsupervised machine translation:** the first two results are on topic; the fifth is "BLEU" (2001), a metric paper, and results 3 and 4 are general low-resource MT surveys. The corpus has 5 titles matching "unsupervised ... translation".
+- **multilingual pretraining for translation:** looks reasonable (cross-lingual language model pretraining first); the keyword top 5 is weaker here (shared 0 of 5, scores 0.384 to 0.668).
+- **adam optimizer:** the first result is the right paper (W2964121744, the kept Adam record) and the second is AdamW; results 3 to 5 are general machine-learning books. The keyword search returned only 4 rows, and two of them are unrelated low-resource MT papers.
+- **Duplicates:** "Survey of Low-Resource Machine Translation" appears three times (W4283220248, W4225929449, W3198189804) in the top 5 of two queries. These are three records with different DOIs (a journal DOI, an arXiv DOI and a Zenodo DOI), so the loader did not reject them. I did not check whether they are versions of the same survey (see Known limits).
+- **low-resource neural machine translation** looks on topic; **zero-shot translation** is mostly on topic (the first and fourth results name zero-shot translation, the others are multilingual or low-resource MT papers).
+
+### EXPLAIN ANALYZE of a filtered vector query
+
+Query "low-resource neural machine translation", `year >= 2020`, top 5, with `hnsw.ef_search = 100` and `hnsw.iterative_scan = strict_order`:
+
+```
+  Limit  (cost=405.67..437.14 rows=5 width=92) (actual time=0.698..0.805 rows=5 loops=1)
+    Buffers: shared hit=646
+    ->  Index Scan using idx_paper_embedding_hnsw on paper p  (cost=405.67..5628.91 rows=830 width=92) (actual time=0.697..0.802 rows=5 loops=1)
+          Order By: (embedding <=> '[... 768 numbers ...]'::vector)
+          Filter: ((embedding IS NOT NULL) AND (year >= '2020'::smallint))
+          Rows Removed by Filter: 1
+          Buffers: shared hit=646
+  Planning:
+    Buffers: shared hit=7
+  Planning Time: 0.208 ms
+  Execution Time: 0.823 ms
+rows returned: 5
+```
+
+The HNSW index **was used** (`Index Scan using idx_paper_embedding_hnsw`), the year filter was applied to the index scan (1 row removed by the filter), and the filter did **not** return fewer than 5 rows (5 rows returned). Server-side execution time 0.823 ms.
+
+**About the ~48 ms vector search time.** The server executes the vector query in about 1 ms (EXPLAIN ANALYZE above), but `search()` measured about 48 ms from Python. The cause is the size of the query parameter, not the index: against `pc_pilot`, `SELECT length(%s)` takes 0.3 to 0.4 ms for text parameters of up to 8,000 bytes and about 44 ms for 9,000 bytes or more, and the query vector is sent as 8,561 bytes of text. This is on a Windows host talking to the Docker container; I did not test other setups. Not fixed here (no code changes in Part 5).
+
+## 4. Known limits
+
+- **One duplicate record rejected.** 1,999 of 2,000 papers load. `W1522301498` is rejected as a duplicate DOI of `W2964121744` (the same Adam paper). The kept record has 0 references and no author affiliations, so its references are not loaded and citations to `W1522301498` are skipped. See `extraction/accuracy_report.md`. Other near-duplicate titles with different DOIs are not caught: 51 titles (compared case-insensitively) occur more than once among the loaded papers, including the three "Survey of Low-Resource Machine Translation" records above. Whether each is a true duplicate was not checked.
+- **Citations stored vs skipped.** The file has 78,513 references; 11542 are stored and 66949 are skipped because the cited paper is not among the 1,999 loaded; the other 22 belong to the rejected record. The corpus covers only part of each paper's references, so citation counts inside the database are lower bounds.
+- **Corpus skew.** 494 of 2,000 titles contain "low-resource"; Machine Translation covers 58.9% of the experiments and 31.9% have no task; only 40 of 1,055 experiments name a dataset.
+- **Institutions.** 616 author institution conflicts (first value kept) and 2,396 of 8,157 authors with no institution; one institution is stored per author.
+- **No retrieval accuracy measured.** The tables above are a spot check by eye of 8 queries; precision, recall and nDCG need the labeled query set, which does not exist yet. The two off-topic patterns found (short queries pulled toward the dominant theme, and little coverage for some topics such as speech translation) are observations, not measurements.
+- **Query encoding.** Queries are encoded like papers; the `specter2_adhoc_query` adapter is not implemented.
+- **Search latency.** About 48 ms per vector query from Python on this machine, caused by the size of the query parameter (see above); about 1 ms inside the database.

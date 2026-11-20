@@ -130,7 +130,7 @@ def test_papers_forward_reference_within_file_is_kept(conn, rejects, tmp_path):
     assert s.details["citations_skipped_not_in_corpus"] == 0
 
 
-def test_papers_author_without_id_is_merged_by_normalized_name_with_warning(conn, rejects):
+def test_papers_author_without_id_is_merged_by_normalized_name_and_conflict_is_logged(conn, rejects):
     s = papers.load_papers(conn, PAPERS, rejects)
     rows = conn.execute(
         "SELECT a.author_id, a.external_id, i.name FROM author a "
@@ -141,17 +141,20 @@ def test_papers_author_without_id_is_merged_by_normalized_name_with_warning(conn
     assert rows[0][2] == "Mock Institute North", "first institution is kept"
     linked = conn.execute("SELECT count(*) FROM paper_author WHERE author_id = %s", (rows[0][0],)).fetchone()[0]
     assert linked == 2
-    assert any("author four" in w.lower() and "Mock Institute South" in w for w in s.warnings), s.warnings
+    log = (rejects / "institution_conflicts.log").read_text(encoding="utf-8")
+    assert any("author four" in line.lower() and "Mock Institute South" in line for line in log.splitlines()), log
 
 
-def test_papers_author_with_id_keeps_first_institution_and_warns(conn, rejects):
+def test_papers_author_with_id_keeps_first_institution_and_logs_the_conflict(conn, rejects):
     s = papers.load_papers(conn, PAPERS, rejects)
     inst = conn.execute(
         "SELECT i.name FROM author a JOIN institution i USING (institution_id) WHERE a.external_id = 'MOCK_A002'"
     ).fetchone()[0]
     assert inst == "Mock Institute South"
-    assert any("MOCK_A002" in w and "Mock Institute East" in w for w in s.warnings), s.warnings
-    assert len(s.warnings) == 2  # only these two conflicts in the mock data
+    log = (rejects / "institution_conflicts.log").read_text(encoding="utf-8")
+    assert any("MOCK_A002" in line and "Mock Institute East" in line for line in log.splitlines()), log
+    assert len(log.splitlines()) == 2  # only these two conflicts in the mock data
+    assert s.details["institution_conflicts"] == 2
 
 
 def test_papers_author_order_is_stored(conn, rejects):
@@ -354,7 +357,8 @@ def test_no_reject_file_is_written_when_nothing_is_rejected(conn, rejects):
     s2 = papers.load_papers(conn, PAPERS, rejects)
     assert (s.rejected, s2.rejected) == (0, 0)
     assert s.reject_file is None and s2.reject_file is None
-    assert not rejects.exists() or list(rejects.iterdir()) == []
+    # the institution conflict log is not a reject file
+    assert not rejects.exists() or [f.name for f in rejects.iterdir() if f.name != "institution_conflicts.log"] == []
 
 
 @pytest.mark.parametrize("command", ["load-vocabulary", "load-papers", "load-extractions"])
@@ -394,3 +398,109 @@ def test_each_warning_is_printed_once(test_db_conninfo, conn, rejects, capsys):
     captured = capsys.readouterr()
     assert captured.out.count("MOCK_A002") == 1
     assert "MOCK_A002" not in captured.err
+
+
+# --- author institutions: fill NULL, keep first, one summary line, a log file ------------------
+
+def author(order, external_id, institution):
+    return {"name": f"Author {external_id}", "external_id": external_id, "institution": institution, "order": order}
+
+
+def paper(paper_id, *authors):
+    return {"paper_id": paper_id, "title": f"MOCK: {paper_id}", "authors": list(authors), "references": []}
+
+
+def institution_of(conn, external_id):
+    return conn.execute("SELECT i.name FROM author a LEFT JOIN institution i USING (institution_id) "
+                        "WHERE a.external_id = %s", (external_id,)).fetchone()[0]
+
+
+def test_institution_null_then_value_fills_it_in(conn, rejects, tmp_path):
+    path = write_jsonl(tmp_path / "p.jsonl", [
+        paper("MOCK_1", author(1, "MOCK_X", None)),
+        paper("MOCK_2", author(1, "MOCK_X", "Mock University")),
+    ])
+    s = papers.load_papers(conn, path, rejects)
+    assert institution_of(conn, "MOCK_X") == "Mock University"
+    assert s.details["author_institutions_filled"] == 1
+    assert s.details.get("institution_conflicts", 0) == 0
+    assert not (rejects / "institution_conflicts.log").exists(), "no conflict, no log file"
+
+
+def test_institution_value_then_different_value_keeps_the_first(conn, rejects, tmp_path):
+    path = write_jsonl(tmp_path / "p.jsonl", [
+        paper("MOCK_1", author(1, "MOCK_X", "First University")),
+        paper("MOCK_2", author(1, "MOCK_X", "Second University")),
+        paper("MOCK_3", author(1, "MOCK_X", None)),
+    ])
+    s = papers.load_papers(conn, path, rejects)
+    assert institution_of(conn, "MOCK_X") == "First University"
+    assert s.details["institution_conflicts"] == 1
+    assert s.details["author_institutions_filled"] == 0
+
+
+def test_institution_same_value_with_other_spacing_or_case_is_not_a_conflict(conn, rejects, tmp_path):
+    path = write_jsonl(tmp_path / "p.jsonl", [
+        paper("MOCK_1", author(1, "MOCK_X", "First University")),
+        paper("MOCK_2", author(1, "MOCK_X", "  first   UNIVERSITY ")),
+    ])
+    s = papers.load_papers(conn, path, rejects)
+    assert s.details.get("institution_conflicts", 0) == 0
+
+
+def test_institution_conflicts_give_one_summary_line_five_examples_and_a_full_log(conn, rejects, tmp_path):
+    rows = [paper("MOCK_1", *[author(i + 1, f"MOCK_A{i}", "Old University") for i in range(8)]),
+            paper("MOCK_2", *[author(i + 1, f"MOCK_A{i}", "New University") for i in range(8)])]
+    s = papers.load_papers(conn, write_jsonl(tmp_path / "p.jsonl", rows), rejects)
+    assert s.details["institution_conflicts"] == 8
+    assert len(s.warnings) == 6, s.warnings  # 1 summary line + the first 5 examples
+    assert "8" in s.warnings[0] and "conflict" in s.warnings[0]
+    log = (rejects / "institution_conflicts.log").read_text(encoding="utf-8").splitlines()
+    assert len(log) == 8, "the full list goes to the log"
+    assert all("Old University" in line and "New University" in line for line in log)
+    assert str(rejects / "institution_conflicts.log") in "\n".join(s.lines())
+
+
+def test_institution_reload_is_idempotent(conn, rejects, tmp_path):
+    path = write_jsonl(tmp_path / "p.jsonl", [
+        paper("MOCK_1", author(1, "MOCK_X", None), author(2, "MOCK_Y", "First University")),
+        paper("MOCK_2", author(1, "MOCK_X", "Mock University"), author(2, "MOCK_Y", "Second University")),
+    ])
+    first = papers.load_papers(conn, path, rejects)
+    before, inst_x, inst_y = snapshot(conn), institution_of(conn, "MOCK_X"), institution_of(conn, "MOCK_Y")
+    log_before = (rejects / "institution_conflicts.log").read_text(encoding="utf-8")
+    second = papers.load_papers(conn, path, rejects)
+    assert snapshot(conn) == before
+    assert (institution_of(conn, "MOCK_X"), institution_of(conn, "MOCK_Y")) == (inst_x, inst_y)
+    assert second.inserted == 0 and second.skipped == 2
+    assert second.details["author_institutions_filled"] == 0
+    assert second.details["institution_conflicts"] == first.details["institution_conflicts"] == 1, "same conflict, none new"
+    assert (rejects / "institution_conflicts.log").read_text(encoding="utf-8") == log_before
+
+
+def test_cli_does_not_crash_when_stdout_is_a_cp1252_pipe_and_a_name_is_not_ascii(test_db_conninfo, conn, tmp_path):
+    """Windows redirects stdout with the cp1252 code page. A character it cannot encode (here U+2010 and a Greek
+    letter, in an author name that appears in an institution conflict) used to end the CLI with
+    UnicodeEncodeError after the data was already stored."""
+    import os
+    import subprocess
+    import sys
+
+    import psycopg
+    dbname = psycopg.conninfo.conninfo_to_dict(test_db_conninfo)["dbname"]
+    name = "Peng‐Jen Σtella"
+    path = write_jsonl(tmp_path / "p.jsonl", [
+        {"paper_id": "MOCK_1", "title": "MOCK: one", "references": [], "authors": [
+            {"name": name, "external_id": "MOCK_X", "institution": "First University", "order": 1}]},
+        {"paper_id": "MOCK_2", "title": "MOCK: two", "references": [], "authors": [
+            {"name": name, "external_id": "MOCK_X", "institution": "Second University", "order": 1}]},
+    ])
+    env = {**os.environ, "PYTHONIOENCODING": "cp1252", "PYTHONUTF8": "0"}  # what a redirected Windows console gives
+    done = subprocess.run([sys.executable, "-m", "loaders", "load-papers", str(path), "--dbname", dbname,
+                           "--reject-dir", str(tmp_path / "rejects")],
+                          cwd=DB_DIR, env=env, capture_output=True)  # capture_output: stdout and stderr are pipes
+    assert done.returncode == 0, done.stderr.decode("utf-8", "replace")
+    out = done.stdout.decode("utf-8")
+    assert "inserted:   2" in out
+    assert "Peng‐Jen Σtella" in out, "the name must be printed, not replaced"
+    assert count(conn, "paper") == 2

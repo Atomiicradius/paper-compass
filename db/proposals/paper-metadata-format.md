@@ -51,13 +51,13 @@ Author object:
 - Loading is idempotent: running the same file twice changes nothing.
 - A bad line (invalid JSON, missing required field, year out of range) is **rejected with a reason** and written to `db/rejects/`; it does not stop the other lines.
 - A `references` entry that is not a `paper_id` in the database cannot be stored (foreign key). It is **skipped, not stored, and no stub paper is created**. The loader summary reports the count of skipped references and the cited IDs. (Decided by Person 2 with the team lead; Person 1 may still object.)
-- An author's institution is set when the author is first inserted and is not overwritten. If a later paper gives a different institution for the same author, the loader logs a warning and keeps the first value. This follows from the schema storing one institution per author.
+- An author's institution is set when the author is first inserted. It is only ever replaced when the stored one is empty (NULL) and a later paper gives one; two different non-empty values are never merged, the first stays. If a later paper gives a different institution for the same author, the loader counts a conflict, keeps the first value and lists it in `db/rejects/institution_conflicts.log` (the summary shows the count and the first 5). This follows from the schema storing one institution per author.
 - `venue_type` defaults to `other` when missing (accepted).
 
 ## Author matching and known simplification
 
 - Authors **with** an `external_id` are matched by it.
-- Authors **without** an `external_id` are matched by **normalized name**: case-folded, with runs of whitespace collapsed to one space and the ends trimmed. If the matched author's stored institution differs from the one in the new record, the loader logs a warning and keeps the first institution.
+- Authors **without** an `external_id` are matched by **normalized name**: case-folded, with runs of whitespace collapsed to one space and the ends trimmed. If the matched author's stored institution differs from the one in the new record, the loader counts a conflict and keeps the first institution (same log).
 - **Known simplification:** homonyms (two different people with the same normalized name) will be merged into one author row, and one person written with different spellings will be split into several. This is accepted for the prototype.
 - **Real data should always carry `external_id` for every author.** Person 1's ingestion should supply it so that name matching is never needed outside mock data.
 - An author who has an `external_id` is never matched by name to a different `external_id`.
