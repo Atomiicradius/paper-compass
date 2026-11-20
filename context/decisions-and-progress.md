@@ -67,6 +67,7 @@ Update after each task: what's done, what's next, blockers.
   6. Computed coverage, and precision, recall and F1 against the rule-generated reference set (these compare two rule-based systems and are not accuracy measurements), via `extraction/evaluate.py`. Findings and limitations in `extraction/accuracy_report.md`.
   7. Checked data integrity with `ingest/test_pilot_integrity.py` (this script's own checks; it does not call the loaders).
   8. Wrote `db/proposals/method-setting-views.md` (proposed, not yet agreed by Person 2 and Person 3).
+- Open item (not a decision): the corpus has one duplicate paper under two OpenAlex IDs, W1522301498 (rejected by the loader) and W2964121744 (kept; 0 references, no affiliations): Kingma & Ba, "Adam", arXiv 1412.6980. Follow-up for Person 1: de-duplicate by DOI at ingest, keep the record with more references and fuller authorships (here W1522301498), remap citations from the dropped ID to the kept ID, and check other near-duplicate titles with different DOIs (for example three copies of "Survey of low-resource machine translation"). Details in `extraction/accuracy_report.md` (Limitations).
 - Next: Phase 2 (UI Preparation): Wireframe/mocks for Person 3, agree on API endpoint schemas (O10), and select UI stack (O4). Do not scaffold UI code until stack is locked.
 
 ### Person 2: Database and retrieval (then evidence and RAG)

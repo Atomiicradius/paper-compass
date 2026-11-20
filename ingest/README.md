@@ -25,6 +25,13 @@ To overcome pilot corpus insularity (where 494/500 papers were low-resource MT w
 - **Internal Corpus Citations:** 11,681
 - **Internal Citation Density:** **14.88%** (more than doubled from 7.4% in the 500-paper pilot).
 
+### Known data issue: one duplicate record
+
+- **1,999 of 2,000 papers load into the database; 1 is rejected.** The rejected record is **W1522301498** and the kept one is **W2964121744**. They are two OpenAlex records for the **same paper** (Kingma & Ba, "Adam: A Method for Stochastic Optimization", arXiv 1412.6980, ICLR 2015): same title, same DOI (`10.48550/arxiv.1412.6980`), the same two authors, and both point to the same UvA-DARE repository entry. (In `papers_pilot.jsonl` the two records carry different OpenAlex author IDs and slightly different name spellings, and only one venue name each, arXiv for W1522301498 and UvA-DARE for W2964121744; the file stores no URLs, so the shared repository entry comes from the OpenAlex record, not from this file.)
+- **The weaker record was kept.** The loader keeps the first record it sees. W2964121744 has 0 references and no author affiliations; the rejected W1522301498 has 22 references and affiliations.
+- **Consequences:** the rejected record's references are not loaded; citations pointing to W1522301498 are skipped as "not in corpus"; author records for it are not created. Do not add the `cited_by` counts of the two records together, because the same papers cite both.
+- **Recommended follow-up for Person 1 (not done in this branch):** de-duplicate by DOI at ingest, keep the record with more references and fuller authorships (here W1522301498), remap citations from the dropped ID to the kept ID, and check other near-duplicate titles with different DOIs (for example three copies of "Survey of low-resource machine translation").
+
 ---
 
 ## 2. Corpus Distributions
