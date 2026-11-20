@@ -46,7 +46,7 @@ To avoid semantic overlap and label noise (e.g., distinguishing between "Neural 
 ### 3.1 Tasks (18 Canonical Entities)
 | Canonical Name | Sourced From | Key Aliases / Acronyms | Description / Role |
 | :--- | :--- | :--- | :--- |
-| `Machine Translation` | ACL / OpenAlex `C204321447` | MT, NMT, Neural Machine Translation, SMT, MMT | Cross-lingual text translation |
+| `Machine Translation` | ACL / OpenAlex `C204321447` | MT, NMT, Neural Machine Translation, MMT | Cross-lingual text translation |
 | `Speech Translation` | OpenAlex `C28490314` | spoken language translation, speech-to-text translation | Audio to foreign text translation |
 | `Quality Estimation` | WMT Shared Tasks | QE, translation quality estimation | Predicting translation quality without reference |
 | `Automatic Post-Editing` | WMT Shared Tasks | APE, post-editing | Automated correction of machine-generated text |
@@ -87,3 +87,10 @@ To avoid semantic overlap and label noise (e.g., distinguishing between "Neural 
 - **Supervision Types:** `Supervised`, `Unsupervised`, `Semi-supervised`, `Zero-shot`, `Few-shot`.
 - **Linguistic Scopes:** `Multilingual`, `Bilingual`, `Cross-lingual`.
 - **Domain Scopes:** `In-domain`, `Out-of-domain`.
+
+## Note on `SMT` (2026-11-20)
+
+`SMT` was an alias of both the method "Statistical Machine Translation" and the task "Machine Translation". It is
+a method, so it was removed from the task entry; it stays a method alias. The task entry still lists the full
+phrase "Statistical Machine Translation" as an alias, which is also the name of that method; the aliases `MT`,
+`NMT` and `MMT` are fine as aliases of the task "Machine Translation".

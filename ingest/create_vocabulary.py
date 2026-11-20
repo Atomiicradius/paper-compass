@@ -117,7 +117,7 @@ DATASETS = [
 # Unified taxonomy: Machine Translation is the canonical task.
 # Sub-types like low-resource/multilingual are Settings; neural/statistical are Methods.
 TASKS = [
-    ("Machine Translation", ["MT", "NMT", "Neural Machine Translation", "Statistical Machine Translation", "SMT", "Multilingual Machine Translation", "MMT", "automatic translation"]),
+    ("Machine Translation", ["MT", "NMT", "Neural Machine Translation", "Statistical Machine Translation", "Multilingual Machine Translation", "MMT", "automatic translation"]),
     ("Speech Translation", ["spoken language translation", "speech-to-text translation"]),
     ("Quality Estimation", ["translation quality estimation", "QE"]),
     ("Automatic Post-Editing", ["APE", "post-editing"]),
@@ -186,7 +186,8 @@ def generate_vocabulary(output_path="ingest/data/vocabulary.jsonl"):
                 "aliases": cleaned_aliases
             })
 
-    with open(out, "w", encoding="utf-8") as f:
+    # newline="\n": the same bytes on every platform
+    with open(out, "w", encoding="utf-8", newline="\n") as f:
         for entry in entries:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
