@@ -1,11 +1,21 @@
-"""Generate real hand-labeled benchmark for 100 sampled abstracts (seed=42).
+"""Generate the rule-generated reference set (preliminary; NOT human-labeled), version 2.
 
-Implements Item 2 from team feedback:
-- Samples 100 abstracts from the scaled 2,000 paper corpus with a fixed seed (seed=42).
-- Simulates independent two-pass annotation with adjudication of disagreements.
-- Eliminates hardcoded rules and invented fallbacks.
-- Strictly adheres to canonical vocabulary in ingest/data/vocabulary.jsonl.
-- Records disagreement statistics and writes extraction/data/labeled_benchmark.jsonl.
+Despite the old file name `labeled_benchmark.jsonl`, nothing here is labeled by a person: every label comes
+from the keyword and regex rules below. This script was called `generate_real_benchmark.py` before.
+
+What it does:
+- Samples 100 papers from ingest/data/papers_pilot.jsonl with a fixed seed (seed=42).
+- Applies two rule sets to each sampled paper: "conservative rules" (a stricter condition on top of the
+  same regexes) and "inclusive rules" (the regexes alone). The two rule sets use the same patterns, so
+  they mostly agree by construction.
+- Combines them into one set of rows (see "Combining the two rule sets" below) and writes
+  extraction/data/labeled_benchmark.jsonl and extraction/data/inter_annotator_disagreements.json (the
+  papers where the two rule sets gave different labels; the file keeps its old name).
+- Uses only canonical names from ingest/data/vocabulary.jsonl.
+
+Limits: the method labels use the same vocabulary and a similar regex style as extraction/extract.py, so
+comparing the extractor with these labels is circular and is not an accuracy measurement. A sampled paper
+with no task and no method under the combined rules gets no row at all (see the `continue` below).
 """
 
 import json
@@ -37,16 +47,15 @@ def load_vocab():
     return vocab
 
 
-def build_hand_labeled_benchmark():
+def build_reference_set():
     vocab = load_vocab()
 
-    # Load 100 sampled papers with seed 42
+    # Sample 100 papers with seed 42
     papers = [json.loads(line) for line in open(INPUT_PAPERS, encoding="utf-8") if line.strip()]
     random.seed(42)
     sample_papers = random.sample(papers, 100)
 
-    # Human annotation criteria:
-    # Task mappings (canonical only):
+    # Rules for the tasks (canonical names only):
     task_patterns = [
         ("Machine Translation", [r"\bmachine translation\b", r"\btranslation\b", r"\bnmt\b", r"\bsmt\b", r"\bbitext\b"]),
         ("Language Modeling", [r"\blanguage model(?:ing|s)?\b", r"\bllm(?:s)?\b", r"\bmasked language model\b", r"\bcausal language model\b"]),
@@ -80,14 +89,11 @@ def build_hand_labeled_benchmark():
         ("Out-of-domain", [r"\bout-of-domain\b"]),
     ]
 
-    # Annotator 1 (Conservative: requires strong evidence in title/abstract)
-    # Annotator 2 (Inclusive: includes contextual cues and secondary baselines)
+    # a1_* = conservative rules (the regex must match AND a stricter condition must hold)
+    # a2_* = inclusive rules (the regex alone)
     disagreements = []
     gold_records = []
 
-    annotator1_tuples = 0
-    annotator2_tuples = 0
-    agreed_tuples = 0
 
     for idx, p in enumerate(sample_papers):
         pid = p["paper_id"]
@@ -102,7 +108,7 @@ def build_hand_labeled_benchmark():
             for pat in pats:
                 if re.search(pat, text):
                     a2_tasks.append(canon)
-                    # A1 requires either in title or explicitly in problem statement
+                    # conservative rules: the pattern is in the title, or the text contains one of these words
                     if re.search(pat, title.lower()) or "task" in text or "we propose" in text or "evaluate" in text:
                         a1_tasks.append(canon)
                     break
@@ -153,7 +159,7 @@ def build_hand_labeled_benchmark():
         a1_methods = list(dict.fromkeys(a1_methods))
         a2_methods = list(dict.fromkeys(a2_methods))
 
-        # Track disagreements
+        # Record the papers where the two rule sets differ
         diff_task = set(a1_tasks) ^ set(a2_tasks)
         diff_setting = set(a1_settings) ^ set(a2_settings)
         diff_method = set(a1_methods) ^ set(a2_methods)
@@ -169,14 +175,14 @@ def build_hand_labeled_benchmark():
                 "diff_dataset": list(diff_dataset)
             })
 
-        # Adjudication consensus:
-        # Task: Primary task is accepted if either identified it and text clearly involves that task domain.
+        # Combining the two rule sets: the conservative result if it is not empty, else the first inclusive one.
+        # Methods are the union of both.
         consensus_tasks = a1_tasks if a1_tasks else a2_tasks[:1]
         consensus_settings = a1_settings if a1_settings else a2_settings[:1]
         consensus_datasets = a1_datasets if a1_datasets else a2_datasets[:1]
         consensus_methods = list(set(a1_methods) | set(a2_methods))
 
-        # If a paper is purely general network science or non-NLP (e.g. general graphs), no NLP experiment
+        # A paper with no task and no method under the combined rules gets no row (it is dropped)
         if not consensus_tasks and not consensus_methods:
             continue
 
@@ -204,19 +210,20 @@ def build_hand_labeled_benchmark():
             })
 
     # Save benchmark
-    with open(OUTPUT_BENCHMARK, "w", encoding="utf-8") as f:
+    with open(OUTPUT_BENCHMARK, "w", encoding="utf-8", newline="\n") as f:
         for r in gold_records:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
-    with open(DISAGREEMENT_LOG, "w", encoding="utf-8") as f:
+    with open(DISAGREEMENT_LOG, "w", encoding="utf-8", newline="\n") as f:
         json.dump(disagreements, f, indent=2, ensure_ascii=False)
 
-    print(f"Generated hand-labeled benchmark with {len(gold_records)} gold rows across {len(sample_papers)} sampled papers.")
-    print(f"Papers with annotator disagreements logged: {len(disagreements)} / {len(sample_papers)}")
-    print(f"Inter-annotator agreement rate on entity boundaries: {(100 - len(disagreements)):.1f}%")
+    papers_with_rows = len({r["paper_id"] for r in gold_records})
+    print(f"Generated rule-generated reference set with {len(gold_records)} rows from {papers_with_rows} of {len(sample_papers)} sampled papers.")
+    print(f"Sampled papers where the conservative and inclusive rules gave different labels: {len(disagreements)} / {len(sample_papers)}")
+    print(f"{len(sample_papers) - len(disagreements)} of {len(sample_papers)} sampled papers had identical labels under both rule sets (not an inter-annotator agreement).")
     print(f"Benchmark saved to {OUTPUT_BENCHMARK}")
-    print(f"Disagreement details saved to {DISAGREEMENT_LOG}")
+    print(f"Rule differences saved to {DISAGREEMENT_LOG}")
 
 
 if __name__ == "__main__":
-    build_hand_labeled_benchmark()
+    build_reference_set()

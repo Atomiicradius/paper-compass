@@ -48,9 +48,20 @@ python extraction/extract.py --papers ingest/data/papers_pilot.jsonl --vocab ing
 # 2. Check coverage report
 python extraction/evaluate.py --preds extraction/data/extractions_pilot.jsonl
 
-# 3. Compare with the rule-generated reference set (preliminary; the file keeps its old name labeled_benchmark.jsonl)
+# 3. Compare with the rule-generated reference set (preliminary; not human-labeled)
 python extraction/evaluate.py --preds extraction/data/extractions_pilot.jsonl --labels extraction/data/labeled_benchmark.jsonl
 ```
+
+## Rule-generated reference set (preliminary; not human-labeled)
+
+`extraction/data/labeled_benchmark.jsonl` keeps its old file name, but it is **not** hand-labeled. It is made by
+`python extraction/create_reference_set_v2.py` (earlier name `generate_real_benchmark.py`): 100 papers sampled with
+seed 42 are labeled by a "conservative" and an "inclusive" rule set (regexes), and the result has 79 rows from 60
+papers (40 sampled papers produced no row). `inter_annotator_disagreements.json` (old name) lists the 14 papers where
+the two rule sets differed; 86 of 100 had identical labels, which is **not** an inter-annotator agreement. The method
+labels use the same vocabulary and a similar regex style as `extract.py`, so the method precision and recall of 100%
+from `evaluate.py` are circular and are not an accuracy measurement. The first version of this file (first 100
+papers, `create_labeled_benchmark.py`) was replaced.
 
 ## Reproducibility
 
