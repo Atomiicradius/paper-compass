@@ -21,8 +21,8 @@ variables win). The key is never logged, printed or put into a result; error det
 
 The SDKs are imported only when a call is made, so importing this module needs neither.
 """
-import concurrent.futures
 import re
+import threading
 import time
 from decimal import ROUND_HALF_EVEN, ROUND_HALF_UP, Decimal
 from pathlib import Path
@@ -71,7 +71,10 @@ def affirmative_proven_gap(text):
             return found.group(0)
     return None
 
-FALLBACK_REASONS = ("no key", "error", "rate limit", "citation check", "number check", "forbidden phrase")
+FALLBACK_REASONS = ("no key", "error", "timeout", "rate limit", "citation check", "number check", "forbidden phrase")
+# The SDKs get the timeout themselves and no automatic retries, so a slow call is cancelled by the SDK. The outer guard
+# (a daemon thread, so it can never keep the process alive) only waits this much longer, as a last resort.
+GUARD_GRACE_SECONDS = 5
 
 RULES = """You explain ONE pair of research elements (A and B) to a human reviewer, using ONLY the EVIDENCE below.
 Rules:
@@ -230,12 +233,26 @@ def check_output(text, evidence):
 
 # --- providers -----------------------------------------------------------------------------------
 
-def gemini_client(api_key, model, max_output_tokens=MAX_OUTPUT_TOKENS, temperature=None):
-    """A function prompt -> text using the official google-genai SDK."""
+def gemini_client(api_key, model, max_output_tokens=MAX_OUTPUT_TOKENS, temperature=None, timeout=TIMEOUT_SECONDS,
+                  attempt_log=None, base_url=None):
+    """A function prompt -> text using the official google-genai SDK.
+
+    Options (documented in the SDK's own field descriptions, google/genai/types.py, google-genai 3.6.1):
+      HttpOptions(timeout=...)                    "Timeout for the request in milliseconds."
+      HttpOptions(retry_options=HttpRetryOptions(attempts=1))
+                                                  attempts: "Maximum number of attempts, including the original request.
+                                                  If 0 or 1, it means no retries. If not specified, default to 5."
+    attempt_log, if given, gets one entry per HTTP request the SDK sends (a request event hook), so retries are visible.
+    base_url is only for tests that point the SDK at a local server."""
     from google import genai
     from google.genai import types
 
-    client = genai.Client(api_key=api_key)
+    options = {"timeout": int(round(float(timeout) * 1000)), "retry_options": types.HttpRetryOptions(attempts=1)}
+    if base_url:
+        options["base_url"] = base_url
+    if attempt_log is not None:
+        options["client_args"] = {"event_hooks": {"request": [lambda request: attempt_log.append(1)]}}
+    client = genai.Client(api_key=api_key, http_options=types.HttpOptions(**options))
 
     def complete(prompt):
         arguments = {"max_output_tokens": max_output_tokens}
@@ -249,7 +266,8 @@ def gemini_client(api_key, model, max_output_tokens=MAX_OUTPUT_TOKENS, temperatu
 
 
 def anthropic_client(api_key, model, max_tokens=MAX_OUTPUT_TOKENS, timeout=TIMEOUT_SECONDS, temperature=None):
-    """A function prompt -> text using the official anthropic SDK (no retries, the timeout in seconds)."""
+    """A function prompt -> text using the official anthropic SDK. Options (platform.claude.com/docs/en/api/sdks/python):
+    the client option `timeout` in seconds (a float) and `max_retries` (0 here; the SDK default is 2)."""
     import anthropic
 
     client = anthropic.Anthropic(api_key=api_key, timeout=float(timeout), max_retries=0)
@@ -264,10 +282,10 @@ def anthropic_client(api_key, model, max_tokens=MAX_OUTPUT_TOKENS, timeout=TIMEO
     return complete
 
 
-def make_client(provider, api_key, model, temperature=None):
+def make_client(provider, api_key, model, temperature=None, timeout=TIMEOUT_SECONDS, attempt_log=None):
     if provider == "gemini":
-        return gemini_client(api_key, model, temperature=temperature)
-    return anthropic_client(api_key, model, temperature=temperature)
+        return gemini_client(api_key, model, temperature=temperature, timeout=timeout, attempt_log=attempt_log)
+    return anthropic_client(api_key, model, temperature=temperature, timeout=timeout)
 
 
 # --- running a call safely -----------------------------------------------------------------------
@@ -284,16 +302,34 @@ def _is_rate_limit(exc):
             or getattr(exc, "code", None) == 429)
 
 
+TIMEOUT_NAMES = {"APITimeoutError", "TimeoutError", "ReadTimeout", "ConnectTimeout", "WriteTimeout", "PoolTimeout",
+                 "TimeoutException"}
+
+
+def _is_timeout(exc):
+    return any(cls.__name__ in TIMEOUT_NAMES for cls in type(exc).__mro__)
+
+
 def _call_with_timeout(complete, prompt, seconds):
-    """Run complete(prompt) and give up after `seconds`, whatever the SDK's own timeout does."""
-    pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-    future = pool.submit(complete, prompt)
-    try:
-        return future.result(timeout=seconds)
-    except concurrent.futures.TimeoutError:
-        raise TimeoutError(f"no answer within {seconds} s") from None
-    finally:
-        pool.shutdown(wait=False, cancel_futures=True)
+    """Run complete(prompt) in a DAEMON thread and wait at most `seconds`. For the real SDK clients this is only a last
+    resort: the SDK has its own timeout and no retries, so it cancels the request and the thread ends by itself. A
+    daemon thread never keeps the process from exiting, even if a call were stuck."""
+    box = {}
+
+    def run():
+        try:
+            box["text"] = complete(prompt)
+        except BaseException as exc:  # noqa: BLE001 - handed to the caller
+            box["error"] = exc
+
+    thread = threading.Thread(target=run, name="llm-call", daemon=True)
+    thread.start()
+    thread.join(seconds)
+    if thread.is_alive():
+        raise TimeoutError(f"no answer within {seconds} s")
+    if "error" in box:
+        raise box["error"]
+    return box.get("text")
 
 
 def template_result(evidence, reason, detail="", **extra):
@@ -322,13 +358,17 @@ def explanation_text(evidence, use_llm=None, complete=None, provider=None, model
     model = model or setting("PC_LLM_MODEL", env, env_file) or DEFAULT_MODELS[provider]
     info = {"provider": provider, "model": model}
     key = None
+    attempt_log = []
+    guard = timeout_seconds
     if complete is None:
         key = setting(KEY_VARIABLES[provider], env, env_file)
         if not key:
             return template_result(evidence, "no key", f"{KEY_VARIABLES[provider]} is not set", **info)
         temperature = setting("PC_LLM_TEMPERATURE", env, env_file)
         try:
-            complete = make_client(provider, key, model, float(temperature) if temperature else None)
+            complete = make_client(provider, key, model, float(temperature) if temperature else None,
+                                   timeout=timeout_seconds, attempt_log=attempt_log)
+            guard = timeout_seconds + GUARD_GRACE_SECONDS
         except ImportError as exc:  # the SDK is an optional install: pip install -r rag/requirements-llm.txt
             return template_result(evidence, "error", f"SDK not installed ({type(exc).__name__}: {_scrub(exc, key)}); "
                                    "install it with: pip install -r rag/requirements-llm.txt", **info)
@@ -337,16 +377,20 @@ def explanation_text(evidence, use_llm=None, complete=None, provider=None, model
 
     began = time.perf_counter()
     try:
-        text = _call_with_timeout(complete, build_prompt(evidence), timeout_seconds)
+        text = _call_with_timeout(complete, build_prompt(evidence), guard)
     except Exception as exc:  # noqa: BLE001 - every failure of the call falls back to the template
         latency = round((time.perf_counter() - began) * 1000)
-        reason = "rate limit" if _is_rate_limit(exc) else "error"
+        reason = "rate limit" if _is_rate_limit(exc) else ("timeout" if _is_timeout(exc) else "error")
         detail = f"{type(exc).__name__}: {_scrub(exc, key)}"
-        return template_result(evidence, reason, detail, latency_ms=latency, **info)
+        extra = {"http_attempts": len(attempt_log)} if attempt_log else {}
+        return template_result(evidence, reason, detail, latency_ms=latency, **extra, **info)
     latency = round((time.perf_counter() - began) * 1000)
     if not isinstance(text, str) or not text.strip():
-        return template_result(evidence, "error", "the model returned no text", latency_ms=latency, **info)
+        return template_result(evidence, "error", "the model returned no text", latency_ms=latency,
+                               **({"http_attempts": len(attempt_log)} if attempt_log else {}), **info)
+    extra = {"http_attempts": len(attempt_log)} if attempt_log else {}
     reason, detail = check_output(text, evidence)
     if reason:
-        return template_result(evidence, reason, detail, latency_ms=latency, rejected_text=text, **info)
-    return {"text": text.strip(), "source": "llm", "fallback_reason": None, "detail": "", "latency_ms": latency, **info}
+        return template_result(evidence, reason, detail, latency_ms=latency, rejected_text=text, **extra, **info)
+    return {"text": text.strip(), "source": "llm", "fallback_reason": None, "detail": "", "latency_ms": latency,
+            **extra, **info}

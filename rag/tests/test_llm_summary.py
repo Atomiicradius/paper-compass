@@ -3,6 +3,7 @@ the two SDKs are replaced by small fake modules. The evidence dicts are hand-mad
 import json
 import subprocess
 import sys
+import threading
 import time
 import types
 from pathlib import Path
@@ -186,7 +187,7 @@ def test_forbidden_phrases_are_rejected(phrase):
 
 def test_a_timeout_falls_back():
     began = time.perf_counter()
-    out = fell_back(run(make_evidence(), lambda p: time.sleep(1.5) or GOOD, timeout_seconds=0.1), "error")
+    out = fell_back(run(make_evidence(), lambda p: time.sleep(1.5) or GOOD, timeout_seconds=0.1), "timeout")
     assert "TimeoutError" in out["detail"] and time.perf_counter() - began < 1.0
 
 
@@ -231,7 +232,7 @@ def test_the_key_is_scrubbed_from_error_details_and_never_in_a_result(monkeypatc
     def broken(prompt):
         raise RuntimeError(f"request failed for key {KEY}")
 
-    monkeypatch.setattr(llm, "make_client", lambda provider, key, model, temperature=None: broken)
+    monkeypatch.setattr(llm, "make_client", lambda provider, key, model, temperature=None, timeout=20, attempt_log=None: broken)
     out = llm.explanation_text(make_evidence(), use_llm=True, env={"GEMINI_API_KEY": KEY}, env_file=NO_FILE)
     assert out["fallback_reason"] == "error" and "***" in out["detail"]
     assert KEY not in json.dumps(out)
@@ -275,38 +276,94 @@ def test_the_repository_env_file_is_ignored_by_git():
     assert done.returncode == 0, ".env must be ignored by git"
 
 
-def fake_sdks(monkeypatch, calls):
-    """Fake google-genai and anthropic modules that record how they were called."""
+class ReadTimeout(Exception):  # the name of the exception httpx raises when the SDK's timeout is reached
+    pass
+
+
+class ServerError(Exception):  # the shape of google.genai.errors.ServerError
+    code = 503
+
+
+class APITimeoutError(Exception):  # the name of the anthropic SDK's timeout exception
+    pass
+
+
+class InternalServerError(Exception):  # the shape of anthropic.InternalServerError
+    status_code = 503
+
+
+def fake_sdks(monkeypatch, calls, behaviour="ok", server_seconds=3.0):
+    """Fake google-genai and anthropic modules. They record how they were called and imitate the two SDK features that
+    matter here: the request timeout (a call longer than the timeout it was given is cancelled: calls["cancelled"]) and
+    automatic retries (calls["attempts"] counts the HTTP attempts: 1 + retries). behaviour: "ok", "slow" (the server needs
+    server_seconds) or "503" (every attempt answers 503)."""
+    calls.update(attempts=0, cancelled=False)
     google, genai, genai_types = types.ModuleType("google"), types.ModuleType("google.genai"), types.ModuleType("google.genai.types")
 
-    class GenerateContentConfig:
+    class Options:
         def __init__(self, **kwargs):
             self.kwargs = kwargs
 
+    class GenerateContentConfig(Options):
+        pass
+
+    def one_attempt(timeout_seconds, timeout_error, server_error):
+        calls["attempts"] += 1
+        if behaviour == "slow":
+            threading.Event().wait(min(server_seconds, timeout_seconds))
+            if server_seconds > timeout_seconds:
+                calls["cancelled"] = True  # the SDK gives up and closes the connection
+                raise timeout_error("timed out")
+        if behaviour == "503":
+            raise server_error("503 UNAVAILABLE")
+
     class Models:
+        def __init__(self, http_options):
+            self.http_options = http_options
+
         def generate_content(self, model, contents, config):
             calls["gemini"] = {"model": model, "contents": contents, "config": config.kwargs}
-            return types.SimpleNamespace(text=GOOD)
+            options = self.http_options.kwargs
+            retry = options.get("retry_options")
+            attempts = retry.kwargs.get("attempts", 5) if retry else 5   # the SDK's documented default is 5
+            for _ in range(max(1, attempts)):
+                try:
+                    one_attempt(options["timeout"] / 1000, ReadTimeout, ServerError)
+                    return types.SimpleNamespace(text=GOOD)
+                except ServerError:
+                    pass
+            raise ServerError("503 UNAVAILABLE")
 
     class GeminiClient:
-        def __init__(self, api_key):
-            calls["gemini_key"] = api_key
-            self.models = Models()
+        def __init__(self, api_key, http_options=None):
+            calls["gemini_key"], calls["gemini_http_options"] = api_key, http_options
+            self.models = Models(http_options)
 
     genai.Client, genai_types.GenerateContentConfig, genai.types, google.genai = GeminiClient, GenerateContentConfig, genai_types, genai
+    genai_types.HttpOptions, genai_types.HttpRetryOptions = Options, Options
 
     anthropic = types.ModuleType("anthropic")
 
     class Messages:
+        def __init__(self, client_kwargs):
+            self.client_kwargs = client_kwargs
+
         def create(self, **kwargs):
             calls["anthropic"] = kwargs
-            return types.SimpleNamespace(content=[types.SimpleNamespace(type="thinking", thinking="hmm"),
-                                                  types.SimpleNamespace(type="text", text=GOOD)])
+            retries = self.client_kwargs.get("max_retries", 2)   # the SDK's documented default is 2
+            for _ in range(1 + retries):
+                try:
+                    one_attempt(self.client_kwargs["timeout"], APITimeoutError, InternalServerError)
+                    return types.SimpleNamespace(content=[types.SimpleNamespace(type="thinking", thinking="hmm"),
+                                                          types.SimpleNamespace(type="text", text=GOOD)])
+                except InternalServerError:
+                    pass
+            raise InternalServerError("503")
 
     class Anthropic:
         def __init__(self, **kwargs):
             calls["anthropic_client"] = kwargs
-            self.messages = Messages()
+            self.messages = Messages(kwargs)
 
     anthropic.Anthropic = Anthropic
     for name, module in (("google", google), ("google.genai", genai), ("google.genai.types", genai_types), ("anthropic", anthropic)):
@@ -320,6 +377,9 @@ def test_the_gemini_provider_uses_the_documented_default_and_no_temperature(monk
     assert out["source"] == "llm" and out["provider"] == "gemini"
     assert calls["gemini_key"] == KEY and calls["gemini"]["model"] == "gemini-3.8-flash"
     assert calls["gemini"]["config"] == {"max_output_tokens": 600}          # no temperature: ignored by this model
+    options = calls["gemini_http_options"].kwargs
+    assert options["timeout"] == 20000                                       # milliseconds (SDK field description)
+    assert options["retry_options"].kwargs == {"attempts": 1}                # "If 0 or 1, it means no retries"
     assert "What the corpus shows" in calls["gemini"]["contents"] and KEY not in calls["gemini"]["contents"]
     assert KEY not in json.dumps(out)
 
@@ -359,3 +419,143 @@ def test_a_missing_sdk_falls_back(monkeypatch):
 def test_no_test_needs_the_network():
     # the module imports no SDK at import time
     assert "google" not in llm.__dict__ and "anthropic" not in llm.__dict__
+
+
+# --- real timeouts and no hidden retries ----------------------------------------------------------------------
+
+def gemini_env():
+    return {"GEMINI_API_KEY": KEY}
+
+
+def test_a_call_longer_than_the_timeout_is_cancelled_by_the_sdk_and_falls_back_as_timeout(monkeypatch):
+    calls = {}
+    fake_sdks(monkeypatch, calls, behaviour="slow", server_seconds=3.0)
+    began = time.perf_counter()
+    out = llm.explanation_text(make_evidence(), use_llm=True, env=gemini_env(), env_file=NO_FILE, timeout_seconds=0.2)
+    assert calls["gemini_http_options"].kwargs["timeout"] == 200             # our timeout went to the SDK, in ms
+    assert calls["cancelled"] is True and calls["attempts"] == 1             # the SDK cancelled it, once
+    assert out["fallback_reason"] == "timeout" and out["source"] == "template" and "ReadTimeout" in out["detail"]
+    assert time.perf_counter() - began < 1.5, "the SDK's timeout fired long before the outer guard (timeout + 5 s)"
+
+
+def test_the_anthropic_call_is_cancelled_by_the_sdk_too(monkeypatch):
+    calls = {}
+    fake_sdks(monkeypatch, calls, behaviour="slow", server_seconds=3.0)
+    env = {"PC_LLM_PROVIDER": "anthropic", "ANTHROPIC_API_KEY": KEY}
+    out = llm.explanation_text(make_evidence(), use_llm=True, env=env, env_file=NO_FILE, timeout_seconds=0.2)
+    assert calls["anthropic_client"] == {"api_key": KEY, "timeout": 0.2, "max_retries": 0}
+    assert calls["cancelled"] is True and calls["attempts"] == 1
+    assert out["fallback_reason"] == "timeout" and "APITimeoutError" in out["detail"]
+
+
+def test_after_a_503_the_gemini_sdk_is_not_asked_to_retry(monkeypatch):
+    calls = {}
+    fake_sdks(monkeypatch, calls, behaviour="503")
+    out = llm.explanation_text(make_evidence(), use_llm=True, env=gemini_env(), env_file=NO_FILE)
+    assert calls["attempts"] == 1, "exactly one HTTP attempt"
+    assert out["fallback_reason"] == "error" and "ServerError" in out["detail"] and "503" in out["detail"]
+
+
+def test_after_a_503_the_anthropic_sdk_is_not_asked_to_retry(monkeypatch):
+    calls = {}
+    fake_sdks(monkeypatch, calls, behaviour="503")
+    env = {"PC_LLM_PROVIDER": "anthropic", "ANTHROPIC_API_KEY": KEY}
+    out = llm.explanation_text(make_evidence(), use_llm=True, env=env, env_file=NO_FILE)
+    assert calls["attempts"] == 1 and out["fallback_reason"] == "error" and "InternalServerError" in out["detail"]
+
+
+def test_the_fake_really_retries_when_not_told_not_to(monkeypatch):
+    """Guards the tests above: with the SDK's documented defaults the fake makes 5 (gemini) or 3 (anthropic) attempts."""
+    calls = {}
+    fake_sdks(monkeypatch, calls, behaviour="503")
+    fake_types = sys.modules["google.genai.types"]
+    from google import genai
+    client = genai.Client(api_key=KEY, http_options=fake_types.HttpOptions(timeout=1000))
+    with pytest.raises(ServerError):
+        client.models.generate_content(model="m", contents="c", config=fake_types.GenerateContentConfig())
+    assert calls["attempts"] == 5
+    calls["attempts"] = 0
+    import anthropic
+    with pytest.raises(InternalServerError):
+        anthropic.Anthropic(api_key=KEY, timeout=5.0).messages.create(model="m", max_tokens=1, messages=[])
+    assert calls["attempts"] == 3
+
+
+def test_the_outer_guard_is_a_daemon_thread_so_the_process_can_exit():
+    release = threading.Event()
+    started = time.perf_counter()
+    with pytest.raises(TimeoutError):
+        llm._call_with_timeout(lambda prompt: release.wait(30), "x", 0.1)
+    assert time.perf_counter() - started < 1.0
+    stuck = [t for t in threading.enumerate() if t.name == "llm-call"]
+    assert stuck and all(t.daemon for t in stuck), "a stuck call must not be able to keep the interpreter alive"
+    release.set()
+    for t in stuck:
+        t.join(2)
+    assert not [t for t in threading.enumerate() if t.name == "llm-call"], "the thread ends once the call ends"
+
+
+def test_timeout_exceptions_of_the_sdks_are_recognised():
+    assert llm._is_timeout(ReadTimeout("x")) and llm._is_timeout(APITimeoutError("x")) and llm._is_timeout(TimeoutError())
+    assert not llm._is_timeout(ServerError("x")) and not llm._is_timeout(ValueError("x"))
+
+
+# --- the REAL google-genai SDK against a local server (skipped when the SDK is not installed) ---------------------
+
+@pytest.fixture
+def local_server():
+    import http.server
+
+    hits = []
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        mode = "503"
+
+        def do_POST(self):
+            self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            hits.append(self.path)
+            if Handler.mode == "slow":
+                time.sleep(3)
+            body = json.dumps({"error": {"code": 503, "message": "overloaded", "status": "UNAVAILABLE"}}).encode()
+            try:
+                self.send_response(503)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            except OSError:
+                pass
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield Handler, hits, f"http://127.0.0.1:{server.server_address[1]}"
+    server.shutdown()
+
+
+def test_the_real_gemini_sdk_times_out_and_makes_exactly_one_request(local_server):
+    pytest.importorskip("google.genai")
+    handler, hits, base = local_server
+    handler.mode = "slow"
+    attempts = []
+    complete = llm.gemini_client("fake-key", "gemini-3.8-flash", timeout=0.5, attempt_log=attempts, base_url=base)
+    began = time.perf_counter()
+    with pytest.raises(Exception) as caught:
+        complete("hello")
+    assert llm._is_timeout(caught.value), type(caught.value).__mro__
+    assert time.perf_counter() - began < 2.0, "cancelled at the timeout, not after the server's 3 s"
+    assert len(attempts) == 1 and len(hits) == 1, (len(attempts), len(hits))
+
+
+def test_the_real_gemini_sdk_makes_exactly_one_request_after_a_503(local_server):
+    pytest.importorskip("google.genai")
+    handler, hits, base = local_server
+    handler.mode = "503"
+    attempts = []
+    complete = llm.gemini_client("fake-key", "gemini-3.8-flash", timeout=5, attempt_log=attempts, base_url=base)
+    with pytest.raises(Exception) as caught:
+        complete("hello")
+    assert type(caught.value).__name__ == "ServerError" and getattr(caught.value, "code", None) == 503
+    assert len(attempts) == 1 and len(hits) == 1, "the request hook and the server agree: one attempt, no retry"
