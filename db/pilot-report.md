@@ -304,3 +304,25 @@ The rules miss papers that are on topic without those words (for example "Decoup
 Encoding only the short phrase "back-translation" puts one target paper at rank 3 with the adhoc adapter (and at rank 9 with the proximity adapter), while the full query "back-translation for low-resource languages" puts the best one at rank 49 or 53. That is consistent with the words "for low-resource languages" pulling the query toward the dominant low-resource theme of this corpus (494 of 2,000 titles contain "low-resource"), but I did not test that cause directly. It also means the result depends on how the query is phrased, which an adapter cannot fix; a short-phrase query, a keyword or hybrid ranking, or query understanding on top would be the next things to try. Not done here.
 
 **Caveats.** Same corpus skew as before. The on-topic counts use 8 queries and a strict title rule, so a change of one or two results is within what a different rule could move. Similarity scores are lower with the adhoc adapter (about 0.78 to 0.86 against about 0.92 to 0.98 before) because query and paper vectors now come from different adapters; only the order matters for ranking, and the scores of the two encodings should not be compared with each other.
+
+## 6. Query latency (retrieval fixes, 2026-11-21)
+
+The query vector used to be sent as an 8,561-byte text parameter, which cost about 44 ms on this Windows-to-Docker setup (section 3). `search()` now sends it in binary format as a `real[]` of float4 values (about 3 KB) and casts it in SQL (`%b::real[]::vector`), using `retrieval.search.vector_parameter()`. No new package is needed (the pgvector Python adapter is not installed). `check_query_vector()` (the text form) is kept but `search()` no longer uses it.
+
+Median of 5 runs after one warm-up for each of the 8 queries, `search(top_k=5)` on `pc_pilot`, query vectors from the adhoc_query encoder; "before" is the `search()` of `origin/main` at the start of this task, "after" the new one, both run in the same session against the same database:
+
+| Query | Before (text parameter) ms | After (binary parameter) ms | Same ids and order | Max score difference |
+| --- | ---: | ---: | :---: | ---: |
+| low-resource neural machine translation | 47.6 | 3.0 | yes | 0.00e+00 |
+| back-translation for low-resource languages | 44.8 | 2.5 | yes | 0.00e+00 |
+| multilingual pretraining for translation | 44.2 | 2.7 | yes | 0.00e+00 |
+| zero-shot translation | 47.7 | 2.5 | yes | 0.00e+00 |
+| unsupervised machine translation | 45.8 | 2.2 | yes | 0.00e+00 |
+| quality estimation for machine translation | 46.9 | 4.2 | yes | 0.00e+00 |
+| adam optimizer | 47.6 | 3.6 | yes | 0.00e+00 |
+| speech translation | 45.9 | 2.4 | yes | 0.00e+00 |
+| median over the 8 queries | 46.4 | 2.6 | | |
+
+The ids and their order are identical for all 8 queries, and the maximum score difference is 0 (the tests also check scores within 1e-6 on synthetic data). The HNSW index is still used for the ordering with the new parameter form (test with the index forced as the only ordering path). Only `search()` was changed; other code with its own vector SQL (for example in `rag/`) is not touched.
+
+This replaces the "Search latency" bullet of section 4 and the explanation of the ~48 ms in section 3: after the change the vector search takes about 2 to 4 ms from Python on this machine, which was measured on this one Windows setup only.

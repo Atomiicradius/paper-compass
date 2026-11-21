@@ -6,6 +6,7 @@ query parameters. The SQL text is assembled from fixed fragments in this file, n
 import math
 
 from psycopg.rows import tuple_row
+from psycopg.types.numeric import Float4
 
 EXPECTED_DIM = 768
 ITERATIVE_SCAN_MODES = ("strict_order", "relaxed_order", "off")
@@ -51,8 +52,8 @@ def _names(values, label):
     return names
 
 
-def check_query_vector(vector):
-    """Return the query vector as a pgvector text literal after checking it. Raises ValueError."""
+def _checked_numbers(vector):
+    """The query vector as a list of floats after checking it. Raises ValueError."""
     try:
         values = list(vector)
     except TypeError:
@@ -67,7 +68,19 @@ def check_query_vector(vector):
         raise ValueError("the query vector contains NaN or infinite values (it must be finite)")
     if not any(numbers):
         raise ValueError("the query vector is all zeros; cosine similarity is undefined for a zero vector")
-    return "[" + ",".join(repr(x) for x in numbers) + "]"
+    return numbers
+
+
+def check_query_vector(vector):
+    """Return the query vector as a pgvector text literal after checking it. Raises ValueError."""
+    return "[" + ",".join(repr(x) for x in _checked_numbers(vector)) + "]"
+
+
+def vector_parameter(vector):
+    """The checked query vector as a list of float4 values. psycopg sends it in BINARY format as a real[] (about
+    3 KB). The text literal above is about 8.5 KB, and on a Windows host talking to the Docker container a
+    parameter over about 8 KB added about 44 ms to every query. Use it as %b::real[]::vector."""
+    return [Float4(x) for x in _checked_numbers(vector)]
 
 
 # --- shared filters ---------------------------------------------------------------------------
@@ -154,7 +167,7 @@ def search(conn, query_vector, top_k=10, offset=0, year_min=None, year_max=None,
     hnsw.max_scan_tuples (default 20000) index entries were visited. The settings are applied with
     set_config(..., true), i.e. for this call's transaction only.
     """
-    vector = check_query_vector(query_vector)
+    vector = vector_parameter(query_vector)
     _int(top_k, "top_k", minimum=1)
     _int(offset, "offset", minimum=0)
     _int(ef_search, "ef_search", minimum=1, maximum=1000)
@@ -162,7 +175,7 @@ def search(conn, query_vector, top_k=10, offset=0, year_min=None, year_max=None,
         raise ValueError(f"iterative_scan must be one of {', '.join(ITERATIVE_SCAN_MODES)}, got {iterative_scan!r}")
     clauses, filter_params = _filters(year_min, year_max, venues, methods, datasets, tasks, exclude_ids, match)
 
-    sql = ("SELECT p.paper_id, p.title, p.year, v.name, p.embedding <=> %s::vector AS distance"
+    sql = ("SELECT p.paper_id, p.title, p.year, v.name, p.embedding <=> %b::real[]::vector AS distance"
            + (ENTITY_COLUMNS if include_entities else "")
            + "\nFROM paper p LEFT JOIN venue v ON v.venue_id = p.venue_id"
            + "\nWHERE " + " AND ".join(["p.embedding IS NOT NULL"] + clauses)

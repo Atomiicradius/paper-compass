@@ -449,3 +449,60 @@ def test_cli_rejects_a_wrong_sized_vector_file(connect_to_test_db, tmp_path, cap
 def test_cli_keyword(connect_to_test_db, docs, capsys):
     assert cli.main(["keyword", "neural translation"], connect_fn=connect_to_test_db) == 0
     assert "K_1" in capsys.readouterr().out
+
+
+# --- the query vector travels as a typed binary parameter, not as an 8.5 KB text string -----------
+
+def old_style_search(conn, vector, top_k):
+    """The previous way: the vector as a long text literal. Used only to prove the results did not change."""
+    rows = conn.execute("SELECT p.paper_id, p.embedding <=> %s::vector AS distance FROM paper p "
+                        "WHERE p.embedding IS NOT NULL ORDER BY distance LIMIT %s", (literal(vector), top_k)).fetchall()
+    return [(pid, 1.0 - float(d)) for pid, d in rows]
+
+
+def test_results_are_identical_to_the_text_parameter_version(conn, corpus):
+    for seed in (1, 2, 3):
+        query = make_vector(random.Random(seed))
+        new = [(r["paper_id"], r["similarity"]) for r in search(conn, query, top_k=15)]
+        old = old_style_search(conn, query, 15)
+        assert [pid for pid, _ in new] == [pid for pid, _ in old], "same ids in the same order"
+        assert all(abs(a - b) < 1e-6 for (_, a), (_, b) in zip(new, old)), "scores equal within 1e-6"
+
+
+def test_the_query_vector_is_sent_as_a_binary_float4_array_not_as_text(conn, corpus, monkeypatch):
+    seen = []
+    original = psycopg.Cursor.execute
+
+    def spy(self, query, params=None, **kwargs):
+        seen.append((query, params))
+        return original(self, query, params, **kwargs)
+
+    monkeypatch.setattr(psycopg.Cursor, "execute", spy)
+    search(conn, corpus.query, top_k=3)
+    sql, params = next((q, p) for q, p in seen if "<=>" in str(q))
+    vector_param = params[0]
+    assert "%b::real[]::vector" in sql, "the placeholder asks for the binary format"
+    assert not isinstance(vector_param, str), "a long text parameter is what cost about 44 ms"
+    assert len(vector_param) == DIM and all(isinstance(x, psycopg.types.numeric.Float4) for x in vector_param)
+
+
+def test_vector_parameter_validation_is_unchanged(conn, corpus):
+    for bad in ([1.0] * 10, [float("nan")] * DIM, [0.0] * DIM, ["a"] * DIM, "not a vector"):
+        with pytest.raises(ValueError):
+            search(conn, bad)
+
+
+def test_the_hnsw_index_still_serves_the_ordering_with_the_binary_parameter(private_db):
+    rng = random.Random(3)
+    with private_db.cursor().copy("COPY paper (paper_id, title, year, embedding) FROM STDIN") as copy:
+        for i in range(300):
+            copy.write_row((f"H_{i:04d}", f"Synthetic {i}", 2020, literal(make_vector(rng))))
+    private_db.execute("DROP INDEX idx_paper_embedding_hnsw")  # init.sql made it on the empty table; rebuild after the load
+    private_db.execute("CREATE INDEX idx_paper_embedding_hnsw ON paper USING hnsw (embedding vector_cosine_ops)")
+    private_db.execute("ANALYZE paper")
+    param = search_module.vector_parameter(make_vector(random.Random(4)))
+    with private_db.transaction():
+        private_db.execute("SET LOCAL enable_seqscan = off")
+        plan = "\n".join(r[0] for r in private_db.execute(
+            "EXPLAIN SELECT paper_id FROM paper ORDER BY embedding <=> %b::real[]::vector LIMIT 5", (param,)))
+    assert "idx_paper_embedding_hnsw" in plan, plan
