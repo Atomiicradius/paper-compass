@@ -6,13 +6,11 @@ any problem returns the template with a stated reason. Candidate opportunities s
 underexplored in the analyzed corpus"), not proof of a gap.
 
 Status (2026-11-21): the code and its 60 tests (fake clients, no network) are done, and the API tests that touch the new
-fields ran and passed (see below). **The real providers have not been called**: no API key was set (the repository-root
-`.env` exists but has no variables, and neither `GEMINI_API_KEY` nor `ANTHROPIC_API_KEY` is in the environment), and the two
-SDKs are not installed, so the real check (3 calls, one per demo pair) was **not run: 0 API calls, nothing observed yet**.
-The SDK calls in `gemini_client` and `anthropic_client` follow the SDKs' documented examples but have only been exercised
-against fake modules. When a key is available: install the SDK (`pip install -r rag/requirements-llm.txt`), put the key in the
-root `.env` (see "How to turn it on"), and run the three demo pairs; record here which provider and model were used, how many
-of the 3 answers passed the checks, and why any fell back.
+fields ran and passed (see below). **A real check was run once with Gemini and produced no model text at all: all 3 calls fell
+back to the template** (one timeout, two 503 "high demand" errors; details in "Real check" below). So the number and phrase
+guardrails have **not yet been tested on a real model answer**. The SDK calls follow the SDKs' documented examples; the Gemini
+one has now been exercised against the real service (it reached it and got errors), the Anthropic one only against fake
+modules.
 
 API tests: run in a separate environment (`pc-envs/api-venv`, Python 3.12.3, the pins of `requirements-person3.txt`):
 `pytest api` gave 19 passed and 7 skipped (the PostgreSQL integration tests, which need `PC_TEST_PG_DSN`); with
@@ -136,5 +134,33 @@ checked after generation.
   remains necessary, and the template summary is the only text whose every sentence is fixed by code.
 - The structure (two paragraphs, the two titles) is requested in the prompt but not enforced.
 - The number check compares tokens as text; it does not understand units, ranges or number words ("two").
-- The real providers have not been called yet (see the status above); the observed behaviour of the models, their latency and
-  how often an answer passes the checks are unknown until the real check is run.
+- The guardrails have not been exercised on a real model answer yet (the first real check returned none, see "Real check").
+
+## Real check (2026-11-21, once)
+
+Setup: provider **gemini** (`PC_LLM_PROVIDER` not set, so the default), model **gemini-3.8-flash** (the default), `PC_LLM_SUMMARY=1`,
+key in the gitignored root `.env` (copied into the worktree for the run; not printed or logged), SDK `google-genai==3.6.1`
+installed in a separate environment (`pc-envs/api-venv`). Evidence built read-only from `pc_pilot` (cutoff 2026, 3 papers per
+role). One call per demo pair, no retries by the code, 3 calls in total:
+
+| Pair | Latency | source | fallback_reason | What happened |
+| --- | ---: | --- | --- | --- |
+| Masked Language Modeling x Machine Translation | 20,031 ms | template | error | `TimeoutError: no answer within 20 s` (our 20 s limit) |
+| Data Augmentation x Language Modeling | 7,571 ms | template | error | `ServerError: 503 UNAVAILABLE` ... "This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later." |
+| Recurrent Neural Network x Machine Translation | 2,371 ms | template | error | the same 503 UNAVAILABLE message |
+
+Result: **0 of 3 answers passed the guardrails, because none was returned**; all 3 explanations were the template summary.
+The guardrails (citations, numbers, phrases) therefore have no real output to show yet. None of the errors is a rate-limit or
+quota error (a 429); they are a timeout and "service unavailable / high demand" responses from the model, which may be
+temporary.
+
+What I could not tell:
+- Whether the first call was slow because the service was overloaded: it ran past our 20 s limit, and the abandoned call kept
+  the Python process alive for more than 4 more minutes until I stopped it. The SDK may have retried that request on its own
+  in the background (the SDK's retry behaviour was not set or checked), so the number of HTTP requests actually sent to the
+  service for call 1 is unknown; the code itself made exactly 3 calls.
+- Whether the 600-token output limit and the model's thinking would have allowed a complete answer; no answer arrived.
+
+Follow-ups before relying on this (not done): rerun when the service is less busy (or try another model by `PC_LLM_MODEL`
+after checking the docs); check the SDK's own timeout and retry settings in the official docs and set them, so a timed-out
+call is really cancelled and does not keep running; run a real call for the other provider if it will be used.
