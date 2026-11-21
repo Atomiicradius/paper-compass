@@ -251,3 +251,124 @@ The HNSW index **was used** (`Index Scan using idx_paper_embedding_hnsw`), the y
 - **No retrieval accuracy measured.** The tables above are a spot check by eye of 8 queries; precision, recall and nDCG need the labeled query set, which does not exist yet. The two off-topic patterns found (short queries pulled toward the dominant theme, and little coverage for some topics such as speech translation) are observations, not measurements.
 - **Query encoding.** Queries are encoded like papers; the `specter2_adhoc_query` adapter is not implemented.
 - **Search latency.** About 48 ms per vector query from Python on this machine, caused by the size of the query parameter (see above); about 1 ms inside the database.
+
+## 5. Query adapter (retrieval fixes, 2026-11-21)
+
+Papers keep the stored proximity-adapter vectors (nothing was re-embedded and no stored vector was changed). Query text is now encoded with `allenai/specter2_adhoc_query` (revision `3f4448817028388648a74349ece07af4518ec5bd`, one 3,593,365-byte weights file downloaded from huggingface.co for this task) on the same pinned base model. The old behaviour stays selectable: `--query-adapter proximity` in `pilot_queries.py`, or `make_query_encoder("proximity")`, or the environment variable `PC_QUERY_ADAPTER=proximity` (an argument wins over the variable; the default for queries is `adhoc_query`). This section adds to sections 3 and 4; where "Query encoding" in section 4 says the adhoc adapter is not implemented, it is now.
+
+**On-topic counts.** The same 8 queries, top 5 by vector search before (queries encoded like papers) and after (adhoc_query). A result counts as on-topic only if its full title matches a keyword rule, which is deliberately strict:
+
+| Query | Rule (title, case-insensitive) |
+| --- | --- |
+| low-resource neural machine translation | "low-resource" or "low resource", and "neural machine translation" or "NMT" |
+| back-translation for low-resource languages | "back-translation", "backtranslation" or "back translation" |
+| multilingual pretraining for translation | "pretrain" or "pre-train", and one of multilingual, cross-lingual, monolingual, translation |
+| zero-shot translation | "zero-shot" or "zero shot" |
+| unsupervised machine translation | "unsupervised", and "translation" or "NMT" |
+| quality estimation for machine translation | "quality estimation" |
+| adam optimizer | the word "adam", or "optimi[sz]" |
+| speech translation | "speech" and "translation" |
+
+The rules miss papers that are on topic without those words (for example "Decoupled Weight Decay Regularization", which is AdamW, is not counted for "adam optimizer"), so the counts are lower bounds. They are a title check by one rule, not a relevance judgement.
+
+| Query | on-topic in top 5: before | on-topic in top 5: after | top 5 shared before/after |
+| --- | ---: | ---: | ---: |
+| low-resource neural machine translation | 5 | 5 | 4 of 5 |
+| back-translation for low-resource languages | 0 | 0 | 0 of 5 |
+| multilingual pretraining for translation | 1 | 2 | 2 of 5 |
+| zero-shot translation | 2 | 2 | 4 of 5 |
+| unsupervised machine translation | 2 | 3 | 2 of 5 |
+| quality estimation for machine translation | 0 | 1 | 1 of 5 |
+| adam optimizer | 1 | 1 | 2 of 5 |
+| speech translation | 0 | 0 | 1 of 5 |
+| **total (of 40)** | 11 | 14 | |
+
+**Are the two misses fixed?**
+
+- **quality estimation for machine translation: partly.** The top 5 had 0 papers with "quality estimation" in the title before and has 1 after ("Quality Estimation for Machine Translation in Low-Resource Settings", rank 3). The corpus has 5 such papers; their ranks over all 1,999 papers went from [7, 18, 31, 36, 67] to [3, 8, 9, 22, 26]. Only the adapter changed between the two runs (same query text, same stored vectors), so this change comes from the adapter.
+- **back-translation for low-resource languages: not fixed.** 0 on-topic results in the top 5 before and after. None of the 16 papers whose title contains back-translation is in the top 5, or the top 20, under either adapter; the best rank moved from 53 to 49. The adapter therefore did not fix this miss and I do not claim it as the cause or the cure.
+
+**What I tried for the back-translation miss, and the evidence.** The ranks below are over all 1,999 papers (1 = best) for the papers whose title contains the phrase (16 for back-translation, 5 for quality estimation), using cosine similarity to the stored vectors:
+
+| Query encoding | Phrase | Ranks of the target papers | In top 5 | In top 20 |
+| --- | --- | --- | ---: | ---: |
+| proximity, query as given | back-translation | [53, 58, 60, 82, 95, 144, 181, 195, 220, 250, 282, 299, 349, 446, 512, 820] | 0 | 0 |
+| proximity, query as given | quality estimation | [7, 18, 31, 36, 67] | 0 | 2 |
+| adhoc_query, query as given | back-translation | [49, 54, 66, 81, 117, 128, 129, 132, 161, 186, 196, 220, 377, 422, 499, 557] | 0 | 0 |
+| adhoc_query, query as given | quality estimation | [3, 8, 9, 22, 26] | 1 | 3 |
+| adhoc_query, short phrase | back-translation | [3, 18, 48, 54, 69, 76, 87, 99, 159, 178, 189, 201, 310, 340, 341, 414] | 1 | 2 |
+| adhoc_query, short phrase | quality estimation | [15, 16, 41, 443, 454] | 0 | 2 |
+| proximity, short phrase | back-translation | [9, 51, 67, 72, 98, 105, 109, 115, 116, 118, 119, 152, 233, 406, 427, 528] | 0 | 1 |
+| proximity, short phrase | quality estimation | [261, 274, 276, 785, 1423] | 0 | 0 |
+
+Encoding only the short phrase "back-translation" puts one target paper at rank 3 with the adhoc adapter (and at rank 9 with the proximity adapter), while the full query "back-translation for low-resource languages" puts the best one at rank 49 or 53. That is consistent with the words "for low-resource languages" pulling the query toward the dominant low-resource theme of this corpus (494 of 2,000 titles contain "low-resource"), but I did not test that cause directly. It also means the result depends on how the query is phrased, which an adapter cannot fix; a short-phrase query, a keyword or hybrid ranking, or query understanding on top would be the next things to try. Not done here.
+
+**Caveats.** Same corpus skew as before. The on-topic counts use 8 queries and a strict title rule, so a change of one or two results is within what a different rule could move. Similarity scores are lower with the adhoc adapter (about 0.78 to 0.86 against about 0.92 to 0.98 before) because query and paper vectors now come from different adapters; only the order matters for ranking, and the scores of the two encodings should not be compared with each other.
+
+## 6. Query latency (retrieval fixes, 2026-11-21)
+
+The query vector used to be sent as an 8,561-byte text parameter, which cost about 44 ms on this Windows-to-Docker setup (section 3). `search()` now sends it in binary format as a `real[]` of float4 values (about 3 KB) and casts it in SQL (`%b::real[]::vector`), using `retrieval.search.vector_parameter()`. No new package is needed (the pgvector Python adapter is not installed). `check_query_vector()` (the text form) is kept but `search()` no longer uses it.
+
+Median of 5 runs after one warm-up for each of the 8 queries, `search(top_k=5)` on `pc_pilot`, query vectors from the adhoc_query encoder; "before" is the `search()` of `origin/main` at the start of this task, "after" the new one, both run in the same session against the same database:
+
+| Query | Before (text parameter) ms | After (binary parameter) ms | Same ids and order | Max score difference |
+| --- | ---: | ---: | :---: | ---: |
+| low-resource neural machine translation | 47.6 | 3.0 | yes | 0.00e+00 |
+| back-translation for low-resource languages | 44.8 | 2.5 | yes | 0.00e+00 |
+| multilingual pretraining for translation | 44.2 | 2.7 | yes | 0.00e+00 |
+| zero-shot translation | 47.7 | 2.5 | yes | 0.00e+00 |
+| unsupervised machine translation | 45.8 | 2.2 | yes | 0.00e+00 |
+| quality estimation for machine translation | 46.9 | 4.2 | yes | 0.00e+00 |
+| adam optimizer | 47.6 | 3.6 | yes | 0.00e+00 |
+| speech translation | 45.9 | 2.4 | yes | 0.00e+00 |
+| median over the 8 queries | 46.4 | 2.6 | | |
+
+The ids and their order are identical for all 8 queries, and the maximum score difference is 0 (the tests also check scores within 1e-6 on synthetic data). The HNSW index is still used for the ordering with the new parameter form (test with the index forced as the only ordering path). Only `search()` was changed; other code with its own vector SQL (for example in `rag/`) is not touched.
+
+This replaces the "Search latency" bullet of section 4 and the explanation of the ~48 ms in section 3: after the change the vector search takes about 2 to 4 ms from Python on this machine, which was measured on this one Windows setup only.
+
+## 7. Same-title collapse (TEMPORARY WORKAROUND, retrieval fixes, 2026-11-21)
+
+**This is a workaround, not a fix.** 51 titles occur more than once among the loaded papers (section 4), because the same paper appears as several OpenAlex records with different ids and DOIs. The real fix is de-duplication at ingest (Person 1; see `extraction/accuracy_report.md`, Limitations). Until then, `search(..., collapse_same_title=True)` and `keyword_search(..., collapse_same_title=True)` (CLI: `--collapse-titles`; `pilot_queries.py --collapse-titles`) keep only the best-scored record per normalized title (lowercase, punctuation stripped, whitespace collapsed; hyphens are stripped without leaving a space, so "Low-Resource" becomes "lowresource"). The default is **off**, so existing behaviour and tests do not change. No row is deleted or merged; the hidden records are still in the database and still returned when the option is off.
+
+How it works: the search fetches more candidates than asked for (at least 5 times the requested count, at most 5,000), keeps the best-scored record per normalized title, and trims to the requested number, so it still returns `top_k` results when enough distinct titles exist (and fewer only when they do not). `offset` applies to the collapsed list. When two records have exactly the same score (for example identical vectors), the smaller `paper_id` is kept so the choice is stable; in the pilot database the records W4225929449 and W4283220248 have the same similarity to the back-translation query to six decimals, so which of them survives is decided by this rule and not by relevance. Titles that differ in more than punctuation, case and spacing (a subtitle, a different word) are not collapsed.
+
+**Where duplicates appeared in the top 5** (8 pilot queries; vector search with the old proximity query encoding, with the new adhoc_query encoding, and keyword search):
+
+- vector, proximity encoding: 2 of 8 queries had repeated titles;
+- vector, adhoc_query encoding (the new default): 0 of 8 queries;
+- keyword: 1 of 8 queries.
+
+So with the new query encoding the pilot queries no longer show duplicates in the top 5, and the collapse changes nothing for them. The cases below are the ones where it did something:
+
+**back-translation for low-resource languages** (vector, proximity): repeated titles in the top 5 2 before, 0 after; results returned 5 before, 5 after.
+
+| Before | After |
+| --- | --- |
+| 1. W4283220248 (2022) Survey of Low-Resource Machine Translation | 1. W4225929449 (2021) Survey of Low-Resource Machine Translation |
+| 2. W4225929449 (2021) Survey of Low-Resource Machine Translation | 2. W7117761584 (2018) Neural Machine Translation for Low-Resource Languages: Challenges and Solutions |
+| 3. W3198189804 (2022) Survey of Low-Resource Machine Translation | 3. W2899317740 (2009) Creating a High-Quality Machine Translation System for a Low-Resource Language: |
+| 4. W7117761584 (2018) Neural Machine Translation for Low-Resource Languages: Challenges and Solutions | 4. W2745341416 (2017) Neural machine translation for low-resource languages |
+| 5. W2899317740 (2009) Creating a High-Quality Machine Translation System for a Low-Resource Language: | 5. W4225670297 (2021) Lesan -- Machine Translation for Low Resource Languages |
+
+**quality estimation for machine translation** (vector, proximity): repeated titles in the top 5 2 before, 0 after; results returned 5 before, 5 after.
+
+| Before | After |
+| --- | --- |
+| 1. W2101105183 (2001) BLEU | 1. W2101105183 (2001) BLEU |
+| 2. W3198189804 (2022) Survey of Low-Resource Machine Translation | 2. W3198189804 (2022) Survey of Low-Resource Machine Translation |
+| 3. W4283220248 (2022) Survey of Low-Resource Machine Translation | 3. W7155070965 (2026) LIFT: A Quality-Aware Data Selection Framework for Low-Resource Machine Translat |
+| 4. W4225929449 (2021) Survey of Low-Resource Machine Translation | 4. W2123301721 (2005) METEOR: An Automatic Metric for MT Evaluation with Improved Correlation with Hum |
+| 5. W7155070965 (2026) LIFT: A Quality-Aware Data Selection Framework for Low-Resource Machine Translat | 5. W7204966702 (2026) Quality Estimation for Machine Translation in Low-Resource Settings |
+
+**quality estimation for machine translation** (keyword): repeated titles in the top 5 1 before, 0 after; results returned 5 before, 5 after.
+
+| Before | After |
+| --- | --- |
+| 1. W3161646700 (2021) Ensemble-based Transfer Learning for Low-resource Machine Translation Quality Es | 1. W3161646700 (2021) Ensemble-based Transfer Learning for Low-resource Machine Translation Quality Es |
+| 2. W7140086055 (2026) Domain-Specific Quality Estimation for Machine Translation in Low-Resource Scena | 2. W7140086055 (2026) Domain-Specific Quality Estimation for Machine Translation in Low-Resource Scena |
+| 3. W7134820529 (2026) Domain-Specific Quality Estimation for Machine Translation in Low-Resource Scena | 3. W2986030184 (2019) Filtered Pseudo-parallel Corpus Improves Low-resource Neural Machine Translation |
+| 4. W2986030184 (2019) Filtered Pseudo-parallel Corpus Improves Low-resource Neural Machine Translation | 4. W7204966702 (2026) Quality Estimation for Machine Translation in Low-Resource Settings |
+| 5. W7204966702 (2026) Quality Estimation for Machine Translation in Low-Resource Settings | 5. W7132432999 (2022) Translation memories as baselines for low-resource machine translation |
+
+The collapsed lists still have 5 results; the extra candidates come from just below the original top 5.

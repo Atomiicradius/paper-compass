@@ -449,3 +449,181 @@ def test_cli_rejects_a_wrong_sized_vector_file(connect_to_test_db, tmp_path, cap
 def test_cli_keyword(connect_to_test_db, docs, capsys):
     assert cli.main(["keyword", "neural translation"], connect_fn=connect_to_test_db) == 0
     assert "K_1" in capsys.readouterr().out
+
+
+# --- the query vector travels as a typed binary parameter, not as an 8.5 KB text string -----------
+
+def old_style_search(conn, vector, top_k):
+    """The previous way: the vector as a long text literal. Used only to prove the results did not change."""
+    rows = conn.execute("SELECT p.paper_id, p.embedding <=> %s::vector AS distance FROM paper p "
+                        "WHERE p.embedding IS NOT NULL ORDER BY distance LIMIT %s", (literal(vector), top_k)).fetchall()
+    return [(pid, 1.0 - float(d)) for pid, d in rows]
+
+
+def test_results_are_identical_to_the_text_parameter_version(conn, corpus):
+    for seed in (1, 2, 3):
+        query = make_vector(random.Random(seed))
+        new = [(r["paper_id"], r["similarity"]) for r in search(conn, query, top_k=15)]
+        old = old_style_search(conn, query, 15)
+        assert [pid for pid, _ in new] == [pid for pid, _ in old], "same ids in the same order"
+        assert all(abs(a - b) < 1e-6 for (_, a), (_, b) in zip(new, old)), "scores equal within 1e-6"
+
+
+def test_the_query_vector_is_sent_as_a_binary_float4_array_not_as_text(conn, corpus, monkeypatch):
+    seen = []
+    original = psycopg.Cursor.execute
+
+    def spy(self, query, params=None, **kwargs):
+        seen.append((query, params))
+        return original(self, query, params, **kwargs)
+
+    monkeypatch.setattr(psycopg.Cursor, "execute", spy)
+    search(conn, corpus.query, top_k=3)
+    sql, params = next((q, p) for q, p in seen if "<=>" in str(q))
+    vector_param = params[0]
+    assert "%b::real[]::vector" in sql, "the placeholder asks for the binary format"
+    assert not isinstance(vector_param, str), "a long text parameter is what cost about 44 ms"
+    assert len(vector_param) == DIM and all(isinstance(x, psycopg.types.numeric.Float4) for x in vector_param)
+
+
+def test_vector_parameter_validation_is_unchanged(conn, corpus):
+    for bad in ([1.0] * 10, [float("nan")] * DIM, [0.0] * DIM, ["a"] * DIM, "not a vector"):
+        with pytest.raises(ValueError):
+            search(conn, bad)
+
+
+def test_the_hnsw_index_still_serves_the_ordering_with_the_binary_parameter(private_db):
+    rng = random.Random(3)
+    with private_db.cursor().copy("COPY paper (paper_id, title, year, embedding) FROM STDIN") as copy:
+        for i in range(300):
+            copy.write_row((f"H_{i:04d}", f"Synthetic {i}", 2020, literal(make_vector(rng))))
+    private_db.execute("DROP INDEX idx_paper_embedding_hnsw")  # init.sql made it on the empty table; rebuild after the load
+    private_db.execute("CREATE INDEX idx_paper_embedding_hnsw ON paper USING hnsw (embedding vector_cosine_ops)")
+    private_db.execute("ANALYZE paper")
+    param = search_module.vector_parameter(make_vector(random.Random(4)))
+    with private_db.transaction():
+        private_db.execute("SET LOCAL enable_seqscan = off")
+        plan = "\n".join(r[0] for r in private_db.execute(
+            "EXPLAIN SELECT paper_id FROM paper ORDER BY embedding <=> %b::real[]::vector LIMIT 5", (param,)))
+    assert "idx_paper_embedding_hnsw" in plan, plan
+
+
+# --- collapse_same_title: a temporary workaround for duplicate records (ingest-level de-duplication is Person 1's) ---
+
+def add_title_corpus(conn, duplicates, distinct):
+    """duplicates: [(paper_id, title, noise)] with vectors close to the query (smaller noise = closer);
+    distinct: number of papers with unique titles and random vectors. Returns the query vector."""
+    rng = random.Random(11)
+    query = make_vector(rng)
+    for paper_id, title, noise in duplicates:
+        vec = [round(x + noise * rng.gauss(0, 1), 6) for x in query]
+        conn.execute("INSERT INTO paper (paper_id, title, abstract, year, embedding) VALUES (%s, %s, %s, 2020, %s)",
+                     (paper_id, title, f"abstract about {title}", literal(vec)))
+    for i in range(distinct):
+        conn.execute("INSERT INTO paper (paper_id, title, abstract, year, embedding) VALUES (%s, %s, %s, 2020, %s)",
+                     (f"U_{i:03d}", f"Unique title number {i}", "abstract", literal(make_vector(rng))))
+    return query
+
+
+DUPLICATES = [("D_best", "Survey of Low-Resource Machine Translation", 0.1),
+              ("D_mid", "survey of low-resource machine translation.", 0.2),       # lowercase, trailing punctuation
+              ("D_far", "  Survey  of Low-Resource: Machine Translation ", 0.3)]  # extra spaces and a colon
+
+
+def test_normalized_title_lowercases_strips_punctuation_and_collapses_spaces():
+    norm = search_module.normalize_title
+    assert norm("Survey of Low-Resource Machine Translation") == "survey of lowresource machine translation"
+    assert norm("  A   B\tC ") == "a b c"
+    assert norm("What's new? (2020): A -- test!") == "whats new 2020 a test"
+
+
+def test_collapse_is_off_by_default_and_duplicates_are_returned(conn):
+    query = add_title_corpus(conn, DUPLICATES[:2], distinct=10)
+    results = search(conn, query, top_k=5)
+    assert [r["paper_id"] for r in results[:2]] == ["D_best", "D_mid"], "both duplicates are returned by default"
+    assert search(conn, query, top_k=5, collapse_same_title=False) == results
+
+
+def test_collapse_keeps_the_best_scored_record_per_normalized_title(conn):
+    query = add_title_corpus(conn, DUPLICATES[:2] + [("D_x", "Survey of lowresource machine translation", 0.15)], distinct=10)
+    full = search(conn, query, top_k=20)
+    collapsed = search(conn, query, top_k=5, collapse_same_title=True)
+    survey_ids = [r["paper_id"] for r in collapsed if r["paper_id"].startswith("D_")]
+    assert survey_ids == ["D_best"], "only the highest-scored record of the three survives"
+    best = max((r for r in full if r["paper_id"].startswith("D_")), key=lambda r: r["similarity"])
+    assert best["paper_id"] == "D_best"
+    assert [r["paper_id"] for r in collapsed][0] == "D_best"
+
+
+def test_collapse_still_returns_k_results_when_enough_distinct_titles_exist(conn):
+    # five records of ONE title are the closest vectors; k=5 must still give 5 distinct titles
+    dups = [(f"D_{i}", "Same Title", 0.05 * (i + 1)) for i in range(5)]
+    query = add_title_corpus(conn, dups, distinct=12)
+    without = search(conn, query, top_k=5)
+    assert len({r["title"] for r in without}) < 5, "the setup really has duplicates in the top 5"
+    collapsed = search(conn, query, top_k=5, collapse_same_title=True)
+    assert len(collapsed) == 5
+    titles = [search_module.normalize_title(r["title"]) for r in collapsed]
+    assert len(set(titles)) == 5
+    sims = [r["similarity"] for r in collapsed]
+    assert sims == sorted(sims, reverse=True), "still ranked by similarity"
+
+
+def test_collapse_returns_fewer_only_when_there_are_not_enough_distinct_titles(conn):
+    query = add_title_corpus(conn, DUPLICATES, distinct=2)
+    collapsed = search(conn, query, top_k=10, collapse_same_title=True)
+    assert len(collapsed) == 3  # one survey title plus two unique titles
+    assert len(search(conn, query, top_k=10)) == 5
+
+
+def test_collapse_with_offset_pages_over_the_collapsed_list(conn):
+    query = add_title_corpus(conn, DUPLICATES, distinct=8)
+    everything = search(conn, query, top_k=9, collapse_same_title=True)
+    assert len(everything) == 9
+    assert search(conn, query, top_k=4, offset=3, collapse_same_title=True) == everything[3:7]
+
+
+def test_collapse_works_for_keyword_search_too(conn):
+    for paper_id, title, score_words in (("K1", "Back-Translation Study", "back translation " * 5), ("K2", "back-translation STUDY!", "back translation"),
+                                         ("K3", "Another back translation paper", "back translation")):
+        conn.execute("INSERT INTO paper (paper_id, title, abstract, year) VALUES (%s, %s, %s, 2020)", (paper_id, title, score_words))
+    default = keyword_search(conn, "back translation", top_k=5)
+    assert {"K1", "K2"} <= {r["paper_id"] for r in default}
+    collapsed = keyword_search(conn, "back translation", top_k=5, collapse_same_title=True)
+    assert len([r for r in collapsed if r["paper_id"] in ("K1", "K2")]) == 1
+    assert "K3" in {r["paper_id"] for r in collapsed}
+    kept = next(r for r in collapsed if r["paper_id"] in ("K1", "K2"))
+    assert kept["paper_id"] == max((r for r in default if r["paper_id"] in ("K1", "K2")), key=lambda r: r["score"])["paper_id"]
+
+
+def test_collapse_option_is_validated(conn):
+    query = add_title_corpus(conn, DUPLICATES[:1], distinct=3)
+    with pytest.raises(ValueError, match="collapse_same_title"):
+        search(conn, query, collapse_same_title="yes")
+
+
+def test_cli_collapse_titles_flag(connect_to_test_db, conn, tmp_path, capsys):
+    query = add_title_corpus(conn, DUPLICATES, distinct=6)
+    path = tmp_path / "q.json"
+    path.write_text(json.dumps(query), encoding="utf-8")
+    cli.main(["search", "--vector-file", str(path), "--top-k", "4"], connect_fn=connect_to_test_db)
+    plain = capsys.readouterr().out
+    cli.main(["search", "--vector-file", str(path), "--top-k", "4", "--collapse-titles"], connect_fn=connect_to_test_db)
+    collapsed = capsys.readouterr().out
+    assert plain.count("  D_") == 3 and collapsed.count("  D_") == 1
+    assert collapsed.count("\n") >= 4
+
+
+def test_collapse_breaks_an_exact_score_tie_by_the_smaller_paper_id(conn):
+    rng = random.Random(21)
+    query = make_vector(rng)
+    same = literal([round(x + 0.1 * rng.gauss(0, 1), 6) for x in query])  # one vector used by both records
+    for paper_id in ("T_b", "T_a"):  # inserted in the "wrong" order on purpose
+        conn.execute("INSERT INTO paper (paper_id, title, abstract, year, embedding) VALUES (%s, 'Twin Title', 'x', 2020, %s)",
+                     (paper_id, same))
+    for i in range(6):
+        conn.execute("INSERT INTO paper (paper_id, title, abstract, year, embedding) VALUES (%s, %s, 'x', 2020, %s)",
+                     (f"U_{i}", f"Other {i}", literal(make_vector(rng))))
+    for _ in range(3):
+        collapsed = search(conn, query, top_k=3, collapse_same_title=True)
+        assert [r["paper_id"] for r in collapsed if r["title"] == "Twin Title"] == ["T_a"]
