@@ -141,7 +141,41 @@ def test_a_raw_id_outside_a_marker_is_rejected():
     fell_back(run(make_evidence(), lambda p: GOOD + " Paper W3021357296 is relevant."), "number check")
 
 
-@pytest.mark.parametrize("phrase", ["a proven gap", "No one has combined them", "this has never been tried",
+@pytest.mark.parametrize("sentence", [
+    "This is not a proven gap.",
+    "This is not a proven research gap.",
+    "It is not proof of a proven research gap.",
+    "There is no proven gap in the evidence.",
+    "No proven research gap is shown here.",
+    "It isn't a proven gap.",
+    "This is NOT a Proven Research Gap.",
+    "The pair is a candidate, not a proven research gap.",
+])
+def test_a_negated_proven_gap_is_accepted(sentence):
+    out = run(make_evidence(), lambda p: GOOD + " " + sentence)
+    assert out["source"] == "llm", (sentence, out)
+
+
+@pytest.mark.parametrize("sentence", [
+    "This is a proven gap.",
+    "A proven research gap exists.",
+    "Proven gap.",
+    "It is not clear, but this is a proven gap.",           # the negation is in another clause
+    "It is not clear that this is a proven research gap.",  # the negation is too far before the phrase
+    "This is not a proven gap, but a proven research gap exists.",  # the second use is affirmative
+    "Not sure. This is a proven gap.",
+])
+def test_an_affirmative_proven_gap_is_rejected(sentence):
+    out = fell_back(run(make_evidence(), lambda p: GOOD + " " + sentence), "forbidden phrase")
+    assert "proven" in out["detail"]
+
+
+def test_the_template_summary_passes_all_three_checks_on_the_test_evidence():
+    ev = make_evidence()
+    assert llm.check_output(summarize_evidence(ev), ev) == (None, "")
+
+
+@pytest.mark.parametrize("phrase", ["No one has combined them", "this has never been tried",
                                     "the first to combine them", "definitely unexplored", "a guaranteed opportunity"])
 def test_forbidden_phrases_are_rejected(phrase):
     out = fell_back(run(make_evidence(), lambda p: GOOD + f" This is {phrase}."), "forbidden phrase")

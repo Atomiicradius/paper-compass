@@ -49,9 +49,27 @@ MAX_OUTPUT_TOKENS = 600
 TIMEOUT_SECONDS = 20
 
 # Phrases the explanation must not contain (matched case-insensitively, whole words where it matters).
-FORBIDDEN_PATTERNS = (r"proven gap", r"no one has", r"never been", r"\bfirst to\b",
+FORBIDDEN_PATTERNS = (r"no one has", r"never been", r"\bfirst to\b",
                       # also from AGENTS.md ("wording rules")
                       r"definitely unexplored", r"guaranteed", r"nobody has done")
+# "proven gap" and "proven research gap" are allowed ONLY right after a negation in the same clause ("is not a proven
+# research gap", "not proof of a proven gap", "no proven gap"); every other use is rejected.
+PROVEN_GAP = re.compile(r"proven (?:research )?gap")
+NEGATIONS = {"not", "no", "isn't", "aren't", "wasn't", "weren't", "isnt"}
+CLAUSE_END = re.compile(r"[.;:!?,\n]")
+NEGATION_WINDOW = 4  # words before the phrase that may hold the negation ("not proof of a")
+
+
+def affirmative_proven_gap(text):
+    """The first use of "proven gap" / "proven research gap" that is NOT negated, as written, else None. A use is
+    negated if one of the NEGATION_WINDOW words before it, inside the same clause, is a negation word."""
+    lowered = text.lower().replace("’", "'")
+    for found in PROVEN_GAP.finditer(lowered):
+        clause = CLAUSE_END.split(lowered[:found.start()])[-1]
+        words = re.findall(r"[a-z']+", clause)[-NEGATION_WINDOW:]
+        if not NEGATIONS.intersection(words):
+            return found.group(0)
+    return None
 
 FALLBACK_REASONS = ("no key", "error", "rate limit", "citation check", "number check", "forbidden phrase")
 
@@ -204,6 +222,9 @@ def check_output(text, evidence):
         found = re.search(pattern, lowered)
         if found:
             return "forbidden phrase", f"contains {found.group(0)!r}"
+    phrase = affirmative_proven_gap(text)
+    if phrase:
+        return "forbidden phrase", f"contains {phrase!r} without a negation right before it"
     return None, ""
 
 

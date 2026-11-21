@@ -5,7 +5,7 @@ The explanation of an opportunity is the fixed-template summary of `rag/summary.
 any problem returns the template with a stated reason. Candidate opportunities stay signals for human review ("potentially
 underexplored in the analyzed corpus"), not proof of a gap.
 
-Status when this was written (2026-11-21): the code and its 32 tests (fake clients, no network) are done. **The real
+Status when this was written (2026-11-21): the code and its 60 tests (fake clients, no network) are done. **The real
 providers have not been called**: no API key was set on the machine, and the two SDKs are not installed, so the real
 check (Part 3 of the task) was skipped with 0 API calls. The SDK calls in `gemini_client` and `anthropic_client` follow
 the SDKs' documented examples but have only been exercised against fake modules.
@@ -39,14 +39,21 @@ After the model answers, in this order:
 
 1. **Citations**: `rag.citations.verify_citations` must pass: every `[paper:ID]` is an id from the evidence and no marker is
    malformed. Reason on failure: `citation check`.
-2. **Numbers**: every number in the answer (ignoring the ids inside markers) must appear, written the same way, in the
-   evidence text sent to the model. So "3.8" is rejected when the evidence says "3.82", and a paper id written outside a
-   marker is rejected. Reason on failure: `number check`. This is strict on purpose. For the three demo pairs, the
-   template summary itself fails this check because it rounds the expected count to one decimal (for example 4.0 where the
-   evidence says 4.04); a model that rounds will fall back too. The prompt tells the model to copy numbers exactly.
-3. **Forbidden phrases** (case-insensitive): "proven gap", "no one has", "never been", "first to" (whole words), and from
-   AGENTS.md "definitely unexplored", "guaranteed", "nobody has done". The check does not look at negation, so "not a proven
-   gap" is rejected too. Reason on failure: `forbidden phrase`.
+2. **Numbers**: every number in the answer (ignoring the ids inside markers) must equal a number in the evidence text sent
+   to the model, or a rounding of one to 0, 1 or 2 decimals (half up or half to even: 3.82 may be written 3.82, 3.8 or 4), or,
+   for a ratio in the evidence (a number from 0 to 1 written with decimals, such as the embedding similarity 0.81), its
+   percent form (81, 81.0, 81%). Anything else is rejected: an invented count, a wrong rounding (3.9), a paper id written
+   outside a marker, or a percent of a plain count. Reason on failure: `number check`. The template summary passes this check
+   on the three demo pairs (it rounds the expected count to one decimal, which is allowed). The check compares numbers as
+   text; it does not understand units, ranges or number words ("two"). Rounding is also a way in for a wrong claim: "about 4"
+   is accepted for 3.82 although it is a different statement, and a number that is a rounding of an unrelated evidence number
+   (for example a year) would pass.
+3. **Forbidden phrases** (case-insensitive): "no one has", "never been", "first to" (whole words), and from AGENTS.md
+   "definitely unexplored", "guaranteed", "nobody has done" are always rejected. "proven gap" and "proven research gap" are
+   rejected unless one of the 4 words before them, in the same clause (no comma, full stop, semicolon, colon, question or
+   exclamation mark between), is a negation (not, no, isn't, aren't, wasn't, weren't): "is not a proven research gap", "not
+   proof of a proven gap" and "no proven gap" pass; "this is a proven gap", "a proven research gap exists" and "it is not
+   clear that this is a proven gap" (negation too far away) are rejected. Reason on failure: `forbidden phrase`.
 
 ## Fallback
 
