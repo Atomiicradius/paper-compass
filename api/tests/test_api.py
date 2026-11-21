@@ -57,7 +57,9 @@ def test_explain(client):
     r = client.post("/opportunities/1/explain")
     assert r.status_code == 200
     body = r.json()
-    assert set(body) == {"opportunity_id", "evidence", "summary", "citation_check", "disclaimer"}
+    assert set(body) == {"opportunity_id", "evidence", "summary", "summary_source", "summary_fallback_reason",
+                         "citation_check", "disclaimer"}
+    assert body["summary_source"] == "template" and body["summary_fallback_reason"] is None  # the default
     assert set(body["evidence"]["roles"]) == {"supports_A", "supports_B", "bridge", "nearest_existing"}
     assert "[paper:MOCK-W5]" in body["summary"]
     assert body["citation_check"]["ok"] is True
@@ -173,3 +175,51 @@ def test_related_without_embedding(use):
             raise VectorSearchUnavailable("this paper has no embedding")
 
     assert use(NoEmbedding(), None).get("/papers/MOCK-W1/related").status_code == 409
+
+
+# --- the optional LLM explanation: off by default, never calls the network in these tests -----------------------
+
+@pytest.fixture
+def no_llm_keys(monkeypatch, tmp_path):
+    """No key anywhere (environment or .env), so nothing here can reach a model."""
+    from rag import llm_summary
+    for name in ("GEMINI_API_KEY", "ANTHROPIC_API_KEY", "PC_LLM_PROVIDER", "PC_LLM_MODEL", "PC_LLM_SUMMARY"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(llm_summary, "ENV_FILE", tmp_path / "no.env")
+
+
+def test_explain_is_the_template_by_default(client, no_llm_keys):
+    body = client.post("/opportunities/1/explain").json()
+    assert body["summary_source"] == "template" and body["summary_fallback_reason"] is None
+
+
+def test_explain_with_the_option_on_but_no_key_falls_back_to_the_same_template(client, no_llm_keys, monkeypatch):
+    plain = client.post("/opportunities/1/explain").json()
+    monkeypatch.setenv("PC_LLM_SUMMARY", "1")
+    body = client.post("/opportunities/1/explain").json()
+    assert body["summary_source"] == "template" and body["summary_fallback_reason"] == "no key"
+    assert body["summary"] == plain["summary"] and body["citation_check"]["ok"] is True
+
+
+def test_explain_uses_a_good_llm_text_and_checks_it_again(client, no_llm_keys, monkeypatch):
+    from rag import llm_summary
+    text = ("What the corpus shows\nThe pair is seen in a few papers [paper:MOCK-W5].\n\n"
+            "What the system infers\nPotentially underexplored in the analyzed corpus; the counts depend on the "
+            "extraction and on the analyzed corpus.")
+    real = llm_summary.explanation_text
+    monkeypatch.setattr("rag.llm_summary.explanation_text", lambda evidence, **kw: real(evidence, use_llm=True,
+                        complete=lambda prompt: text, env={}, env_file=llm_summary.ENV_FILE))
+    body = client.post("/opportunities/1/explain").json()
+    assert body["summary_source"] == "llm" and body["summary"] == text
+    assert body["citation_check"]["ok"] is True and body["citation_check"]["cited"] == ["MOCK-W5"]
+
+
+def test_explain_falls_back_when_the_llm_cites_an_unknown_paper(client, no_llm_keys, monkeypatch):
+    from rag import llm_summary
+    bad = "What the corpus shows\nSee [paper:NOT-IN-THE-EVIDENCE].\n\nWhat the system infers\nPotentially underexplored."
+    real = llm_summary.explanation_text
+    monkeypatch.setattr("rag.llm_summary.explanation_text", lambda evidence, **kw: real(evidence, use_llm=True,
+                        complete=lambda prompt: bad, env={}, env_file=llm_summary.ENV_FILE))
+    body = client.post("/opportunities/1/explain").json()
+    assert body["summary_source"] == "template" and body["summary_fallback_reason"] == "citation check"
+    assert "NOT-IN-THE-EVIDENCE" not in body["summary"] and body["citation_check"]["ok"] is True

@@ -10,7 +10,8 @@ Configuration (environment variables):
     PC_QUERY_ENCODER       specter2 (default) or none; see api/query_encoder.py
 
 /search and /papers/{id}/related use Person 2's db/retrieval search layer.
-/opportunities/{id}/explain uses Person 2's rag/ evidence builder and template summary (no LLM).
+/opportunities/{id}/explain uses Person 2's rag/ evidence builder and, by default, the template summary; an
+optional LLM explanation (PC_LLM_SUMMARY=1, rag/llm_summary.py) falls back to the template on any problem.
 /rag/query returns 501 until an LLM client is chosen (open decision O5).
 """
 
@@ -196,7 +197,9 @@ def related(paper_id: str, top_k: int = Query(10, ge=1, le=100), year_min: int |
 
 @app.post("/opportunities/{opportunity_id}/explain")
 def explain(opportunity_id: int, repo: Repository = Depends(get_repo)):
-    """{opportunity_id, evidence, summary, citation_check}; shape provisional until it is in
+    """{opportunity_id, evidence, summary, summary_source, summary_fallback_reason, citation_check, disclaimer};
+    summary_source is "template" (default) or "llm" (PC_LLM_SUMMARY=1 and the guardrails passed), and
+    summary_fallback_reason says why the template was used instead (null when it was simply the default). Shape provisional until it is in
     data-and-contracts.md (db/proposals/evidence-chain-format.md)."""
     try:
         out = repo.explain(opportunity_id)

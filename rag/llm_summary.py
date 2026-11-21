@@ -71,11 +71,12 @@ Rules:
 
 # --- settings ------------------------------------------------------------------------------------
 
-def read_env_file(path=ENV_FILE):
-    """KEY=VALUE lines of a .env file as a dict (comments and blank lines skipped, quotes stripped). {} if missing."""
+def read_env_file(path=None):
+    """KEY=VALUE lines of a .env file as a dict (comments and blank lines skipped, quotes stripped). {} if missing.
+    path=None means ENV_FILE, looked up at call time (so a test can point it somewhere else)."""
     values = {}
     try:
-        text = Path(path).read_text(encoding="utf-8")
+        text = Path(ENV_FILE if path is None else path).read_text(encoding="utf-8")
     except OSError:
         return values
     for line in text.splitlines():
@@ -86,7 +87,7 @@ def read_env_file(path=ENV_FILE):
     return values
 
 
-def setting(name, env=None, env_file=ENV_FILE):
+def setting(name, env=None, env_file=None):
     """A setting from the environment, else from the .env file, else None. Empty values count as unset."""
     import os
     source = os.environ if env is None else env
@@ -94,7 +95,7 @@ def setting(name, env=None, env_file=ENV_FILE):
     return value or None
 
 
-def llm_enabled(env=None, env_file=ENV_FILE):
+def llm_enabled(env=None, env_file=None):
     return setting("PC_LLM_SUMMARY", env, env_file) == "1"
 
 
@@ -254,7 +255,7 @@ def template_result(evidence, reason, detail="", **extra):
 
 
 def explanation_text(evidence, use_llm=None, complete=None, provider=None, model=None,
-                     timeout_seconds=TIMEOUT_SECONDS, env=None, env_file=ENV_FILE):
+                     timeout_seconds=TIMEOUT_SECONDS, env=None, env_file=None):
     """The explanation for an evidence chain: {text, source, fallback_reason, detail, ...}.
 
     use_llm: None follows PC_LLM_SUMMARY (default off = template); True or False overrides it. complete is an

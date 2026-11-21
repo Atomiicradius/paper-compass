@@ -56,7 +56,7 @@ class Repository(Protocol):
     def list_opportunities(self, limit: int, offset: int, cutoff_year: int | None,
                            weights_version: str | None, min_confidence: float | None) -> tuple[int, list[dict]]: ...
     def get_opportunity(self, opportunity_id: int) -> dict | None: ...
-    def explain(self, opportunity_id: int) -> dict | None: ...
+    def explain(self, opportunity_id: int, use_llm: bool | None = None) -> dict | None: ...
     def get_paper(self, paper_id: str) -> dict | None: ...
     def paper_graph(self, paper_id: str, limit: int) -> dict | None: ...
     def trends(self, element_type: str) -> list[dict]: ...
@@ -129,12 +129,12 @@ class PostgresRepository:
             row = cur.fetchone()
             return self._opportunity(cur, row) if row else None
 
-    def explain(self, opportunity_id):
-        """Evidence chain, template summary and citation check from Person 2's rag/ (shape provisional,
+    def explain(self, opportunity_id, use_llm=None):
+        """Evidence chain, summary and citation check from Person 2's rag/ (shape provisional,
         db/proposals/evidence-chain-format.md). ValueError if the opportunity is not a single pair."""
         from rag.citations import verify_citations
         from rag.evidence import build_evidence, collect_paper_ids
-        from rag.summary import summarize_evidence
+        from rag.llm_summary import explanation_text
 
         with self._conn() as conn, conn.cursor() as cur:
             cur.execute("SELECT method_id, dataset_id, task_id, setting_id, corpus_cutoff_year "
@@ -149,8 +149,10 @@ class PostgresRepository:
                 raise ValueError("explain supports opportunities with exactly two of method, dataset and task, "
                                  "and no setting")
             evidence = build_evidence(conn, elements[0], elements[1], cutoff)
-        summary = summarize_evidence(evidence)
+        explanation = explanation_text(evidence, use_llm=use_llm)  # template unless PC_LLM_SUMMARY=1 or use_llm=True
+        summary = explanation["text"]
         return {"opportunity_id": opportunity_id, "evidence": evidence, "summary": summary,
+                "summary_source": explanation["source"], "summary_fallback_reason": explanation["fallback_reason"],
                 "citation_check": verify_citations(summary, collect_paper_ids(evidence))}
 
     # --- papers -------------------------------------------------------------

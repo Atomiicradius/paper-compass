@@ -60,11 +60,11 @@ class MockRepository:
     def get_opportunity(self, opportunity_id):
         return next((o for o in _OPPORTUNITIES if o["opportunity_id"] == opportunity_id), None)
 
-    def explain(self, opportunity_id):
+    def explain(self, opportunity_id, use_llm=None):
         """Made-up evidence (MOCK ids and counts) run through Person 2's real summary and citation check."""
         from rag.citations import verify_citations
         from rag.evidence import LIMITATIONS, collect_paper_ids
-        from rag.summary import summarize_evidence
+        from rag.llm_summary import explanation_text
 
         opp = self.get_opportunity(opportunity_id)
         if opp is None:
@@ -93,8 +93,10 @@ class MockRepository:
             },
             "limitations": [MOCK_NOTICE, *LIMITATIONS],
         }
-        summary = summarize_evidence(evidence)
+        explanation = explanation_text(evidence, use_llm=use_llm)  # template unless PC_LLM_SUMMARY=1 or use_llm=True
+        summary = explanation["text"]
         return {"opportunity_id": opportunity_id, "evidence": evidence, "summary": summary,
+                "summary_source": explanation["source"], "summary_fallback_reason": explanation["fallback_reason"],
                 "citation_check": verify_citations(summary, collect_paper_ids(evidence))}
 
     def get_paper(self, paper_id):
