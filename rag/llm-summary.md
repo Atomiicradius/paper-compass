@@ -5,10 +5,19 @@ The explanation of an opportunity is the fixed-template summary of `rag/summary.
 any problem returns the template with a stated reason. Candidate opportunities stay signals for human review ("potentially
 underexplored in the analyzed corpus"), not proof of a gap.
 
-Status when this was written (2026-11-21): the code and its 60 tests (fake clients, no network) are done. **The real
-providers have not been called**: no API key was set on the machine, and the two SDKs are not installed, so the real
-check (Part 3 of the task) was skipped with 0 API calls. The SDK calls in `gemini_client` and `anthropic_client` follow
-the SDKs' documented examples but have only been exercised against fake modules.
+Status (2026-11-21): the code and its 60 tests (fake clients, no network) are done, and the API tests that touch the new
+fields ran and passed (see below). **The real providers have not been called**: no API key was set (the repository-root
+`.env` exists but has no variables, and neither `GEMINI_API_KEY` nor `ANTHROPIC_API_KEY` is in the environment), and the two
+SDKs are not installed, so the real check (3 calls, one per demo pair) was **not run: 0 API calls, nothing observed yet**.
+The SDK calls in `gemini_client` and `anthropic_client` follow the SDKs' documented examples but have only been exercised
+against fake modules. When a key is available: install the SDK (`pip install -r rag/requirements-llm.txt`), put the key in the
+root `.env` (see "How to turn it on"), and run the three demo pairs; record here which provider and model were used, how many
+of the 3 answers passed the checks, and why any fell back.
+
+API tests: run in a separate environment (`pc-envs/api-venv`, Python 3.12.3, the pins of `requirements-person3.txt`):
+`pytest api` gave 19 passed and 7 skipped (the PostgreSQL integration tests, which need `PC_TEST_PG_DSN`); with
+`PC_TEST_PG_DSN` pointing at a throwaway database, `pytest api scoring` gave 62 passed, including the `explain` integration
+test that goes through `PostgresRepository.explain`.
 
 ## What is sent to the API
 
@@ -127,5 +136,5 @@ checked after generation.
   remains necessary, and the template summary is the only text whose every sentence is fixed by code.
 - The structure (two paragraphs, the two titles) is requested in the prompt but not enforced.
 - The number check compares tokens as text; it does not understand units, ranges or number words ("two").
-- The API tests for the new response fields (`api/tests/test_api.py`) were written but not run, because `fastapi` is not
-  installed in the available environments; the mock repository path was run directly.
+- The real providers have not been called yet (see the status above); the observed behaviour of the models, their latency and
+  how often an answer passes the checks are unknown until the real check is run.
