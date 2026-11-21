@@ -105,8 +105,36 @@ def test_an_invented_number_is_rejected():
     assert "9" in out["detail"]
 
 
-def test_a_rounded_number_is_rejected_because_it_is_not_in_the_evidence_text():
-    fell_back(run(make_evidence(), lambda p: GOOD.replace("3.82", "3.8")), "number check")
+@pytest.mark.parametrize("written", ["3.82", "3.8", "3.80", "4", "4.0"])   # the evidence says 3.82
+def test_a_number_and_its_roundings_are_accepted(written):
+    out = run(make_evidence(), lambda p: GOOD.replace("3.82", written))
+    assert out["source"] == "llm", out
+
+
+@pytest.mark.parametrize("written", ["3.9", "3.7", "5", "3.83", "38.2", "13"])  # not roundings of anything in the evidence
+def test_a_number_that_is_no_rounding_of_an_evidence_number_is_rejected(written):
+    out = fell_back(run(make_evidence(), lambda p: GOOD.replace("3.82", written)), "number check")
+    assert written in out["detail"]
+
+
+def test_the_percent_form_of_a_ratio_in_the_evidence_is_accepted():
+    ev = make_evidence()                       # the nearest close paper W2 has the ratio 0.8123 -> shown as 0.81
+    for written in ("81", "81.0", "81%", "0.8"):
+        text = GOOD + f" Its embedding similarity is {written} [paper:W2]."
+        assert run(ev, lambda p, t=text: t)["source"] == "llm", written
+    out = fell_back(run(ev, lambda p: GOOD + " Its similarity is 82% [paper:W2]."), "number check")
+    assert "82" in out["detail"]
+
+
+def test_a_count_is_not_a_ratio_so_it_has_no_percent_form():
+    # 7 papers use A: "700" must not be accepted as 7 * 100
+    fell_back(run(make_evidence(), lambda p: GOOD.replace("7 papers", "700 papers")), "number check")
+
+
+def test_every_number_of_the_evidence_text_is_accepted_as_written():
+    ev = make_evidence()
+    evidence_numbers = llm.numbers_in(llm.evidence_text(ev))
+    assert llm.unexplained_numbers(" ".join(sorted(evidence_numbers)), llm.evidence_text(ev)) == []
 
 
 def test_a_raw_id_outside_a_marker_is_rejected():

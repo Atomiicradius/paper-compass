@@ -24,6 +24,7 @@ The SDKs are imported only when a call is made, so importing this module needs n
 import concurrent.futures
 import re
 import time
+from decimal import ROUND_HALF_EVEN, ROUND_HALF_UP, Decimal
 from pathlib import Path
 
 from .citations import verify_citations
@@ -61,8 +62,8 @@ Rules:
    cautious wording.
 2. Every statement about a paper carries that paper's marker exactly as written in the evidence, for example
    [paper:W123]. Mention only papers listed in the evidence.
-3. Use only numbers that appear in the evidence, copied exactly as written (for example 4.04, not 4.0). Do not
-   compute new numbers.
+3. Use only numbers that appear in the evidence, or a rounding of one (for example 4.04 or 4.0), or the percent
+   form of a ratio that appears in it. Do not compute new numbers.
 4. If the inference is that the pair is rarely seen, say "potentially underexplored in the analyzed corpus". Never
    write "proven gap", never claim that something is new, unexplored for certain, or that nobody has done it.
 5. Say that the counts depend on the extraction and on the analyzed corpus.
@@ -160,6 +161,31 @@ def numbers_in(text):
     return set(NUMBER.findall(MARKER.sub(" ", text)))
 
 
+def explained_values(evidence_numbers):
+    """Every value a number in the answer may have, given the numbers (as text) found in the evidence: the number
+    itself; its rounding to 0, 1 or 2 decimals (half up or half to even); and, for a ratio (a number from 0 to 1
+    written with decimals, such as an embedding similarity), the percent form 100 * ratio rounded the same ways."""
+    allowed = set()
+    for token in evidence_numbers:
+        value = Decimal(token)
+        allowed.add(value)
+        bases = [value]
+        if "." in token and Decimal(0) <= value <= Decimal(1):
+            bases.append(value * 100)
+        for base in bases:
+            for places in (0, 1, 2):
+                for mode in (ROUND_HALF_UP, ROUND_HALF_EVEN):
+                    allowed.add(base.quantize(Decimal(1).scaleb(-places), rounding=mode))
+    return allowed
+
+
+def unexplained_numbers(text, evidence_text_value):
+    """The numbers of `text` (ids inside [paper:...] markers ignored) that are neither a number of the evidence text
+    nor a rounding or percent form of one (see explained_values). Sorted, as written."""
+    allowed = explained_values(numbers_in(evidence_text_value))
+    return sorted((t for t in numbers_in(text) if Decimal(t) not in allowed), key=float)
+
+
 def check_output(text, evidence):
     """The three guardrails. Returns (None, "") if the text passes, else (reason, detail)."""
     result = verify_citations(text, collect_paper_ids(evidence))
@@ -170,9 +196,9 @@ def check_output(text, evidence):
         if result["uncited_markers_count"]:
             parts.append(f"{result['uncited_markers_count']} malformed marker(s)")
         return "citation check", "; ".join(parts)
-    invented = sorted(numbers_in(text) - numbers_in(evidence_text(evidence)), key=float)
+    invented = unexplained_numbers(text, evidence_text(evidence))
     if invented:
-        return "number check", f"numbers that are not in the evidence: {', '.join(invented)}"
+        return "number check", f"numbers that are not in the evidence or a rounding of one: {', '.join(invented)}"
     lowered = text.lower()
     for pattern in FORBIDDEN_PATTERNS:
         found = re.search(pattern, lowered)
