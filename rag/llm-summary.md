@@ -5,12 +5,12 @@ The explanation of an opportunity is the fixed-template summary of `rag/summary.
 any problem returns the template with a stated reason. Candidate opportunities stay signals for human review ("potentially
 underexplored in the analyzed corpus"), not proof of a gap.
 
-Status (2026-11-21): the code and its 60 tests (fake clients, no network) are done, and the API tests that touch the new
-fields ran and passed (see below). **A real check was run once with Gemini and produced no model text at all: all 3 calls fell
-back to the template** (one timeout, two 503 "high demand" errors; details in "Real check" below). So the number and phrase
-guardrails have **not yet been tested on a real model answer**. The SDK calls follow the SDKs' documented examples; the Gemini
-one has now been exercised against the real service (it reached it and got errors), the Anthropic one only against fake
-modules.
+Status (2026-11-21): the code and its 83 tests (fake clients and fake SDKs, plus 2 tests of the real google-genai SDK against a
+local server; no test uses the network) are done, and the API tests that touch the new fields ran and passed (see below).
+**Two real checks were run with Gemini (`gemini-3.8-flash`) and produced no model text at all: all 6 calls fell back to the
+template** (run 1: one client timeout and two 503 "high demand"; run 2: three 504 DEADLINE_EXCEEDED; details in "Real check"
+below). So the number and phrase guardrails have **not yet been tested on a real model answer**, and the Anthropic provider
+has only been exercised against fake modules.
 
 API tests: run in a separate environment (`pc-envs/api-venv`, Python 3.12.3, the pins of `requirements-person3.txt`):
 `pytest api` gave 19 passed and 7 skipped (the PostgreSQL integration tests, which need `PC_TEST_PG_DSN`); with
@@ -70,7 +70,8 @@ After the model answers, in this order:
 | --- | --- | --- |
 | Option off (the default) | template | null |
 | On, but no key | template | `no key` |
-| Network error, API error, timeout (20 s), empty answer, SDK not installed, unknown provider | template | `error` (the exception type and a short message in `detail`) |
+| No answer within the timeout (20 s; cancelled by the SDK's own timeout) | template | `timeout` |
+| Network error, API error (for example 503 or 504), empty answer, SDK not installed, unknown provider | template | `error` (the exception type and a short message in `detail`) |
 | HTTP 429 / `RateLimitError` | template | `rate limit` |
 | Failed citation / number / phrase check | template | `citation check` / `number check` / `forbidden phrase` |
 | Passed everything | llm | null |
@@ -108,14 +109,37 @@ returned.
 | Where the default was checked | https://aistudio.google.com/docs/models/gemini-3.8-flash (ai.google.dev redirects there): "Model code gemini-3.8-flash", "Stable: gemini-3.8-flash", no deprecation date | https://platform.claude.com/docs/en/models/haiku-5-5/overview: "Model ID: claude-haiku-5-5", "Active (latest)", retirement not sooner than October 7, 2027 |
 | Override the model | `PC_LLM_MODEL=...` | `PC_LLM_MODEL=...` |
 | Temperature | not sent (the Gemini docs say 3.6+ models ignore a custom value) | not sent (the Haiku 5.5 page says to omit it) |
-| Timeout | 20 s, enforced around the call (the SDK's own timeout units were not found in the docs) | 20 s in the SDK client, and enforced around the call; `max_retries=0` |
+| Timeout, retries | `HttpOptions(timeout=20000)` (milliseconds) and `HttpOptions(retry_options=HttpRetryOptions(attempts=1))` (no retries) | client options `timeout=20.0` (seconds) and `max_retries=0` |
 
-Both pages were read on 2026-11-21 by a fetch of the page text; the Gemini model page gives no statement about
+Both model pages were read on 2026-11-21 by a fetch of the page text; the Gemini model page gives no statement about
 temperature or about rate limits.
+
+**Where the timeout and retry options are documented.** Anthropic: https://platform.claude.com/docs/en/api/sdks/python (client
+option `timeout`, "20.0 # 20 seconds (default is 10 minutes)", and `max_retries`, default 2). Gemini: the field
+descriptions in the SDK source (`google/genai/types.py`, google-genai 3.6.1): `HttpOptions.timeout` "Timeout for the request
+in milliseconds", `HttpOptions.retry_options` "HTTP retry options for the request", `HttpRetryOptions.attempts` "Maximum number
+of attempts, including the original request. If 0 or 1, it means no retries. If not specified, default to 5". The web
+reference page (googleapis.github.io/python-genai/genai.html) could not be loaded (too large), so the Gemini options were
+verified from the installed SDK and against the real SDK talking to a local server: with `timeout` 0.5 s a slow server gave
+`ReadTimeout` after 0.54 s with 1 request received; a 503 gave `ServerError` with 1 request; with `attempts=2` the SDK sent
+2 requests. (Without `retry_options` the SDK also sent 1 request for a 503 in that test, so the earlier suspicion of hidden
+SDK retries behind the first failed call was not confirmed; with no timeout set, that call most likely just kept waiting.)
+A call that is stuck for more than the timeout plus 5 s is also abandoned by an outer guard that runs in a daemon thread,
+so it can never keep the Python process alive.
 
 `PC_LLM_TEMPERATURE=0` makes the code send a temperature (for a model that accepts it). **The requested temperature of 0 is
 therefore not applied with either default model**: output can vary between runs, which is one more reason the answer is
 checked after generation.
+
+## Cache
+
+Generated summaries that passed the three guardrails are cached on disk in `data/llm_cache/` (ignored by git: `git check-ignore -v
+data/llm_cache/x.json` gives `.gitignore:5:data/`), one small JSON file per key, where the key is a sha256 of (provider, model,
+prompt text). The next identical request is answered from the cache without an API call (and without a key), but the three
+guardrails run on the cached text every time; a cached text that no longer passes is deleted and the template is returned.
+Failures, timeouts, rate limits and rejected texts are never stored. `PC_LLM_CACHE=0` turns the cache off. Results carry
+`cache` = `hit`, `miss` or `off`. Delete the folder to start fresh. No cache entry exists yet from a real model (no real answer
+has been obtained).
 
 ## Before the demo
 
@@ -134,9 +158,9 @@ checked after generation.
   remains necessary, and the template summary is the only text whose every sentence is fixed by code.
 - The structure (two paragraphs, the two titles) is requested in the prompt but not enforced.
 - The number check compares tokens as text; it does not understand units, ranges or number words ("two").
-- The guardrails have not been exercised on a real model answer yet (the first real check returned none, see "Real check").
+- The guardrails have not been exercised on a real model answer yet (the two real checks returned none, see "Real check").
 
-## Real check (2026-11-21, once)
+## Real checks (2026-11-21): run 1, then run 2 below
 
 Setup: provider **gemini** (`PC_LLM_PROVIDER` not set, so the default), model **gemini-3.8-flash** (the default), `PC_LLM_SUMMARY=1`,
 key in the gitignored root `.env` (copied into the worktree for the run; not printed or logged), SDK `google-genai==3.6.1`
@@ -164,3 +188,26 @@ What I could not tell:
 Follow-ups before relying on this (not done): rerun when the service is less busy (or try another model by `PC_LLM_MODEL`
 after checking the docs); check the SDK's own timeout and retry settings in the official docs and set them, so a timed-out
 call is really cancelled and does not keep running; run a real call for the other provider if it will be used.
+
+### Run 2 (2026-11-21, after the timeout, retry and cache changes)
+
+Same setup (gemini, `gemini-3.8-flash`, `PC_LLM_SUMMARY=1`), with the SDK's own timeout (20 s, 18.8 s and 14.6 s left of a hard
+60 s limit for the whole run), `attempts=1`, a request hook that counts every HTTP request the SDK sends, and the cache on.
+Rule for the run: stop after the first call if it was a 503 or a timeout.
+
+| Pair | Latency | HTTP attempts recorded | source | fallback_reason | What happened |
+| --- | ---: | ---: | --- | --- | --- |
+| Masked Language Modeling x Machine Translation | 19,906 ms | 1 | template | error | `ServerError: 504 DEADLINE_EXCEEDED` ("Deadline expired before operation could complete.") |
+| Data Augmentation x Language Modeling | 18,768 ms | 1 | template | error | the same 504 |
+| Recurrent Neural Network x Machine Translation | 14,615 ms | 1 | template | error | the same 504 |
+
+Result: **0 of 3 answers returned; all 3 explanations were the template**, nothing was cached. Exactly 3 calls and exactly 1 HTTP
+attempt per call (as recorded by the SDK request hook), no retries; the run ended after 54.8 s and the process exited at once.
+The 504 is an answer from the service (its own deadline passed after about 15 to 20 s), not our client timeout. I did not treat a
+504 as "a 503 or a timeout" for the stop rule, so the run continued to the other two pairs; arguably a 504 deadline error is a
+timeout and the run should have stopped after the first call.
+
+What this suggests, not proven: for this prompt (about 5,600 to 5,900 characters) the model did not answer within about 15 to
+20 s on that day, either because the service was overloaded (run 1 showed 503 "high demand") or because the model needs longer than
+the limit (it supports "thinking", which cannot be switched off). A longer timeout, a smaller prompt, or another model
+(`PC_LLM_MODEL`) are things to try; none was tried.
