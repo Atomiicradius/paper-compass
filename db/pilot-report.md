@@ -372,3 +372,115 @@ So with the new query encoding the pilot queries no longer show duplicates in th
 | 5. W7204966702 (2026) Quality Estimation for Machine Translation in Low-Resource Settings | 5. W7132432999 (2022) Translation memories as baselines for low-resource machine translation |
 
 The collapsed lists still have 5 results; the extra candidates come from just below the original top 5.
+
+## 8. Hybrid search (optional, default off; retrieval fixes, 2026-11-21)
+
+`retrieval.search.search_hybrid(conn, text, query_vector, top_k=10, n_candidates=50, rrf_k=60, year_min, year_max, collapse_same_title)` takes the top 50 of vector search and the top 50 of keyword search and fuses them with reciprocal rank fusion: a paper's fused score is the sum, over the lists that contain it, of 1 / (60 + rank). A paper found by only one method still appears; equal scores are ordered by the smaller `paper_id`. Each result carries its vector rank, keyword rank and fused score (a rank is `None` when the paper is not in that list). On the command line it is `python -m retrieval search --mode hybrid --vector-file q.json --text "..."`; the default mode is `vector`, unchanged, and `search()` and `keyword_search()` are not modified. Nothing else (the demo, any caller) uses hybrid mode: it is **off unless asked for**.
+
+Run on `pc_pilot` (read only) by `db/retrieval/pilot_hybrid.py`: the 8 pilot queries plus "back-translation" (the other two requested queries are among the 8, so there are 9 distinct queries). Queries are encoded with the adhoc_query adapter. Latency is the median of 5 runs after one warm-up, database calls only (hybrid = one vector query plus one keyword query):
+
+| Query | Vector ms | Keyword ms | Hybrid ms |
+| --- | ---: | ---: | ---: |
+| low-resource neural machine translation | 3.0 | 261.5 | 273.9 |
+| back-translation for low-resource languages | 2.3 | 232.5 | 242.8 |
+| multilingual pretraining for translation | 2.1 | 228.1 | 236.0 |
+| zero-shot translation | 2.1 | 227.4 | 237.0 |
+| unsupervised machine translation | 2.6 | 231.2 | 240.0 |
+| quality estimation for machine translation | 2.5 | 228.3 | 235.0 |
+| adam optimizer | 2.5 | 227.3 | 236.0 |
+| speech translation | 2.4 | 231.8 | 239.4 |
+| back-translation | 3.1 | 239.0 | 245.9 |
+
+The keyword search computes its full-text vectors on the fly (no index), so it dominates the hybrid time; the vector part is a few milliseconds.
+
+Top 5 titles for the back-translation and quality-estimation queries (hybrid entries show the rank in each list; a dash means not in that list's top 50):
+
+**back-translation for low-resource languages**
+
+Vector:
+
+1. Are Small Language Models the Silver Bullet to Low-Resource Languages Machine Translation? (2026)
+2. Low-resource Machine Translation: what for? who for? An observational study on a dedicated Tetun lan (2025)
+3. Machine Translation for Low-Resource Languages through Monolingual Data and LLM: A Case Study of Eng (2026)
+4. Benchmarking Low-Resource Machine Translation Systems (2024)
+5. Tulun: Transparent and Adaptable Low-resource Machine Translation (2025)
+
+Keyword:
+
+1. A Joint Back-Translation and Transfer Learning Method for Low-Resource Neural Machine Translation (2020)
+2. Evaluation of the effect of back-translation direction on machine translation quality for low-resour (2025)
+3. Back-Translation Still Matters: Leveraging Monolingual Data for Low-Resource Machine Translation wit (2026)
+4. Revisiting Back-Translation for Low-Resource Machine Translation Between Chinese and Vietnamese (2020)
+5. Improving Low Resource Machine Translation via Round-Trip Reinforcement Learning (2026)
+
+Hybrid:
+
+1. Investigating Neural Machine Translation for Low-Resource Languages: Using Bavarian as a Case Study (2024)[vector rank 19, keyword rank 8]
+2. Exploring Low-Resource Machine Translation: Case Study of Lao-Vietnamese Translation (2024)[vector rank 21, keyword rank 11]
+3. Neural machine translation for low-resource languages without parallel corpora (2017)[vector rank 30, keyword rank 13]
+4. Low-Resource Machine Translation for Moroccan Arabic (2025)[vector rank 44, keyword rank 29]
+5. A Joint Back-Translation and Transfer Learning Method for Low-Resource Neural Machine Translation (2020)[vector rank -, keyword rank 1]
+
+**quality estimation for machine translation**
+
+Vector:
+
+1. Translation or Recitation? Calibrating Evaluation Scores for Machine Translation of Extremely Low-Re (2026)
+2. BLEU (2001)
+3. Quality Estimation for Machine Translation in Low-Resource Settings (2026)
+4. Benchmarking Low-Resource Machine Translation Systems (2024)
+5. Low-resource Machine Translation: what for? who for? An observational study on a dedicated Tetun lan (2025)
+
+Keyword:
+
+1. Ensemble-based Transfer Learning for Low-resource Machine Translation Quality Estimation (2021)
+2. Domain-Specific Quality Estimation for Machine Translation in Low-Resource Scenarios (2026)
+3. Domain-Specific Quality Estimation for Machine Translation in Low-Resource Scenarios (2026)
+4. Filtered Pseudo-parallel Corpus Improves Low-resource Neural Machine Translation (2019)
+5. Quality Estimation for Machine Translation in Low-Resource Settings (2026)
+
+Hybrid:
+
+1. Quality Estimation for Machine Translation in Low-Resource Settings (2026)[vector rank 3, keyword rank 5]
+2. Domain-Specific Quality Estimation for Machine Translation in Low-Resource Scenarios (2026)[vector rank 8, keyword rank 2]
+3. Domain-Specific Quality Estimation for Machine Translation in Low-Resource Scenarios (2026)[vector rank 9, keyword rank 3]
+4. Ensemble-based Transfer Learning for Low-resource Machine Translation Quality Estimation (2021)[vector rank 22, keyword rank 1]
+5. A Systematic Review on Translation of Low Resource Languages Using Machine Translation System with R (2025)[vector rank 26, keyword rank 7]
+
+**back-translation**
+
+Vector:
+
+1. Tulun: Transparent and Adaptable Low-resource Machine Translation (2025)
+2. Neural Machine Translation for Low-Resource Languages: Challenges and Solutions (2018)
+3. Neural Machine Translation of Low-Resource and Similar Languages with Backtranslation (2019)
+4. Machine Translation for Low-Resource Languages through Monolingual Data and LLM: A Case Study of Eng (2026)
+5. Low-resource Machine Translation: what for? who for? An observational study on a dedicated Tetun lan (2025)
+
+Keyword:
+
+1. A Hybrid Approach for Improved Low Resource Neural Machine Translation using Monolingual Data (2020)
+2. Iterative Self-Learning for Enhanced Back-Translation in Low Resource Neural Machine Translation. (2020)
+3. Evaluation of the effect of back-translation direction on machine translation quality for low-resour (2025)
+4. Using Self-Training to Improve Back-Translation in Low Resource Neural Machine Translation (2020)
+5. Revisiting Back-Translation for Low-Resource Machine Translation Between Chinese and Vietnamese (2020)
+
+Hybrid:
+
+1. Rethinking the Exploitation of Monolingual Data for Low-Resource Neural Machine Translation (2023)[vector rank 12, keyword rank 20]
+2. Exploiting Out-of-Domain Parallel Data through Multilingual Transfer Learning for Low-Resource Neura (2019)[vector rank 30, keyword rank 8]
+3. A Joint Back-Translation and Transfer Learning Method for Low-Resource Neural Machine Translation (2020)[vector rank 48, keyword rank 6]
+4. Investigating Neural Machine Translation for Low-Resource Languages: Using Bavarian as a Case Study (2024)[vector rank 29, keyword rank 21]
+5. Handling Syntactic Divergence in Low-resource Machine Translation (2019)[vector rank 32, keyword rank 22]
+
+**Counts with a lexical rule.** Papers matching the rule of `db/retrieval-diagnosis.md` (the phrase back-translation, or quality estimation, in the title or abstract) in the top 5 and top 10 of each mode:
+
+| Query | Papers matching the rule | vector top 5 | vector top 10 | keyword top 5 | keyword top 10 | hybrid top 5 | hybrid top 10 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| back-translation for low-resource languages | 75 | 0 | 0 | 5 | 10 | 4 | 6 |
+| quality estimation for machine translation | 8 | 1 | 3 | 5 | 7 | 5 | 6 |
+| back-translation | 75 | 1 | 1 | 5 | 10 | 5 | 9 |
+
+**How to read this. The rule is lexical, so it favours keyword search, and this is not a blind evaluation.** The rule is made of the same words that keyword search matches, so keyword search is expected to score well on it; a high count shows that the paper contains the phrase, not that a person would judge it relevant. On these three queries the hybrid lists contain more rule-matching papers than vector search alone, but not more than keyword search alone (hybrid 4 of 5 against keyword 5 of 5 for "back-translation for low-resource languages"; 5 against 5 for the other two). The data also show a property of the fusion: a paper that one method ranks first and the other does not list at all gets at most 1/61, and can fall behind papers that are only mid-ranked in both lists (for "back-translation for low-resource languages", the paper ranked first by keyword search is fifth in the hybrid list, behind four papers with vector ranks 19 to 44 and keyword ranks 8 to 29).
+
+**What has not been measured.** The benefit of hybrid mode has not been measured with blind labels: no human relevance judgements were used, and the 3 queries are a small set. Whether hybrid mode should be used anywhere, and with which parameters, needs the labelled query set.

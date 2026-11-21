@@ -12,7 +12,7 @@ from pathlib import Path
 
 import psycopg
 
-from .search import keyword_search, search
+from .search import keyword_search, search, search_hybrid
 
 DB_DIR = Path(__file__).resolve().parents[1]
 
@@ -68,8 +68,13 @@ def add_filters(parser):
 def build_parser():
     parser = argparse.ArgumentParser(prog="python -m retrieval", description="Try the SQL search layer.")
     commands = parser.add_subparsers(dest="command", required=True)
-    vec = commands.add_parser("search", help="vector search with a query vector read from a file")
-    vec.add_argument("--vector-file", required=True, help=".npy (one 768-d vector) or .json (list of numbers)")
+    vec = commands.add_parser("search", help="vector search with a query vector read from a file "
+                                             "(--mode keyword or hybrid also searches by text)")
+    vec.add_argument("--mode", choices=("vector", "keyword", "hybrid"), default="vector",
+                     help="vector (default): --vector-file; keyword: --text; hybrid: both, fused with reciprocal rank fusion")
+    vec.add_argument("--vector-file", help=".npy (one 768-d vector) or .json (list of numbers); vector and hybrid modes")
+    vec.add_argument("--text", help="the query text; keyword and hybrid modes")
+    vec.add_argument("--n-candidates", type=int, default=50, help="hybrid: candidates taken from each list (default 50)")
     vec.add_argument("--ef-search", type=int, default=100)
     add_filters(vec)
     kw = commands.add_parser("keyword", help="full-text keyword baseline")
@@ -88,6 +93,16 @@ def show(results, score_name):
         print("(no results)")
 
 
+def show_hybrid(results):
+    for rank, r in enumerate(results, start=1):
+        v = r["vector_rank"] if r["vector_rank"] is not None else "-"
+        k = r["keyword_rank"] if r["keyword_rank"] is not None else "-"
+        print(f"{rank:>3}. {r['fused_score']:.5f}  {r['paper_id']}  ({r['year']}, {r['venue']})  "
+              f"[vector rank {v}, keyword rank {k}, fused]  {r['title']}")
+    if not results:
+        print("(no results)")
+
+
 def main(argv=None, connect_fn=None):
     args = build_parser().parse_args(argv)
     filters = dict(top_k=args.top_k, offset=args.offset, year_min=args.year_min, year_max=args.year_max,
@@ -95,9 +110,30 @@ def main(argv=None, connect_fn=None):
                    exclude_ids=args.exclude_ids, include_entities=args.include_entities, match=args.match,
                    collapse_same_title=args.collapse_same_title)
     try:
+        mode = getattr(args, "mode", None)
+        if args.command == "search":
+            if mode in ("vector", "hybrid") and not args.vector_file:
+                raise ValueError(f"--mode {mode} needs --vector-file")
+            if mode in ("keyword", "hybrid") and args.text is None:
+                raise ValueError(f"--mode {mode} needs --text")
+            if mode == "hybrid":
+                unsupported = [name for name, value in (("--venue", args.venues), ("--method", args.methods),
+                                                        ("--dataset", args.datasets), ("--task", args.tasks),
+                                                        ("--exclude", args.exclude_ids), ("--offset", args.offset),
+                                                        ("--entities", args.include_entities)) if value]
+                if unsupported:
+                    raise ValueError("--mode hybrid supports only the year filters, --top-k, --n-candidates and "
+                                     f"--collapse-titles, not {', '.join(unsupported)}")
         with (connect_fn or connect)(args.dbname) as conn:
-            if args.command == "search":
+            if args.command == "search" and mode == "vector":
                 show(search(conn, read_vector(args.vector_file), ef_search=args.ef_search, **filters), "similarity")
+            elif args.command == "search" and mode == "keyword":
+                show(keyword_search(conn, args.text, **filters), "score")
+            elif args.command == "search":
+                show_hybrid(search_hybrid(conn, args.text, read_vector(args.vector_file), top_k=args.top_k,
+                                          n_candidates=args.n_candidates, year_min=args.year_min,
+                                          year_max=args.year_max, collapse_same_title=args.collapse_same_title,
+                                          ef_search=args.ef_search))
             else:
                 show(keyword_search(conn, args.text, **filters), "score")
     except (ValueError, OSError, psycopg.Error) as exc:
