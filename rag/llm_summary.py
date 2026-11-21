@@ -21,6 +21,9 @@ variables win). The key is never logged, printed or put into a result; error det
 
 The SDKs are imported only when a call is made, so importing this module needs neither.
 """
+import hashlib
+import json
+import os
 import re
 import threading
 import time
@@ -33,6 +36,9 @@ from .summary import _clean, summarize_evidence
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ENV_FILE = REPO_ROOT / ".env"  # gitignored (the root .gitignore ignores every file named .env)
+# Cache of generated summaries: one small JSON file per (provider, model, prompt). The folder is under data/, which the root
+# .gitignore ignores (git check-ignore -v data/llm_cache/x.json). PC_LLM_CACHE=0 turns the cache off.
+CACHE_DIR = REPO_ROOT / "data" / "llm_cache"
 
 PROVIDERS = ("gemini", "anthropic")
 KEY_VARIABLES = {"gemini": "GEMINI_API_KEY", "anthropic": "ANTHROPIC_API_KEY"}
@@ -288,6 +294,40 @@ def make_client(provider, api_key, model, temperature=None, timeout=TIMEOUT_SECO
     return anthropic_client(api_key, model, temperature=temperature, timeout=timeout)
 
 
+# --- cache of generated summaries ----------------------------------------------------------------
+
+def cache_key(provider, model, prompt):
+    """sha256 of (provider, model, prompt text): the same question to the same model."""
+    return hashlib.sha256(json.dumps([provider, model, prompt], ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+def cache_get(directory, key):
+    """The stored text for a key, or None (missing, unreadable or malformed files count as a miss)."""
+    try:
+        data = json.loads((Path(directory) / f"{key}.json").read_text(encoding="utf-8"))
+        return data["text"] if isinstance(data.get("text"), str) else None
+    except (OSError, ValueError, AttributeError, KeyError):
+        return None
+
+
+def cache_put(directory, key, provider, model, text):
+    """Store a text that passed the guardrails (written to a temporary file first, so a half-written file is never read)."""
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    target = directory / f"{key}.json"
+    temporary = directory / f"{key}.json.tmp"
+    temporary.write_text(json.dumps({"provider": provider, "model": model, "text": text}, ensure_ascii=False),
+                         encoding="utf-8", newline="\n")
+    os.replace(temporary, target)
+
+
+def cache_delete(directory, key):
+    try:
+        (Path(directory) / f"{key}.json").unlink()
+    except OSError:
+        pass
+
+
 # --- running a call safely -----------------------------------------------------------------------
 
 def _scrub(text, secret):
@@ -338,7 +378,7 @@ def template_result(evidence, reason, detail="", **extra):
 
 
 def explanation_text(evidence, use_llm=None, complete=None, provider=None, model=None,
-                     timeout_seconds=TIMEOUT_SECONDS, env=None, env_file=None):
+                     timeout_seconds=TIMEOUT_SECONDS, env=None, env_file=None, cache_dir=None):
     """The explanation for an evidence chain: {text, source, fallback_reason, detail, ...}.
 
     use_llm: None follows PC_LLM_SUMMARY (default off = template); True or False overrides it. complete is an
@@ -346,6 +386,12 @@ def explanation_text(evidence, use_llm=None, complete=None, provider=None, model
     source is "llm" only when the model's text passed the guardrails; otherwise it is "template" and
     fallback_reason says why: None (the option was off) or one of FALLBACK_REASONS. detail has the specifics (never
     the key); provider, model and latency_ms are added when a call was made.
+
+    Cache: with a real provider, a text that passed the guardrails is stored under CACHE_DIR, keyed by a hash of
+    (provider, model, prompt), and a later identical request reads it instead of calling the API (result key "cache":
+    "hit", "miss" or "off"). The guardrails run on a cached text every time, and a cached text that no longer passes is
+    deleted and the template is returned. Failures and fallbacks are never stored. PC_LLM_CACHE=0 turns it off. With a
+    caller-supplied `complete` (tests) the cache is used only if cache_dir is given.
     """
     if use_llm is None:
         use_llm = llm_enabled(env, env_file)
@@ -360,6 +406,22 @@ def explanation_text(evidence, use_llm=None, complete=None, provider=None, model
     key = None
     attempt_log = []
     guard = timeout_seconds
+    prompt = build_prompt(evidence)
+    cache_on = setting("PC_LLM_CACHE", env, env_file) != "0" and (complete is None or cache_dir is not None)
+    directory = Path(cache_dir) if cache_dir is not None else Path(CACHE_DIR)
+    ckey = cache_key(provider, model, prompt)
+    info["cache"] = "off"
+    if cache_on:
+        info["cache"] = "miss"
+        cached = cache_get(directory, ckey)
+        if cached is not None:
+            reason, detail = check_output(cached, evidence)  # the guardrails run on every hit
+            if reason:
+                cache_delete(directory, ckey)
+                return template_result(evidence, reason, f"{detail} (cached text, removed from the cache)",
+                                       rejected_text=cached, **{**info, "cache": "hit, rejected"})
+            return {"text": cached.strip(), "source": "llm", "fallback_reason": None, "detail": "", "latency_ms": 0,
+                    **{**info, "cache": "hit"}}
     if complete is None:
         key = setting(KEY_VARIABLES[provider], env, env_file)
         if not key:
@@ -377,7 +439,7 @@ def explanation_text(evidence, use_llm=None, complete=None, provider=None, model
 
     began = time.perf_counter()
     try:
-        text = _call_with_timeout(complete, build_prompt(evidence), guard)
+        text = _call_with_timeout(complete, prompt, guard)
     except Exception as exc:  # noqa: BLE001 - every failure of the call falls back to the template
         latency = round((time.perf_counter() - began) * 1000)
         reason = "rate limit" if _is_rate_limit(exc) else ("timeout" if _is_timeout(exc) else "error")
@@ -392,5 +454,7 @@ def explanation_text(evidence, use_llm=None, complete=None, provider=None, model
     reason, detail = check_output(text, evidence)
     if reason:
         return template_result(evidence, reason, detail, latency_ms=latency, rejected_text=text, **extra, **info)
+    if cache_on:
+        cache_put(directory, ckey, provider, model, text.strip())  # only text that passed all three guardrails
     return {"text": text.strip(), "source": "llm", "fallback_reason": None, "detail": "", "latency_ms": latency,
             **extra, **info}

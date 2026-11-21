@@ -17,6 +17,12 @@ KEY = "sk-test-SECRET-123"
 NO_FILE = Path("does-not-exist.env")  # so the repository's own .env is never read by a test
 
 
+@pytest.fixture(autouse=True)
+def private_cache(monkeypatch, tmp_path):
+    """Every test gets its own empty cache folder, so no test reads or writes the real data/llm_cache."""
+    monkeypatch.setattr(llm, "CACHE_DIR", tmp_path / "llm_cache")
+
+
 def entry(pid, year, title=None, **extra):
     return {"paper_id": pid, "title": title or f"Title of {pid}", "year": year, "venue": "Some Venue",
             "source_sentence": None, "extractor": "ex-1", **extra}
@@ -559,3 +565,138 @@ def test_the_real_gemini_sdk_makes_exactly_one_request_after_a_503(local_server)
         complete("hello")
     assert type(caught.value).__name__ == "ServerError" and getattr(caught.value, "code", None) == 503
     assert len(attempts) == 1 and len(hits) == 1, "the request hook and the server agree: one attempt, no retry"
+
+
+# --- the cache of generated summaries -----------------------------------------------------------------------------
+
+class CountingClient:
+    """A fake model that counts how often it is called."""
+
+    def __init__(self, text=GOOD):
+        self.text, self.calls = text, 0
+
+    def __call__(self, prompt):
+        self.calls += 1
+        return self.text
+
+
+def run_cached(evidence, client, cache_dir, **kwargs):
+    return llm.explanation_text(evidence, use_llm=True, complete=client, env=kwargs.pop("env", {}), env_file=NO_FILE,
+                                cache_dir=cache_dir, **kwargs)
+
+
+def test_a_cache_hit_avoids_the_client_call(tmp_path):
+    client = CountingClient()
+    first = run_cached(make_evidence(), client, tmp_path)
+    second = run_cached(make_evidence(), client, tmp_path)
+    assert first["cache"] == "miss" and second["cache"] == "hit"
+    assert client.calls == 1, "the second request was answered from the cache"
+    assert second["source"] == "llm" and second["text"] == first["text"] == GOOD.strip()
+    assert len(list(tmp_path.glob("*.json"))) == 1
+
+
+def test_a_different_prompt_provider_or_model_is_a_different_cache_entry(tmp_path):
+    client = CountingClient()
+    run_cached(make_evidence(), client, tmp_path)
+    other = make_evidence()
+    other["corpus"]["observed"] = 3
+    run_cached(other, client, tmp_path)                                  # another prompt
+    run_cached(make_evidence(), client, tmp_path, model="another-model")  # another model
+    run_cached(make_evidence(), client, tmp_path, provider="anthropic")  # another provider
+    assert client.calls == 4 and len(list(tmp_path.glob("*.json"))) == 4
+    prompt = llm.build_prompt(make_evidence())
+    assert llm.cache_key("gemini", "m", prompt) != llm.cache_key("anthropic", "m", prompt)
+    assert llm.cache_key("gemini", "m", prompt) == llm.cache_key("gemini", "m", prompt)
+
+
+@pytest.mark.parametrize("bad", [GOOD + " See [paper:W999].", GOOD.replace("7 papers", "9 papers"),
+                                 GOOD + " This is a proven gap.", "   "])
+def test_output_that_fails_a_guardrail_is_not_stored(tmp_path, bad):
+    client = CountingClient(bad)
+    first = run_cached(make_evidence(), client, tmp_path)
+    assert first["source"] == "template"
+    assert list(tmp_path.glob("*.json")) == []
+    run_cached(make_evidence(), client, tmp_path)
+    assert client.calls == 2, "nothing was cached, so the model is asked again"
+
+
+def test_errors_timeouts_and_rate_limits_are_never_stored(tmp_path):
+    def failing(error):
+        def complete(prompt):
+            raise error
+        return complete
+
+    for error in (ConnectionError("down"), RateLimitError("429"), TimeoutError("slow")):
+        out = run_cached(make_evidence(), failing(error), tmp_path)
+        assert out["source"] == "template"
+    assert list(tmp_path.glob("*.json")) == []
+
+
+def test_the_guardrails_run_on_a_cached_text_every_time(tmp_path):
+    client = CountingClient()
+    run_cached(make_evidence(), client, tmp_path)
+    (stored,) = tmp_path.glob("*.json")
+    data = json.loads(stored.read_text(encoding="utf-8"))
+    data["text"] += " This is a proven gap."                      # the stored file is changed behind our back
+    stored.write_text(json.dumps(data), encoding="utf-8")
+    out = run_cached(make_evidence(), client, tmp_path)
+    assert out["source"] == "template" and out["fallback_reason"] == "forbidden phrase"
+    assert out["cache"] == "hit, rejected" and "removed from the cache" in out["detail"]
+    assert client.calls == 1 and not stored.exists(), "no API call, and the bad entry is gone"
+    assert run_cached(make_evidence(), client, tmp_path)["cache"] == "miss"
+
+
+def test_a_corrupt_cache_file_is_a_miss(tmp_path):
+    client = CountingClient()
+    run_cached(make_evidence(), client, tmp_path)
+    (stored,) = tmp_path.glob("*.json")
+    stored.write_text("{ not json", encoding="utf-8")
+    out = run_cached(make_evidence(), client, tmp_path)
+    assert out["source"] == "llm" and out["cache"] == "miss" and client.calls == 2
+
+
+def test_the_cache_can_be_turned_off_with_pc_llm_cache_0(tmp_path):
+    client = CountingClient()
+    first = run_cached(make_evidence(), client, tmp_path, env={"PC_LLM_CACHE": "0"})
+    second = run_cached(make_evidence(), client, tmp_path, env={"PC_LLM_CACHE": "0"})
+    assert first["cache"] == second["cache"] == "off" and client.calls == 2
+    assert list(tmp_path.glob("*.json")) == []
+    on = run_cached(make_evidence(), client, tmp_path, env={"PC_LLM_CACHE": "1"})
+    assert on["cache"] == "miss" and len(list(tmp_path.glob("*.json"))) == 1
+
+
+def test_a_caller_supplied_client_does_not_touch_the_cache_unless_a_folder_is_given(tmp_path, monkeypatch):
+    monkeypatch.setattr(llm, "CACHE_DIR", tmp_path / "default")
+    client = CountingClient()
+    out = run(make_evidence(), client)
+    assert out["cache"] == "off" and not (tmp_path / "default").exists()
+
+
+def test_a_real_provider_call_uses_the_default_cache_folder(monkeypatch, tmp_path):
+    calls = {}
+    fake_sdks(monkeypatch, calls)
+    monkeypatch.setattr(llm, "CACHE_DIR", tmp_path / "default")
+    env = {"GEMINI_API_KEY": KEY}
+    first = llm.explanation_text(make_evidence(), use_llm=True, env=env, env_file=NO_FILE)
+    attempts_after_first = calls["attempts"]
+    second = llm.explanation_text(make_evidence(), use_llm=True, env=env, env_file=NO_FILE)
+    assert (first["cache"], second["cache"]) == ("miss", "hit") and calls["attempts"] == attempts_after_first
+    stored = json.dumps([json.loads(f.read_text(encoding="utf-8")) for f in (tmp_path / "default").glob("*.json")])
+    assert KEY not in stored and KEY not in json.dumps(first) and KEY not in json.dumps(second)
+
+
+def test_a_cache_hit_works_without_a_key(tmp_path, monkeypatch):
+    monkeypatch.setattr(llm, "CACHE_DIR", tmp_path / "default")
+    prompt = llm.build_prompt(make_evidence())
+    llm.cache_put(tmp_path / "default", llm.cache_key("gemini", "gemini-3.8-flash", prompt), "gemini", "gemini-3.8-flash", GOOD)
+    out = llm.explanation_text(make_evidence(), use_llm=True, env={}, env_file=NO_FILE)
+    assert out["source"] == "llm" and out["cache"] == "hit"
+
+
+def test_the_cache_folder_is_ignored_by_git():
+    try:
+        done = subprocess.run(["git", "check-ignore", "-q", str(llm.REPO_ROOT / "data" / "llm_cache" / "x.json")],
+                              cwd=llm.REPO_ROOT)
+    except FileNotFoundError:
+        pytest.skip("git is not available")
+    assert done.returncode == 0, "data/llm_cache must be ignored by git"
