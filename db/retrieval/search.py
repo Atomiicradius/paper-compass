@@ -280,3 +280,59 @@ def keyword_search(conn, text, top_k=10, offset=0, year_min=None, year_max=None,
     cur.execute(sql, params)
     rows = cur.fetchall()
     return _to_dicts(rows, "score", float, include_entities)
+
+
+# --- hybrid: vector + keyword, reciprocal rank fusion ------------------------------------------
+
+def search_hybrid(conn, text, query_vector, top_k=10, n_candidates=50, rrf_k=60, year_min=None, year_max=None,
+                  collapse_same_title=False, ef_search=100):
+    """Vector search and keyword search fused with reciprocal rank fusion (RRF). OPTIONAL: search() and
+    keyword_search() are unchanged and vector search stays the default everywhere.
+
+    The top n_candidates of search(query_vector) and the top n_candidates of keyword_search(text) are fused:
+    fused_score = sum over the lists that contain the paper of 1 / (rrf_k + rank), ranks starting at 1. A paper
+    found by only one method still appears. Results are ordered by fused score, equal scores by the smaller
+    paper_id. Returns at most top_k dicts: paper_id, title, year, venue, vector_rank (None if not in the vector
+    list), keyword_rank (None if not in the keyword list), fused_score, vector_similarity, keyword_score.
+    Fewer than top_k come back only when the two lists together hold fewer distinct papers.
+
+    year_min / year_max filter both lists, as in search(). collapse_same_title (default False) is the TEMPORARY
+    same-title workaround of search(): each list is collapsed and so is the fused list (the best fused record per
+    normalized title is kept). Blank text means no keyword list. The query vector must be a vector of the
+    paper embeddings' model, made with the query encoder.
+    """
+    if not isinstance(text, str):
+        raise ValueError(f"text must be a string, got {text!r}")
+    _check_collapse(collapse_same_title)
+    _int(top_k, "top_k", minimum=1)
+    _int(n_candidates, "n_candidates", minimum=1)
+    _int(rrf_k, "rrf_k", minimum=1)
+    vector_rows = search(conn, query_vector, top_k=n_candidates, year_min=year_min, year_max=year_max,
+                         ef_search=ef_search, collapse_same_title=collapse_same_title)
+    keyword_rows = keyword_search(conn, text, top_k=n_candidates, year_min=year_min, year_max=year_max,
+                                  collapse_same_title=collapse_same_title)
+
+    fused = {}
+    for rank, row in enumerate(vector_rows, start=1):
+        entry = fused.setdefault(row["paper_id"], {"paper_id": row["paper_id"], "title": row["title"],
+                                                   "year": row["year"], "venue": row["venue"]})
+        entry.update(vector_rank=rank, vector_similarity=row["similarity"])
+    for rank, row in enumerate(keyword_rows, start=1):
+        entry = fused.setdefault(row["paper_id"], {"paper_id": row["paper_id"], "title": row["title"],
+                                                   "year": row["year"], "venue": row["venue"]})
+        entry.update(keyword_rank=rank, keyword_score=row["score"])
+    for entry in fused.values():
+        for key in ("vector_rank", "vector_similarity", "keyword_rank", "keyword_score"):
+            entry.setdefault(key, None)
+        entry["fused_score"] = sum(1.0 / (rrf_k + entry[key]) for key in ("vector_rank", "keyword_rank")
+                                   if entry[key] is not None)
+    ordered = sorted(fused.values(), key=lambda e: (-e["fused_score"], e["paper_id"]))
+    if collapse_same_title:
+        seen, kept = set(), []
+        for entry in ordered:  # best fused score first, so the first record of a title is the one to keep
+            key = normalize_title(entry["title"])
+            if key not in seen:
+                seen.add(key)
+                kept.append(entry)
+        ordered = kept
+    return ordered[:top_k]
