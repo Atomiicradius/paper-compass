@@ -1,0 +1,7 @@
+# OPTIONAL: only for the LLM explanation (rag/llm_summary.py, PC_LLM_SUMMARY=1). The default template summary and all
+# tests need neither package. Install into the same environment as the rest of the project:
+#   pip install -r rag/requirements-llm.txt
+# Versions are the current releases on PyPI on 2026-11-21 (google-genai needs Python >= 3.11, anthropic >= 3.10).
+# They have NOT been installed or run by the team yet: check them before the demo.
+google-genai==3.6.1
+anthropic==2.12.0
