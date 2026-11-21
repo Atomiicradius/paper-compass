@@ -4,6 +4,7 @@ User-supplied values (names, ids, numbers, the query vector, the search text) on
 query parameters. The SQL text is assembled from fixed fragments in this file, never from user strings.
 """
 import math
+import re
 
 from psycopg.rows import tuple_row
 from psycopg.types.numeric import Float4
@@ -83,6 +84,48 @@ def vector_parameter(vector):
     return [Float4(x) for x in _checked_numbers(vector)]
 
 
+# --- TEMPORARY WORKAROUND: collapse records with the same title ---------------------------------
+# The corpus has records that are the same paper under several OpenAlex ids and DOIs (51 titles occur more than
+# once in pc_pilot). collapse_same_title=True hides the extra ones at search time. It does not delete or merge any
+# row. Remove it once ingest de-duplicates (Person 1; see extraction/accuracy_report.md, Limitations).
+MAX_COLLAPSE_CANDIDATES = 5000  # most rows fetched to find enough distinct titles
+
+
+def normalize_title(title):
+    """Lowercase, punctuation stripped (hyphens included, so 'Low-Resource' becomes 'lowresource'), whitespace
+    collapsed."""
+    return " ".join(re.sub(r"[^\w\s]|_", "", title.lower()).split())
+
+
+def _check_collapse(collapse_same_title):
+    if not isinstance(collapse_same_title, bool):
+        raise ValueError(f"collapse_same_title must be True or False, got {collapse_same_title!r}")
+
+
+def _collapse(fetch, top_k, offset, score_name):
+    """fetch(n) returns the best n results in rank order. Keep the best-scored result per normalized title (when
+    two records have exactly the same score, the smaller paper_id, so the choice does not change between runs),
+    fetching more candidates until offset + top_k distinct titles are found or the candidates run out. offset and
+    top_k then apply to the collapsed list."""
+    needed = offset + top_k
+    limit = max(needed * 5, 50)
+    while True:
+        rows = fetch(limit)
+        position, kept = {}, []
+        for row in rows:
+            key = normalize_title(row["title"])
+            if key not in position:
+                position[key] = len(kept)
+                kept.append(row)
+            else:
+                current = kept[position[key]]
+                if row[score_name] == current[score_name] and row["paper_id"] < current["paper_id"]:
+                    kept[position[key]] = row  # exact tie: the smaller paper_id wins
+        if len(kept) >= needed or len(rows) < limit or limit >= MAX_COLLAPSE_CANDIDATES:
+            return kept[offset:offset + top_k]
+        limit = min(limit * 4, MAX_COLLAPSE_CANDIDATES)
+
+
 # --- shared filters ---------------------------------------------------------------------------
 
 def _entity_condition(table, alias_table, id_column, name_column, names):
@@ -148,7 +191,7 @@ def _to_dicts(rows, score_name, convert_score, include_entities):
 
 def search(conn, query_vector, top_k=10, offset=0, year_min=None, year_max=None, venues=None, methods=None,
            datasets=None, tasks=None, exclude_ids=None, include_entities=False, ef_search=100,
-           iterative_scan="strict_order", match="same_experiment"):
+           iterative_scan="strict_order", match="same_experiment", collapse_same_title=False):
     """Nearest papers to query_vector by cosine similarity, with optional filters.
 
     Returns dicts: paper_id, title, year, venue, similarity (1 - cosine distance), plus methods, datasets
@@ -166,13 +209,24 @@ def search(conn, query_vector, top_k=10, offset=0, year_min=None, year_max=None,
     scan (pgvector 0.8: hnsw.iterative_scan) keeps scanning until top_k rows pass the filters or
     hnsw.max_scan_tuples (default 20000) index entries were visited. The settings are applied with
     set_config(..., true), i.e. for this call's transaction only.
+
+    collapse_same_title (default False) is a TEMPORARY WORKAROUND for duplicate records: it keeps only the
+    best-scored record per normalized title (lowercase, punctuation stripped, whitespace collapsed) and still
+    returns top_k results when enough distinct titles exist. offset applies to the collapsed list. No row is changed.
     """
     vector = vector_parameter(query_vector)
+    _check_collapse(collapse_same_title)
     _int(top_k, "top_k", minimum=1)
     _int(offset, "offset", minimum=0)
     _int(ef_search, "ef_search", minimum=1, maximum=1000)
     if iterative_scan not in ITERATIVE_SCAN_MODES:
         raise ValueError(f"iterative_scan must be one of {', '.join(ITERATIVE_SCAN_MODES)}, got {iterative_scan!r}")
+    if collapse_same_title:
+        return _collapse(lambda n: search(conn, query_vector, top_k=n, offset=0, year_min=year_min, year_max=year_max,
+                                          venues=venues, methods=methods, datasets=datasets, tasks=tasks,
+                                          exclude_ids=exclude_ids, include_entities=include_entities,
+                                          ef_search=ef_search, iterative_scan=iterative_scan, match=match),
+                         top_k, offset, "similarity")
     clauses, filter_params = _filters(year_min, year_max, venues, methods, datasets, tasks, exclude_ids, match)
 
     sql = ("SELECT p.paper_id, p.title, p.year, v.name, p.embedding <=> %b::real[]::vector AS distance"
@@ -194,14 +248,21 @@ def search(conn, query_vector, top_k=10, offset=0, year_min=None, year_max=None,
 # --- keyword baseline -------------------------------------------------------------------------
 
 def keyword_search(conn, text, top_k=10, offset=0, year_min=None, year_max=None, venues=None, methods=None,
-                   datasets=None, tasks=None, exclude_ids=None, include_entities=False, match="same_experiment"):
+                   datasets=None, tasks=None, exclude_ids=None, include_entities=False, match="same_experiment",
+                   collapse_same_title=False):
     """PostgreSQL full-text search over title + abstract (English), ranked by ts_rank. Computed on the
     fly, no index. Same filters (and the same `match` modes) as search(); results carry `score` instead of
-    `similarity`. Works for papers without an embedding."""
+    `similarity`. Works for papers without an embedding. collapse_same_title: see search() (temporary workaround)."""
     if not isinstance(text, str):
         raise ValueError(f"text must be a string, got {text!r}")
+    _check_collapse(collapse_same_title)
     _int(top_k, "top_k", minimum=1)
     _int(offset, "offset", minimum=0)
+    if collapse_same_title:
+        return _collapse(lambda n: keyword_search(conn, text, top_k=n, offset=0, year_min=year_min, year_max=year_max,
+                                                  venues=venues, methods=methods, datasets=datasets, tasks=tasks,
+                                                  exclude_ids=exclude_ids, include_entities=include_entities,
+                                                  match=match), top_k, offset, "score")
     clauses, filter_params = _filters(year_min, year_max, venues, methods, datasets, tasks, exclude_ids, match)
     if not text.strip():
         return []

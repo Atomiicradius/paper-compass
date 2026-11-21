@@ -62,6 +62,8 @@ def main(argv=None):
     parser.add_argument("--dbname", required=True)
     parser.add_argument("--query-adapter", choices=("adhoc_query", "proximity"),
                         help="adapter for the query text (default: PC_QUERY_ADAPTER, else adhoc_query; proximity = the old behaviour)")
+    parser.add_argument("--collapse-titles", action="store_true",
+                        help="TEMPORARY workaround: keep only the best-scored record per normalized title (vector and keyword)")
     parser.add_argument("--year-min", type=int, default=2020, help="year filter for the EXPLAIN ANALYZE query")
     args = parser.parse_args(argv)
 
@@ -77,9 +79,10 @@ def main(argv=None):
             start = time.perf_counter()
             vector = encoder.embed([query])[0]
             encode_ms = (time.perf_counter() - start) * 1000
-            vec_ms = median_ms(lambda: search(conn, vector, top_k=5))
-            kw_ms = median_ms(lambda: keyword_search(conn, query, top_k=5))
-            vec, kw = search(conn, vector, top_k=5), keyword_search(conn, query, top_k=5)
+            vec_ms = median_ms(lambda: search(conn, vector, top_k=5, collapse_same_title=args.collapse_titles))
+            kw_ms = median_ms(lambda: keyword_search(conn, query, top_k=5, collapse_same_title=args.collapse_titles))
+            vec = search(conn, vector, top_k=5, collapse_same_title=args.collapse_titles)
+            kw = keyword_search(conn, query, top_k=5, collapse_same_title=args.collapse_titles)
             shared = {r["paper_id"] for r in vec} & {r["paper_id"] for r in kw}
             print(f"## {query}")
             print(f"vector search: median {vec_ms:.1f} ms (query encoding {encode_ms:.0f} ms); keyword search: median {kw_ms:.1f} ms")

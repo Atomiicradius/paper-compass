@@ -57,6 +57,8 @@ def add_filters(parser):
     parser.add_argument("--match", choices=("same_experiment", "any"), default="same_experiment",
                         help="same_experiment: one experiment must satisfy all method/dataset/task filters "
                              "(default); any: each filter may be met by a different experiment")
+    parser.add_argument("--collapse-titles", action="store_true", dest="collapse_same_title",
+                        help="TEMPORARY workaround: keep only the best-scored record per normalized title")
     parser.add_argument("--exclude", action="append", dest="exclude_ids", help="paper_id to leave out")
     parser.add_argument("--entities", action="store_true", dest="include_entities",
                         help="also show each paper's methods, datasets and tasks")
@@ -90,7 +92,8 @@ def main(argv=None, connect_fn=None):
     args = build_parser().parse_args(argv)
     filters = dict(top_k=args.top_k, offset=args.offset, year_min=args.year_min, year_max=args.year_max,
                    venues=args.venues, methods=args.methods, datasets=args.datasets, tasks=args.tasks,
-                   exclude_ids=args.exclude_ids, include_entities=args.include_entities, match=args.match)
+                   exclude_ids=args.exclude_ids, include_entities=args.include_entities, match=args.match,
+                   collapse_same_title=args.collapse_same_title)
     try:
         with (connect_fn or connect)(args.dbname) as conn:
             if args.command == "search":

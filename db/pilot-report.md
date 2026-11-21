@@ -326,3 +326,49 @@ Median of 5 runs after one warm-up for each of the 8 queries, `search(top_k=5)` 
 The ids and their order are identical for all 8 queries, and the maximum score difference is 0 (the tests also check scores within 1e-6 on synthetic data). The HNSW index is still used for the ordering with the new parameter form (test with the index forced as the only ordering path). Only `search()` was changed; other code with its own vector SQL (for example in `rag/`) is not touched.
 
 This replaces the "Search latency" bullet of section 4 and the explanation of the ~48 ms in section 3: after the change the vector search takes about 2 to 4 ms from Python on this machine, which was measured on this one Windows setup only.
+
+## 7. Same-title collapse (TEMPORARY WORKAROUND, retrieval fixes, 2026-11-21)
+
+**This is a workaround, not a fix.** 51 titles occur more than once among the loaded papers (section 4), because the same paper appears as several OpenAlex records with different ids and DOIs. The real fix is de-duplication at ingest (Person 1; see `extraction/accuracy_report.md`, Limitations). Until then, `search(..., collapse_same_title=True)` and `keyword_search(..., collapse_same_title=True)` (CLI: `--collapse-titles`; `pilot_queries.py --collapse-titles`) keep only the best-scored record per normalized title (lowercase, punctuation stripped, whitespace collapsed; hyphens are stripped without leaving a space, so "Low-Resource" becomes "lowresource"). The default is **off**, so existing behaviour and tests do not change. No row is deleted or merged; the hidden records are still in the database and still returned when the option is off.
+
+How it works: the search fetches more candidates than asked for (at least 5 times the requested count, at most 5,000), keeps the best-scored record per normalized title, and trims to the requested number, so it still returns `top_k` results when enough distinct titles exist (and fewer only when they do not). `offset` applies to the collapsed list. When two records have exactly the same score (for example identical vectors), the smaller `paper_id` is kept so the choice is stable; in the pilot database the records W4225929449 and W4283220248 have the same similarity to the back-translation query to six decimals, so which of them survives is decided by this rule and not by relevance. Titles that differ in more than punctuation, case and spacing (a subtitle, a different word) are not collapsed.
+
+**Where duplicates appeared in the top 5** (8 pilot queries; vector search with the old proximity query encoding, with the new adhoc_query encoding, and keyword search):
+
+- vector, proximity encoding: 2 of 8 queries had repeated titles;
+- vector, adhoc_query encoding (the new default): 0 of 8 queries;
+- keyword: 1 of 8 queries.
+
+So with the new query encoding the pilot queries no longer show duplicates in the top 5, and the collapse changes nothing for them. The cases below are the ones where it did something:
+
+**back-translation for low-resource languages** (vector, proximity): repeated titles in the top 5 2 before, 0 after; results returned 5 before, 5 after.
+
+| Before | After |
+| --- | --- |
+| 1. W4283220248 (2022) Survey of Low-Resource Machine Translation | 1. W4225929449 (2021) Survey of Low-Resource Machine Translation |
+| 2. W4225929449 (2021) Survey of Low-Resource Machine Translation | 2. W7117761584 (2018) Neural Machine Translation for Low-Resource Languages: Challenges and Solutions |
+| 3. W3198189804 (2022) Survey of Low-Resource Machine Translation | 3. W2899317740 (2009) Creating a High-Quality Machine Translation System for a Low-Resource Language: |
+| 4. W7117761584 (2018) Neural Machine Translation for Low-Resource Languages: Challenges and Solutions | 4. W2745341416 (2017) Neural machine translation for low-resource languages |
+| 5. W2899317740 (2009) Creating a High-Quality Machine Translation System for a Low-Resource Language: | 5. W4225670297 (2021) Lesan -- Machine Translation for Low Resource Languages |
+
+**quality estimation for machine translation** (vector, proximity): repeated titles in the top 5 2 before, 0 after; results returned 5 before, 5 after.
+
+| Before | After |
+| --- | --- |
+| 1. W2101105183 (2001) BLEU | 1. W2101105183 (2001) BLEU |
+| 2. W3198189804 (2022) Survey of Low-Resource Machine Translation | 2. W3198189804 (2022) Survey of Low-Resource Machine Translation |
+| 3. W4283220248 (2022) Survey of Low-Resource Machine Translation | 3. W7155070965 (2026) LIFT: A Quality-Aware Data Selection Framework for Low-Resource Machine Translat |
+| 4. W4225929449 (2021) Survey of Low-Resource Machine Translation | 4. W2123301721 (2005) METEOR: An Automatic Metric for MT Evaluation with Improved Correlation with Hum |
+| 5. W7155070965 (2026) LIFT: A Quality-Aware Data Selection Framework for Low-Resource Machine Translat | 5. W7204966702 (2026) Quality Estimation for Machine Translation in Low-Resource Settings |
+
+**quality estimation for machine translation** (keyword): repeated titles in the top 5 1 before, 0 after; results returned 5 before, 5 after.
+
+| Before | After |
+| --- | --- |
+| 1. W3161646700 (2021) Ensemble-based Transfer Learning for Low-resource Machine Translation Quality Es | 1. W3161646700 (2021) Ensemble-based Transfer Learning for Low-resource Machine Translation Quality Es |
+| 2. W7140086055 (2026) Domain-Specific Quality Estimation for Machine Translation in Low-Resource Scena | 2. W7140086055 (2026) Domain-Specific Quality Estimation for Machine Translation in Low-Resource Scena |
+| 3. W7134820529 (2026) Domain-Specific Quality Estimation for Machine Translation in Low-Resource Scena | 3. W2986030184 (2019) Filtered Pseudo-parallel Corpus Improves Low-resource Neural Machine Translation |
+| 4. W2986030184 (2019) Filtered Pseudo-parallel Corpus Improves Low-resource Neural Machine Translation | 4. W7204966702 (2026) Quality Estimation for Machine Translation in Low-Resource Settings |
+| 5. W7204966702 (2026) Quality Estimation for Machine Translation in Low-Resource Settings | 5. W7132432999 (2022) Translation memories as baselines for low-resource machine translation |
+
+The collapsed lists still have 5 results; the extra candidates come from just below the original top 5.
