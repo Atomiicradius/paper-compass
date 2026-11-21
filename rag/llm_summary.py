@@ -52,7 +52,15 @@ DEFAULT_MODELS = {"gemini": "gemini-3.8-flash", "anthropic": "claude-haiku-5-5"}
 # 3.6+ models ignore custom values for temperature, top_p, and top_k"; the Claude Haiku 5.5 page says "Omit
 # temperature, top_p, and top_k". So temperature is NOT sent unless PC_LLM_TEMPERATURE is set (for another model).
 MAX_OUTPUT_TOKENS = 600
-TIMEOUT_SECONDS = 20
+TIMEOUT_SECONDS = 20  # the default; PC_LLM_TIMEOUT_S (5 to 120) changes it
+TIMEOUT_RANGE = (5, 120)
+# Gemini thinking (PC_LLM_THINKING, Gemini only, off by default = the setting is not sent). Documented on
+# https://aistudio.google.com/docs/thinking (generateContent version) and on the model page
+# https://aistudio.google.com/docs/models/gemini-3.8-flash : "Thinking: Supported (low, medium, high)", "minimal is not
+# supported and returns an error", and thinking cannot be switched off for this model; the SDK option is
+# types.GenerateContentConfig(thinking_config=types.ThinkingConfig(thinking_level="low")). max_output_tokens includes the
+# thinking tokens, so a low level leaves more of the 600 tokens for the answer.
+THINKING_LEVELS = ("low", "medium", "high")
 
 # Phrases the explanation must not contain (matched case-insensitively, whole words where it matters).
 FORBIDDEN_PATTERNS = (r"no one has", r"never been", r"\bfirst to\b",
@@ -121,6 +129,32 @@ def setting(name, env=None, env_file=None):
     source = os.environ if env is None else env
     value = source.get(name) or read_env_file(env_file).get(name)
     return value or None
+
+
+def timeout_setting(env=None, env_file=None):
+    """PC_LLM_TIMEOUT_S in seconds (5 to 120), or the default of 20. Raises ValueError for anything else."""
+    raw = setting("PC_LLM_TIMEOUT_S", env, env_file)
+    if raw is None:
+        return TIMEOUT_SECONDS
+    try:
+        value = float(raw)
+    except ValueError:
+        raise ValueError(f"PC_LLM_TIMEOUT_S must be a number from {TIMEOUT_RANGE[0]} to {TIMEOUT_RANGE[1]}, got {raw!r}") from None
+    if not TIMEOUT_RANGE[0] <= value <= TIMEOUT_RANGE[1]:  # also false for nan
+        raise ValueError(f"PC_LLM_TIMEOUT_S must be between {TIMEOUT_RANGE[0]} and {TIMEOUT_RANGE[1]} seconds, got {raw!r}")
+    return int(value) if value == int(value) else value
+
+
+def thinking_setting(env=None, env_file=None):
+    """PC_LLM_THINKING: None (not set: nothing is sent) or one of THINKING_LEVELS. Raises ValueError otherwise."""
+    raw = setting("PC_LLM_THINKING", env, env_file)
+    if raw is None:
+        return None
+    level = raw.strip().lower()
+    if level not in THINKING_LEVELS:
+        raise ValueError(f"PC_LLM_THINKING must be one of {', '.join(THINKING_LEVELS)} (gemini-3.8-flash does not support "
+                         f"'minimal' or switching thinking off), got {raw!r}")
+    return level
 
 
 def llm_enabled(env=None, env_file=None):
@@ -240,7 +274,7 @@ def check_output(text, evidence):
 # --- providers -----------------------------------------------------------------------------------
 
 def gemini_client(api_key, model, max_output_tokens=MAX_OUTPUT_TOKENS, temperature=None, timeout=TIMEOUT_SECONDS,
-                  attempt_log=None, base_url=None):
+                  attempt_log=None, base_url=None, thinking_level=None):
     """A function prompt -> text using the official google-genai SDK.
 
     Options (documented in the SDK's own field descriptions, google/genai/types.py, google-genai 3.6.1):
@@ -249,6 +283,7 @@ def gemini_client(api_key, model, max_output_tokens=MAX_OUTPUT_TOKENS, temperatu
                                                   attempts: "Maximum number of attempts, including the original request.
                                                   If 0 or 1, it means no retries. If not specified, default to 5."
     attempt_log, if given, gets one entry per HTTP request the SDK sends (a request event hook), so retries are visible.
+    thinking_level (None = not sent) goes into GenerateContentConfig(thinking_config=ThinkingConfig(thinking_level=...)).
     base_url is only for tests that point the SDK at a local server."""
     from google import genai
     from google.genai import types
@@ -264,6 +299,8 @@ def gemini_client(api_key, model, max_output_tokens=MAX_OUTPUT_TOKENS, temperatu
         arguments = {"max_output_tokens": max_output_tokens}
         if temperature is not None:
             arguments["temperature"] = temperature
+        if thinking_level is not None:
+            arguments["thinking_config"] = types.ThinkingConfig(thinking_level=thinking_level)
         response = client.models.generate_content(model=model, contents=prompt,
                                                   config=types.GenerateContentConfig(**arguments))
         return response.text
@@ -288,9 +325,11 @@ def anthropic_client(api_key, model, max_tokens=MAX_OUTPUT_TOKENS, timeout=TIMEO
     return complete
 
 
-def make_client(provider, api_key, model, temperature=None, timeout=TIMEOUT_SECONDS, attempt_log=None):
+def make_client(provider, api_key, model, temperature=None, timeout=TIMEOUT_SECONDS, attempt_log=None,
+                thinking_level=None):
     if provider == "gemini":
-        return gemini_client(api_key, model, temperature=temperature, timeout=timeout, attempt_log=attempt_log)
+        return gemini_client(api_key, model, temperature=temperature, timeout=timeout, attempt_log=attempt_log,
+                             thinking_level=thinking_level)
     return anthropic_client(api_key, model, temperature=temperature, timeout=timeout)
 
 
@@ -378,7 +417,7 @@ def template_result(evidence, reason, detail="", **extra):
 
 
 def explanation_text(evidence, use_llm=None, complete=None, provider=None, model=None,
-                     timeout_seconds=TIMEOUT_SECONDS, env=None, env_file=None, cache_dir=None):
+                     timeout_seconds=None, env=None, env_file=None, cache_dir=None):
     """The explanation for an evidence chain: {text, source, fallback_reason, detail, ...}.
 
     use_llm: None follows PC_LLM_SUMMARY (default off = template); True or False overrides it. complete is an
@@ -398,11 +437,19 @@ def explanation_text(evidence, use_llm=None, complete=None, provider=None, model
     if not use_llm:
         return {"text": summarize_evidence(evidence), "source": "template", "fallback_reason": None, "detail": ""}
 
+    try:
+        if timeout_seconds is None:  # an explicit argument wins over PC_LLM_TIMEOUT_S
+            timeout_seconds = timeout_setting(env, env_file)
+        thinking_level = thinking_setting(env, env_file)
+    except ValueError as exc:
+        return template_result(evidence, "error", str(exc))
     provider = provider or setting("PC_LLM_PROVIDER", env, env_file) or "gemini"
     if provider not in PROVIDERS:
         return template_result(evidence, "error", f"unknown provider {provider!r}; use one of {', '.join(PROVIDERS)}")
     model = model or setting("PC_LLM_MODEL", env, env_file) or DEFAULT_MODELS[provider]
-    info = {"provider": provider, "model": model}
+    info = {"provider": provider, "model": model, "timeout_s": timeout_seconds}
+    if provider == "gemini" and thinking_level:
+        info["thinking"] = thinking_level
     key = None
     attempt_log = []
     guard = timeout_seconds
@@ -429,7 +476,8 @@ def explanation_text(evidence, use_llm=None, complete=None, provider=None, model
         temperature = setting("PC_LLM_TEMPERATURE", env, env_file)
         try:
             complete = make_client(provider, key, model, float(temperature) if temperature else None,
-                                   timeout=timeout_seconds, attempt_log=attempt_log)
+                                   timeout=timeout_seconds, attempt_log=attempt_log,
+                                   thinking_level=thinking_level if provider == "gemini" else None)
             guard = timeout_seconds + GUARD_GRACE_SECONDS
         except ImportError as exc:  # the SDK is an optional install: pip install -r rag/requirements-llm.txt
             return template_result(evidence, "error", f"SDK not installed ({type(exc).__name__}: {_scrub(exc, key)}); "

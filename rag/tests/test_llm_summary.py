@@ -238,7 +238,7 @@ def test_the_key_is_scrubbed_from_error_details_and_never_in_a_result(monkeypatc
     def broken(prompt):
         raise RuntimeError(f"request failed for key {KEY}")
 
-    monkeypatch.setattr(llm, "make_client", lambda provider, key, model, temperature=None, timeout=20, attempt_log=None: broken)
+    monkeypatch.setattr(llm, "make_client", lambda provider, key, model, temperature=None, timeout=20, attempt_log=None, thinking_level=None: broken)
     out = llm.explanation_text(make_evidence(), use_llm=True, env={"GEMINI_API_KEY": KEY}, env_file=NO_FILE)
     assert out["fallback_reason"] == "error" and "***" in out["detail"]
     assert KEY not in json.dumps(out)
@@ -346,7 +346,7 @@ def fake_sdks(monkeypatch, calls, behaviour="ok", server_seconds=3.0):
             self.models = Models(http_options)
 
     genai.Client, genai_types.GenerateContentConfig, genai.types, google.genai = GeminiClient, GenerateContentConfig, genai_types, genai
-    genai_types.HttpOptions, genai_types.HttpRetryOptions = Options, Options
+    genai_types.HttpOptions, genai_types.HttpRetryOptions, genai_types.ThinkingConfig = Options, Options, Options
 
     anthropic = types.ModuleType("anthropic")
 
@@ -700,3 +700,103 @@ def test_the_cache_folder_is_ignored_by_git():
     except FileNotFoundError:
         pytest.skip("git is not available")
     assert done.returncode == 0, "data/llm_cache must be ignored by git"
+
+
+# --- PC_LLM_TIMEOUT_S and PC_LLM_THINKING ---------------------------------------------------------------------------
+
+def test_the_default_timeout_is_20_seconds_and_is_applied_to_both_sdks(monkeypatch):
+    calls = {}
+    fake_sdks(monkeypatch, calls)
+    out = llm.explanation_text(make_evidence(), use_llm=True, env=gemini_env(), env_file=NO_FILE)
+    assert out["timeout_s"] == 20 and calls["gemini_http_options"].kwargs["timeout"] == 20000
+    llm.explanation_text(make_evidence(), use_llm=True, provider="anthropic", env={"ANTHROPIC_API_KEY": KEY},
+                         env_file=NO_FILE, cache_dir=None)
+    assert calls["anthropic_client"]["timeout"] == 20.0
+
+
+@pytest.mark.parametrize("value, seconds", [("5", 5), ("20", 20), ("60", 60), ("120", 120), ("7.5", 7.5)])
+def test_pc_llm_timeout_s_is_applied_to_the_client_options(monkeypatch, value, seconds):
+    calls = {}
+    fake_sdks(monkeypatch, calls)
+    out = llm.explanation_text(make_evidence(), use_llm=True, env={**gemini_env(), "PC_LLM_TIMEOUT_S": value},
+                               env_file=NO_FILE)
+    assert out["source"] == "llm" and out["timeout_s"] == seconds
+    assert calls["gemini_http_options"].kwargs["timeout"] == int(seconds * 1000)
+    calls.clear()
+    fake_sdks(monkeypatch, calls)
+    env = {"PC_LLM_PROVIDER": "anthropic", "ANTHROPIC_API_KEY": KEY, "PC_LLM_TIMEOUT_S": value}
+    llm.explanation_text(make_evidence(), use_llm=True, env=env, env_file=NO_FILE)
+    assert calls["anthropic_client"]["timeout"] == float(seconds) and calls["anthropic_client"]["max_retries"] == 0
+
+
+@pytest.mark.parametrize("value", ["4", "4.99", "121", "0", "-5", "abc", "nan", "inf", "1e9"])
+def test_a_timeout_outside_5_to_120_or_not_a_number_is_refused_without_calling_the_model(monkeypatch, value):
+    calls = {}
+    fake_sdks(monkeypatch, calls)
+    out = llm.explanation_text(make_evidence(), use_llm=True, env={**gemini_env(), "PC_LLM_TIMEOUT_S": value},
+                               env_file=NO_FILE)
+    assert out["source"] == "template" and out["fallback_reason"] == "error" and "PC_LLM_TIMEOUT_S" in out["detail"]
+    assert calls["attempts"] == 0 and "gemini_http_options" not in calls, "no client was even created"
+
+
+def test_an_explicit_timeout_argument_wins_over_the_variable(monkeypatch):
+    calls = {}
+    fake_sdks(monkeypatch, calls)
+    out = llm.explanation_text(make_evidence(), use_llm=True, timeout_seconds=7, env={**gemini_env(), "PC_LLM_TIMEOUT_S": "60"},
+                               env_file=NO_FILE)
+    assert out["timeout_s"] == 7 and calls["gemini_http_options"].kwargs["timeout"] == 7000
+
+
+def test_the_timeout_setting_is_read_from_the_env_file(tmp_path):
+    env_file = tmp_path / ".env"
+    env_file.write_text("PC_LLM_TIMEOUT_S=45\n", encoding="utf-8")
+    assert llm.timeout_setting(env={}, env_file=env_file) == 45
+    assert llm.timeout_setting(env={}, env_file=NO_FILE) == 20
+
+
+def test_thinking_is_not_sent_by_default(monkeypatch):
+    calls = {}
+    fake_sdks(monkeypatch, calls)
+    out = llm.explanation_text(make_evidence(), use_llm=True, env=gemini_env(), env_file=NO_FILE)
+    assert "thinking_config" not in calls["gemini"]["config"] and "thinking" not in out
+
+
+@pytest.mark.parametrize("value, level", [("low", "low"), ("MEDIUM", "medium"), (" High ", "high")])
+def test_pc_llm_thinking_sets_the_gemini_thinking_level(monkeypatch, value, level):
+    calls = {}
+    fake_sdks(monkeypatch, calls)
+    out = llm.explanation_text(make_evidence(), use_llm=True, env={**gemini_env(), "PC_LLM_THINKING": value}, env_file=NO_FILE)
+    config = calls["gemini"]["config"]
+    assert config["max_output_tokens"] == 600 and config["thinking_config"].kwargs == {"thinking_level": level}
+    assert out["thinking"] == level
+
+
+@pytest.mark.parametrize("value", ["minimal", "off", "none", "0", "xhigh", "banana"])
+def test_unsupported_thinking_values_are_refused_without_calling_the_model(monkeypatch, value):
+    calls = {}
+    fake_sdks(monkeypatch, calls)
+    out = llm.explanation_text(make_evidence(), use_llm=True, env={**gemini_env(), "PC_LLM_THINKING": value}, env_file=NO_FILE)
+    assert out["fallback_reason"] == "error" and "PC_LLM_THINKING" in out["detail"]
+    assert calls["attempts"] == 0 and "gemini_http_options" not in calls
+
+
+def test_thinking_is_a_gemini_setting_and_is_ignored_for_anthropic(monkeypatch):
+    calls = {}
+    fake_sdks(monkeypatch, calls)
+    env = {"PC_LLM_PROVIDER": "anthropic", "ANTHROPIC_API_KEY": KEY, "PC_LLM_THINKING": "low"}
+    out = llm.explanation_text(make_evidence(), use_llm=True, env=env, env_file=NO_FILE)
+    assert out["source"] == "llm" and "thinking" not in out and "thinking_config" not in calls["anthropic"]
+
+
+def test_the_real_sdk_knows_the_thinking_option_names():
+    types_module = pytest.importorskip("google.genai.types")
+    assert "thinking_level" in types_module.ThinkingConfig.model_fields
+    assert "thinking_config" in types_module.GenerateContentConfig.model_fields
+    for level in THINKING_LEVEL_NAMES:
+        assert level.upper() in types_module.ThinkingLevel.__members__
+    config = types_module.GenerateContentConfig(max_output_tokens=600,
+                                                thinking_config=types_module.ThinkingConfig(thinking_level="low"))
+    assert config.thinking_config.thinking_level.value.lower() == "low"
+
+
+THINKING_LEVEL_NAMES = llm.THINKING_LEVELS
