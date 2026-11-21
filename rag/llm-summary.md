@@ -5,12 +5,12 @@ The explanation of an opportunity is the fixed-template summary of `rag/summary.
 any problem returns the template with a stated reason. Candidate opportunities stay signals for human review ("potentially
 underexplored in the analyzed corpus"), not proof of a gap.
 
-Status (2026-11-21): the code and its 83 tests (fake clients and fake SDKs, plus 2 tests of the real google-genai SDK against a
-local server; no test uses the network) are done, and the API tests that touch the new fields ran and passed (see below).
-**Two real checks were run with Gemini (`gemini-3.8-flash`) and produced no model text at all: all 6 calls fell back to the
-template** (run 1: one client timeout and two 503 "high demand"; run 2: three 504 DEADLINE_EXCEEDED; details in "Real check"
-below). So the number and phrase guardrails have **not yet been tested on a real model answer**, and the Anthropic provider
-has only been exercised against fake modules.
+Status (2026-11-21): the code and its 112 tests (fake clients and fake SDKs, plus 3 tests of the real google-genai SDK against a
+local server or its type definitions; no test uses the network) are done, and the API tests that touch the new fields ran and
+passed (see below). **Three real checks were run with Gemini (`gemini-3.8-flash`), 7 real calls in total, and none returned model
+text**: run 1 gave one client timeout and two 503 "high demand", run 2 gave three 504 DEADLINE_EXCEEDED, and run 3 (a trivial
+prompt, "Reply with the single word: ok") gave a 504 DEADLINE_EXCEEDED after 19.9 s. So the number and phrase guardrails have
+**not yet been tested on a real model answer**, and the Anthropic provider has only been exercised against fake modules.
 
 API tests: run in a separate environment (`pc-envs/api-venv`, Python 3.12.3, the pins of `requirements-person3.txt`):
 `pytest api` gave 19 passed and 7 skipped (the PostgreSQL integration tests, which need `PC_TEST_PG_DSN`); with
@@ -131,6 +131,20 @@ so it can never keep the Python process alive.
 therefore not applied with either default model**: output can vary between runs, which is one more reason the answer is
 checked after generation.
 
+## Settings for the timeout and for Gemini thinking
+
+- `PC_LLM_TIMEOUT_S`: seconds, from 5 to 120 (default 20). Anything else (below 5, above 120, not a number) is refused: the template is
+  returned with reason `error` and no call is made. It is passed to the SDK's own timeout (Gemini milliseconds, Anthropic seconds).
+- `PC_LLM_THINKING` (Gemini only; not set by default, then nothing is sent): `low`, `medium` or `high`. The option is
+  `types.GenerateContentConfig(thinking_config=types.ThinkingConfig(thinking_level="low"))`, documented on
+  https://aistudio.google.com/docs/thinking (the generateContent version, `?generate-content=true`) and present in google-genai 3.6.1.
+  The model page https://aistudio.google.com/docs/models/gemini-3.8-flash says "Thinking: Supported (low, medium, high)" and
+  "`minimal` is not supported and returns an error", and the thinking page says that Gemini 3 Flash and Flash-Lite do not support a full
+  thinking-off (it does not name 3.8 Flash, but the model page lists no off setting); so for `gemini-3.8-flash` thinking can be limited to `low` but not turned off, and `minimal`, `off` and
+  `xhigh` are refused by the code. The thinking page also says that `max_output_tokens` includes the thinking tokens (a low
+  level leaves more of the 600 tokens for the answer, and an answer cut off by the limit comes back truncated or empty).
+  Other Gemini models allow other levels; only the three above are accepted here.
+
 ## Cache
 
 Generated summaries that passed the three guardrails are cached on disk in `data/llm_cache/` (ignored by git: `git check-ignore -v
@@ -211,3 +225,30 @@ What this suggests, not proven: for this prompt (about 5,600 to 5,900 characters
 20 s on that day, either because the service was overloaded (run 1 showed 503 "high demand") or because the model needs longer than
 the limit (it supports "thinking", which cannot be switched off). A longer timeout, a smaller prompt, or another model
 (`PC_LLM_MODEL`) are things to try; none was tried.
+
+### Run 3 (2026-11-21, diagnostic, 1 call)
+
+Plan: call (a) a trivial prompt with a 20 s timeout to see whether the service answers at all; if it failed with a 503, 504 or a
+timeout, stop; call (b) would have been the real prompt for Masked Language Modeling x Machine Translation with
+`PC_LLM_TIMEOUT_S=60` and `PC_LLM_THINKING=low`. Hard limit 90 s for the run, at most 2 calls.
+
+| Call | Timeout | Latency | HTTP attempts recorded | Result |
+| --- | ---: | ---: | ---: | --- |
+| (a) "Reply with the single word: ok" | 20 s | 19,920 ms | 1 | `ServerError: 504 DEADLINE_EXCEEDED` ("Deadline expired before operation could complete.") |
+| (b) real prompt, 60 s, thinking low | - | - | - | **not made** (the rule: stop after a 504) |
+
+Total: 1 API call, 21.0 s. So even a one-word prompt got no answer within 20 s: the missing answers in runs 1 and 2 are not caused by
+the size of our prompt, by our retries (the SDK sent exactly 1 request each time) or by the 600-token limit (nothing was generated).
+The thinking setting and a longer timeout (call (b)) were therefore not tried against the service.
+
+Why the 504 comes at about the timeout: the google-genai SDK sends the timeout to the server as a header,
+`X-Server-Timeout: ceil(timeout in seconds)` (`google/genai/_api_client.py`, lines 257 to 258 of google-genai 3.6.1), so the service
+enforces our timeout as its own deadline and answers 504 DEADLINE_EXCEEDED when it cannot finish in time. The observed latencies
+fit this: 19.9, 18.8 and 14.6 s in run 2 and 19.9 s in run 3 are about the timeouts used (20, 20, 15 and 20 s). So a 504 here means
+"the model did not answer within our timeout", the same as a client timeout, and not a different kind of failure.
+
+What this shows and what it does not: for this key and model, on that day, the service did not answer a trivial prompt within 20 s
+(and in run 1 it answered 503 "high demand"). Whether it would answer with a longer timeout (up to 120 s), with another model
+(`PC_LLM_MODEL`), at another time, or with the other provider was not tested. The reason for the delay (load on the service, an
+account or region limit, the model's start-up) is not known. Next step if this is still wanted: one trivial call with
+`PC_LLM_TIMEOUT_S=60`; if that answers, the real prompt with `PC_LLM_THINKING=low`.
