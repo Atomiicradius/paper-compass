@@ -6,12 +6,14 @@ import { api } from "@/api/client";
 import type { GraphLabel } from "@/api/types";
 import { GRAPH_COLORS } from "@/lib/colors";
 import { buildViewGraph, graphNote, type ViewNode } from "@/lib/graph";
-import { drawLink, drawNode, labelTargets, newPaintState, nodeRadius, type PaintLink, type PaintNode } from "@/lib/graph-paint";
+import { drawLink, drawNode, nodeRadius, type PaintLink, type PaintNode } from "@/lib/graph-paint";
+import { usePrefersReducedMotion } from "@/lib/reduced-motion";
 import { useAsync, useElementSize, type Theme } from "@/lib/hooks";
 import { nodePaperId, normalizePaperId } from "@/lib/ids";
 import { cn } from "@/lib/utils";
 import { Badge, Button, ErrorNote, IdBadge, Mono, Skeleton, TagBadge, Tip } from "@/components/ui/primitives";
 import { Reveal } from "@/components/Reveal";
+import { useGraphMotion } from "@/components/useGraphMotion";
 
 type Kind = GraphLabel | "Bridge";
 const LEGEND_ORDER: Kind[] = ["Paper", "Bridge", "Method", "Task", "Dataset", "Setting", "Author", "Venue", "Topic", "Institution"];
@@ -49,23 +51,21 @@ export function GraphView({
   const graph = useAsync((s) => api.paperGraph(id, limit, s), [id, limit], id !== "");
   const view = useMemo(() => (graph.data ? buildViewGraph(graph.data, hidden, bridgeIds) : null), [graph.data, hidden, bridgeIds]);
 
-  const [boxRef, size] = useElementSize<HTMLDivElement>();
+  const [sizeRef, size] = useElementSize<HTMLDivElement>();
+  const boxRef = useRef<HTMLDivElement | null>(null); // the same element, for the pointer cursor
+  const setBox = useCallback((el: HTMLDivElement | null) => {
+    boxRef.current = el;
+    sizeRef(el);
+  }, [sizeRef]);
   const fgRef = useRef<ForceGraphMethods | undefined>(undefined);
   const fit = useCallback(() => fgRef.current?.zoomToFit(400, 40), []);
 
-  const redraw = useCallback(() => (fgRef.current as { refresh?: () => void } | undefined)?.refresh?.(), []);
-  // what the painters need to know (a ref: it changes every frame and must not cause renders)
-  const paint = useRef(newPaintState(false));
+  const reduced = usePrefersReducedMotion();
   const centerId = useMemo(() => view?.nodes.find((n) => n.isCenter)?.id ?? null, [view]);
-  // the labels: the selected paper, the clicked node and the best-connected nodes (the rule is in lib/graph-paint.ts)
-  useEffect(() => {
-    const st = paint.current;
-    st.centerId = centerId;
-    st.selectedId = selected?.id ?? null;
-    const targets = labelTargets({ nodes: view?.nodes ?? [], centerId, selectedId: st.selectedId, hoverId: st.hoverId });
-    st.labelAlpha = new Map([...targets].map((tid) => [tid, 1]));
-    redraw(); // the canvas pauses its redraw when nothing moves
-  }, [view, centerId, selected, redraw]);
+  // the entrance, the idle motion, hover highlighting, label fades and the camera glide (see useGraphMotion)
+  const { paint, onRenderFramePre, onNodeHover, glideTo } = useGraphMotion({
+    view, dataKey: graph.data, centerId, selectedId: selected?.id ?? null, fgRef, boxRef, reduced,
+  });
 
   // spread the layout out so labels and nodes do not pile up
   useEffect(() => {
@@ -81,10 +81,10 @@ export function GraphView({
   const big = nodeCount > 400;
   const legend = LEGEND_ORDER.filter((k) => (view?.counts[k] ?? 0) > 0);
 
-  const paintNode = useCallback((node: object, ctx: CanvasRenderingContext2D, scale: number) => drawNode(ctx, node as PaintNode, scale, paint.current), []);
+  const paintNode = useCallback((node: object, ctx: CanvasRenderingContext2D, scale: number) => drawNode(ctx, node as PaintNode, scale, paint.current), [paint]);
   const paintLink = useCallback(
     (link: object, ctx: CanvasRenderingContext2D, scale: number) => drawLink(ctx, link as PaintLink, scale, paint.current, nodeCount <= GRADIENT_LINKS_MAX),
-    [nodeCount],
+    [nodeCount, paint],
   );
 
   const paintPointer = useCallback((node: object, color: string, ctx: CanvasRenderingContext2D) => {
@@ -158,7 +158,7 @@ export function GraphView({
 
           {note ? <p role="note" className="rounded-lg border border-border bg-hover px-3 py-1.5 text-xs text-muted">{note}</p> : null}
 
-          <div ref={boxRef} data-lenis-prevent data-theme={theme} style={GLASS_BACKGROUND} className="glass relative min-h-[420px] flex-1 overflow-hidden rounded-2xl" data-testid="graph-canvas">
+          <div ref={setBox} data-lenis-prevent data-theme={theme} style={GLASS_BACKGROUND} className="glass relative min-h-[420px] flex-1 overflow-hidden rounded-2xl" data-testid="graph-canvas">
             {graph.loading && !view ? <Skeleton className="absolute inset-0 rounded-none" /> : null}
             {view && size.width > 0 ? (
               <ForceGraph2D
@@ -174,12 +174,18 @@ export function GraphView({
                 linkCanvasObjectMode={() => "replace"}
                 nodePointerAreaPaint={paintPointer}
                 linkColor={() => LINK_ARROW_COLOR}
-                linkDirectionalArrowLength={big ? 0 : 3}
+                linkDirectionalArrowLength={big || !reduced ? 0 : 3}
                 linkDirectionalArrowRelPos={1}
                 cooldownTicks={big ? 60 : 120}
                 d3AlphaDecay={big ? 0.06 : 0.03}
                 onEngineStop={() => { if (nodeCount > 0 && !selected) fit(); }}
-                onNodeClick={(n) => setSelected(n as ViewNode)}
+                onNodeClick={(n) => {
+                  setSelected(n as ViewNode);
+                  glideTo(n);
+                }}
+                onNodeHover={onNodeHover}
+                onRenderFramePre={onRenderFramePre}
+                autoPauseRedraw={reduced}
                 onBackgroundClick={() => setSelected(null)}
               />
             ) : null}

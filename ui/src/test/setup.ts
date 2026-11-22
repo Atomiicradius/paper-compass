@@ -43,10 +43,14 @@ vi.mock("gsap", () => {
         (vars.onUpdate as (() => void) | undefined)?.();
         (vars.onComplete as () => void)();
       }
-      return { kill: vi.fn() };
+      return { kill: vi.fn(), pause: vi.fn(), resume: vi.fn() };
     }),
     from: vi.fn(() => ({ kill: vi.fn() })),
     fromTo: vi.fn(() => ({ kill: vi.fn() })),
+    timeline: vi.fn(() => {
+      const tl = { to: vi.fn(() => tl), kill: vi.fn(), pause: vi.fn(), resume: vi.fn() };
+      return tl;
+    }),
     killTweensOf: vi.fn(),
     ticker: { add: vi.fn(), remove: vi.fn(), lagSmoothing: vi.fn() },
   };
