@@ -5,7 +5,7 @@ import { normalizePaperId } from "@/lib/ids";
  * and which paper the graph is centred on. It lives in the hash, so reloading restores the screen, Back closes a
  * drawer, and a link to "#/candidates?opp=14" opens that opportunity. The search text and filters are not stored.
  */
-export const VIEWS = ["candidates", "papers", "graph", "landscape"] as const;
+export const VIEWS = ["story", "candidates", "papers", "graph", "landscape"] as const;
 export type View = (typeof VIEWS)[number];
 
 export interface Route {
@@ -15,7 +15,7 @@ export interface Route {
   graph: string;
 }
 
-export const DEFAULT_ROUTE: Route = { view: "candidates", opp: null, paper: null, graph: "" };
+export const DEFAULT_ROUTE: Route = { view: "story", opp: null, paper: null, graph: "" };
 
 /** Anything unrecognised is ignored (never an error): a hand-edited or old link must not break the app. */
 export function parseRoute(hash: string): Route {
@@ -30,7 +30,7 @@ export function parseRoute(hash: string): Route {
   return { view, opp: oppNum, paper: paper || null, graph };
 }
 
-/** The hash for a route; the default route (candidates, nothing open) is the empty string. */
+/** The hash for a route; the default route (the story, nothing open) is the empty string. `#/story` opens the same page. */
 export function formatRoute(r: Route): string {
   const params = new URLSearchParams();
   if (r.opp !== null) params.set("opp", String(r.opp));

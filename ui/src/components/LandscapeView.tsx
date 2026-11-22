@@ -7,7 +7,7 @@ import { useAsync, type AsyncState } from "@/lib/hooks";
 import { Badge, Button, ErrorNote, IdBadge, Mono, Skeleton, Slider, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/primitives";
 import { Reveal } from "@/components/Reveal";
 
-function YearBars({ perYear }: { perYear: Record<string, number> }) {
+export function YearBars({ perYear }: { perYear: Record<string, number> }) {
   const years = Object.keys(perYear).map(Number).sort((a, b) => a - b);
   const max = Math.max(1, ...Object.values(perYear));
   const W = 720, H = 140, pad = 6;

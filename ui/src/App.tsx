@@ -9,7 +9,7 @@ import { normalizePaperId } from "@/lib/ids";
 import { EMPTY_FILTERS, isMockData, type CandidateFilters } from "@/lib/opportunities";
 import { cn } from "@/lib/utils";
 import { Button, Mono, Skeleton, Tip, TooltipProvider } from "@/components/ui/primitives";
-import { SmoothScrollProvider, useRegisterScroller } from "@/components/SmoothScroll";
+import { SmoothScrollProvider, useRegisterScroller, useScroller } from "@/components/SmoothScroll";
 import { Reveal } from "@/components/Reveal";
 import { Sidebar, type FilterOptions, type SearchForm } from "@/components/Sidebar";
 import { CandidatesView } from "@/components/CandidatesView";
@@ -19,8 +19,11 @@ import { LandscapeView } from "@/components/LandscapeView";
 
 // the graph library is large and only needed on the Graph tab
 const GraphView = lazy(() => import("@/components/GraphView").then((m) => ({ default: m.GraphView })));
+// the story page (and its canvas) is loaded when the story is opened, so it adds nothing to the first bundle
+const StoryView = lazy(() => import("@/components/story/StoryView"));
 
 const VIEWS: { id: View; label: string }[] = [
+  { id: "story", label: "Story" },
   { id: "candidates", label: "Candidates" },
   { id: "papers", label: "Papers" },
   { id: "graph", label: "Graph" },
@@ -43,6 +46,7 @@ function CorpusStats({ papers, years, cutoff, className }: { papers: number; yea
 
 function AppShell() {
   const registerScroller = useRegisterScroller();
+  const scroller = useScroller();
   const [theme, toggleTheme] = useTheme();
   // the address bar remembers the view, the open drawer and the graph paper (see lib/route.ts)
   const [initialRoute] = useState(() => parseRoute(window.location.hash));
@@ -91,6 +95,11 @@ function AppShell() {
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
+
+  // a new screen starts at the top (the story is a long scroll; the explorer should not open half way down it)
+  useEffect(() => {
+    if (scroller) scroller.scrollTop = 0;
+  }, [view, scroller]);
 
   const yearBounds = useMemo<[number, number]>(() => {
     const ys = Object.keys(landscape.data?.papers_per_year ?? {}).map(Number);
@@ -187,7 +196,7 @@ function AppShell() {
 
         <div className="relative flex min-h-0 flex-1">
           {/* left pane: search and discovery. On small screens it overlays the content. */}
-          <div className={cn("absolute inset-y-0 left-0 z-30 w-80 max-w-[85vw] lg:static lg:z-auto lg:flex lg:w-80 lg:shrink-0", sidebarOpen ? "flex" : "hidden lg:flex")}>
+          <div className={cn("absolute inset-y-0 left-0 z-30 w-80 max-w-[85vw] lg:static lg:z-auto lg:w-80 lg:shrink-0", view === "story" ? "hidden" : sidebarOpen ? "flex" : "hidden lg:flex")}>
             <Sidebar
               className="w-full"
               form={form} onForm={setForm} onSearch={runSearch} searching={search.loading && submitted != null}
@@ -197,9 +206,13 @@ function AppShell() {
           {sidebarOpen ? <button aria-label="Close filters" className="fixed inset-0 z-20 bg-black/40 lg:hidden" onClick={() => setSidebarOpen(false)} /> : null}
 
           {/* center pane */}
-          <main ref={registerScroller} className={cn("scroll-thin min-w-0 flex-1 overflow-y-auto p-4 sm:p-6", view === "graph" && "flex flex-col")}>
-            <div className={cn("mx-auto w-full", view === "graph" ? "flex min-h-0 max-w-none flex-1 flex-col" : "max-w-4xl")}>
-              {view === "candidates" ? (
+          <main ref={registerScroller} className={cn("scroll-thin min-w-0 flex-1 overflow-y-auto", view === "story" ? "p-0" : "p-4 sm:p-6", view === "graph" && "flex flex-col")}>
+            <div className={cn("mx-auto w-full", view === "graph" ? "flex min-h-0 max-w-none flex-1 flex-col" : view === "story" ? "max-w-none" : "max-w-4xl")}>
+              {view === "story" ? (
+                <Suspense fallback={<Skeleton className="m-6 min-h-[420px]" />}>
+                  <StoryView onOpenExplorer={() => setView("candidates")} />
+                </Suspense>
+              ) : view === "candidates" ? (
                 <CandidatesView
                   state={opps} filters={filters} selectedId={selectedId}
                   onOpen={(o) => setSelectedId(o.opportunity_id)} onClearFilters={() => setFilters(EMPTY_FILTERS)}
