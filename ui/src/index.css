@@ -2,12 +2,12 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* "Archival Daylight" (light) is the :root default; "Obsidian Observatory" (dark) is .dark */
+/* "Archival Daylight" (light) is the :root default; "Obsidian Observatory" (dark, the app default) is .dark */
 :root {
-  --background: #f8fafc;
+  --background: #f4f7fb;
   --card: #ffffff;
   --border: #e2e8f0;
-  --hover: #f1f5f9;
+  --hover: #eef2f7;
   --foreground: #0f172a;
   --muted-foreground: #475569;
   --primary: #0f4c81;
@@ -28,16 +28,25 @@
   --score-moderate: #b45309;
   --score-weak: #475569;
   --warning-text: #92400e;
+
+  /* glass surfaces: translucent fill, 1px low-contrast border, soft shadow */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(15, 23, 42, 0.1);
+  --glass-shadow: 0 10px 30px -14px rgba(15, 23, 42, 0.22);
+  --glass-blur: 12px;
+  /* page backdrop: a faint wash behind the glass */
+  --backdrop: radial-gradient(900px 480px at 85% -8%, rgba(15, 76, 129, 0.08), transparent 70%),
+    radial-gradient(700px 420px at -5% 105%, rgba(13, 148, 136, 0.06), transparent 70%);
 }
 
 .dark {
-  --background: #090d16;
-  --card: #111827;
-  --border: #1f2937;
-  --hover: #1e293b;
-  --foreground: #e5e7eb;
-  --muted-foreground: #9ca3af;
-  --primary: #38bdf8;
+  --background: #050810; /* near-black navy */
+  --card: #0b1220;
+  --border: #1a2236;
+  --hover: #111a2c;
+  --foreground: #e6edf7;
+  --muted-foreground: #9aa8bd;
+  --primary: #38bdf8; /* sky / cyan accent */
   --primary-foreground: #04121f;
   --teal: #2dd4bf;
   --warning: #f97316;
@@ -54,6 +63,13 @@
   --score-moderate: #fbbf24;
   --score-weak: #94a3b8;
   --warning-text: #fb923c;
+
+  --glass-bg: rgba(14, 22, 40, 0.58);
+  --glass-border: rgba(148, 163, 184, 0.14);
+  --glass-shadow: 0 14px 40px -16px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --glass-blur: 16px;
+  --backdrop: radial-gradient(1000px 520px at 82% -10%, rgba(56, 189, 248, 0.1), transparent 70%),
+    radial-gradient(800px 480px at -8% 108%, rgba(56, 189, 248, 0.05), transparent 70%);
 }
 
 @theme inline {
@@ -71,6 +87,8 @@
   --color-warning-text: var(--warning-text);
   --color-cite: var(--cite);
   --color-cite-soft: var(--cite-soft);
+  --color-glass: var(--glass-bg);
+  --color-glass-border: var(--glass-border);
   /* semantic tags: the same hex in both themes */
   --color-method: #3b82f6;
   --color-task: #10b981;
@@ -79,13 +97,16 @@
   --color-bridge: #ec4899;
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-display: "Instrument Serif", ui-serif, Georgia, "Times New Roman", serif;
 }
 
 @layer base {
   * { border-color: var(--border); }
   html, body, #root { height: 100%; }
   body {
-    background: var(--background);
+    background-color: var(--background);
+    background-image: var(--backdrop);
+    background-attachment: fixed;
     color: var(--foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
@@ -94,10 +115,60 @@
   ::selection { background: color-mix(in srgb, var(--primary) 30%, transparent); }
 }
 
+/* ---------------------------------------------------------------------------------------------
+ * Shared classes of the visual system (use these instead of repeating utilities)
+ *   .glass            card surface: translucent fill, 1px border, blur, soft shadow
+ *   .mono-label       small uppercase mono label with wide letter-spacing ("03 / 07 · WHAT DOES THE MODEL FLOOD?")
+ *   .display-heading  Instrument Serif heading at a large size; .display-md and .display-sm are smaller steps
+ *   .accent-word      optional italic accent word inside a display heading, in the accent colour
+ *   .mono-figure      large mono numeral for a key figure
+ * ------------------------------------------------------------------------------------------- */
+@layer components {
+  .glass {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+    backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  }
+  .mono-label {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    line-height: 1.4;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+  .display-heading {
+    font-family: var(--font-display);
+    font-weight: 400;
+    letter-spacing: -0.015em;
+    line-height: 1.04;
+    font-size: clamp(2rem, 1.4rem + 1.8vw, 3.1rem);
+    text-wrap: balance;
+  }
+  .display-md { font-size: clamp(1.5rem, 1.2rem + 0.9vw, 2.1rem); line-height: 1.1; }
+  .display-sm { font-size: 1.375rem; line-height: 1.15; letter-spacing: -0.01em; }
+  .accent-word { font-style: italic; color: var(--primary); }
+  .mono-figure {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+}
+
 @layer utilities {
   .scroll-thin { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
   .defer-paint { content-visibility: auto; contain-intrinsic-size: auto 220px; }
 }
+
+/* Lenis: standard rules so the smooth scroller and nested scroll areas cooperate */
+.lenis.lenis-smooth { scroll-behavior: auto !important; }
+.lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
+.lenis.lenis-stopped { overflow: hidden; }
 
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
