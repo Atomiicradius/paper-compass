@@ -1,0 +1,58 @@
+[
+  {
+    "paper_id": "W4391876619",
+    "title": "Lost in the Middle: How Language Models Use Long Contexts",
+    "diffs": {
+      "task": [
+        "Question Answering"
+      ]
+    }
+  },
+  {
+    "paper_id": "W4401157242",
+    "title": "Research on Methods to Enhance Machine Translation Quality Between Low-Resource Languages and Chinese Based on ChatGPT",
+    "diffs": {
+      "setting": [
+        "Bilingual",
+        "High-resource"
+      ]
+    }
+  },
+  {
+    "paper_id": "W4401587065",
+    "title": "Generative artificial intelligence: a systematic review and applications",
+    "diffs": {
+      "task": [
+        "Machine Translation",
+        "Language Modeling"
+      ]
+    }
+  },
+  {
+    "paper_id": "W4401306886",
+    "title": "The Llama 3 Herd of Models",
+    "diffs": {
+      "task": [
+        "Language Modeling"
+      ]
+    }
+  },
+  {
+    "paper_id": "W7150984635",
+    "title": "An Empirical Study of Many-Shot In-Context Learning for Machine Translation of Low-Resource Languages",
+    "diffs": {
+      "dataset": [
+        "FLORES"
+      ]
+    }
+  },
+  {
+    "paper_id": "W4366330503",
+    "title": "Visual Instruction Tuning",
+    "diffs": {
+      "task": [
+        "Language Modeling"
+      ]
+    }
+  }
+]

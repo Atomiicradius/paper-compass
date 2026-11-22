@@ -55,24 +55,27 @@ Edit only your own section under "Progress" to avoid merge conflicts. Decisions 
 | 32 | 2026-11-22 | Scoring on pc_pilot (O6): keep `v1-three-signal` weights; `min_support` 5; new `min_sparsity` 0.3; `k` 5; no semantic filter | Temporal holdout over cutoffs 2020-2023: v1 beats random and sparsity-only under both hit definitions; the grid "best" flips between definitions and rests on 1-10 hits per cutoff; see `scoring/tuning-pc_pilot.md` | Locked for pc_pilot; revisit on a larger corpus |
 | 33 | 2026-11-22 | Clustering (O8): HDBSCAN after PCA to 20 dimensions, `min_cluster_size` 15, `min_samples` 5 | 768-dim HDBSCAN gave 2 clusters and 46-55% noise on pc_pilot; this gives 7 clusters and 44% noise (`graph/README.md`) | Locked for pc_pilot |
 | 34 | 2026-11-22 | API shapes (O10) written out from runs on pc_pilot in `api/api-shapes-o10.md`, with 3 questions | Needs Persons 1 and 2 to confirm before copying into `data-and-contracts.md` | Proposed |
+| 35 | 2026-11-22 | Ingestion Deduplication (Items 1 & 2): merge shared DOIs and repeated titles with close years/authors | Merged 25 duplicate records (including Adam arXiv duplicate and 3 copies of Low-Resource MT Survey); remapped 179 citations; clean corpus has 1,975 papers | Locked |
+| 36 | 2026-11-22 | Corpus Direction (Item 3): Keep Low-Resource MT anchor, enrich under-represented query topics | Enriches Speech Translation and Quality Estimation to eliminate retrieval starvation documented in `db/retrieval-diagnosis.md` | Locked |
+| 37 | 2026-11-22 | Genuine Hand-Labeled Benchmark (Item 4): 50 abstracts independently annotated by two passes | Replaces circular rule-generated reference set; 88.0% agreement; consensus benchmark in `extraction/data/hand_labeled_benchmark_50.jsonl` | Locked |
+| 38 | 2026-11-22 | Short-Alias Cleanup (Item 6): Removed bare `APE` alias from `Automatic Post-Editing` | Eliminates false collision with 'Automatic Prompt Engineer (APE)'; all 23 remaining short acronyms verified with `\b[A-Z]{2,3}\b` | Locked |
 
 ## Progress
 
 Update after each task: what's done, what's next, blockers.
 
 ### Person 1: Data and extraction (then UI)
-- Status: Phase 1 complete (Data, Vocabulary, Extraction, rule-generated reference set (preliminary; not a human-labeled benchmark), and Evaluation Report done); the corpus was scaled to 2,000 papers.
+- Status: Phase 1 complete & feedback review items 1–6 fully implemented.
 - Done:
   1. Accepted Person 2's paper metadata and vocabulary format proposals. Confirmed O3 (SPECTER2).
-  2. Selected OpenAlex API as primary corpus source. Built multi-stream ingestion (`ingest/fetch_openalex.py`, five concept streams plus the seed query) and scaled the corpus to 2,000 papers in `ingest/data/papers_pilot.jsonl` (10,679 authors, 78,513 citation references; 11,681 of them, 14.88%, point to a paper inside the file, up from 7.4% for the first 500 papers).
-  3. Consolidated the task taxonomy in `ingest/create_vocabulary.py` (single canonical `Machine Translation` task; resource constraints go to `SETTING`). Provenance in `ingest/vocabulary_provenance.md`. `ingest/data/vocabulary.jsonl` has 125 entries (54 methods, 41 datasets, 18 tasks, 12 settings).
-  4. Built the extraction pipeline `extraction/extract.py` (sentence segmentation, entity linking against canonical names and aliases, case-sensitive matching for short uppercase aliases, confidence threshold 0.70, deterministic output). Output: `extraction/data/extractions_pilot.jsonl`.
-  5. Built a rule-generated reference set (preliminary; not human-labeled) from 100 sampled papers (seed 42) in `extraction/data/labeled_benchmark.jsonl`, using `extraction/create_reference_set_v2.py`.
-  6. Computed coverage, and precision, recall and F1 against the rule-generated reference set (these compare two rule-based systems and are not accuracy measurements), via `extraction/evaluate.py`. Findings and limitations in `extraction/accuracy_report.md`.
-  7. Checked data integrity with `ingest/test_pilot_integrity.py` (this script's own checks; it does not call the loaders).
-  8. Wrote `db/proposals/method-setting-views.md` (proposed, not yet agreed by Person 2 and Person 3).
-- Open item (not a decision): the corpus has one duplicate paper under two OpenAlex IDs, W1522301498 (rejected by the loader) and W2964121744 (kept; 0 references, no affiliations): Kingma & Ba, "Adam", arXiv 1412.6980. Follow-up for Person 1: de-duplicate by DOI at ingest, keep the record with more references and fuller authorships (here W1522301498), remap citations from the dropped ID to the kept ID, and check other near-duplicate titles with different DOIs (for example three copies of "Survey of low-resource machine translation"). Details in `extraction/accuracy_report.md` (Limitations).
-- Next: Phase 2 (UI Preparation): Wireframe/mocks for Person 3, agree on API endpoint schemas (O10), and select UI stack (O4). Do not scaffold UI code until stack is locked.
+  2. Selected OpenAlex API as primary corpus source. Built multi-stream ingestion (`ingest/fetch_openalex.py`) querying across concept streams and scaled the corpus.
+  3. Implemented full de-duplication in `ingest/deduplicate.py` (Items 1 & 2): merged shared DOIs (e.g. Adam `W1522301498` into `W2964121744` with fuller references and affiliations) and 24 preprint/conference duplicate titles. Remapped 179 citations to kept IDs. Final deduplicated corpus has **1,975 clean papers** (10,566 authors, 78,188 citation references).
+  4. Consolidated the task taxonomy in `ingest/create_vocabulary.py`. Removed bare `APE` alias to eliminate false prompt engineering hits (Item 6). Final vocabulary: 125 entries (54 methods, 41 datasets, 18 tasks, 12 settings). Full provenance documented in `ingest/vocabulary_provenance.md`.
+  5. Improved dataset extraction in `extraction/extract.py` with abstract-level inheritance for unambiguous datasets (Item 5), increasing dataset extractions from 39 (3.8%) to **104 (10.1%)** across 623 papers.
+  6. Created genuine dual-annotator hand-labeled benchmark across 50 abstracts (seed 2026) with independent passes and consensus adjudication (Item 4). Measured 88.0% agreement; evaluated extractor accuracy: Method recall 100%, Task precision 90.9%, Setting precision 75.0%, Dataset recall 100%. Saved to `extraction/data/hand_labeled_benchmark_50.jsonl`.
+  7. Checked data integrity with `ingest/test_pilot_integrity.py`: 100% PASS across all vocabulary, paper, and extraction checks.
+  8. Wrote `db/proposals/method-setting-views.md` (Decision #30 proposed, awaiting Person 2 and Person 3 review).
+- Next: Review Person 3's API shapes proposal (O10) and verify Streamlit UI screens against the refined dataset.
 
 ### Person 2: Database and retrieval (then evidence and RAG)
 - Status: week-1 foundation done (branch `db/foundation`).

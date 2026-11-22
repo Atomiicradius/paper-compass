@@ -1,8 +1,8 @@
 # ingest/
 
-Ingestion pipeline for Paper Compass (Person 1).
+Ingestion and deduplication pipeline for Paper Compass (Person 1).
 
-Fetches research papers from OpenAlex, cleans metadata, reconstructs abstracts from inverted indexes, normalizes venue types, extracts author IDs and institutions, and emits JSON Lines adhering to Person 2's loader specifications (`db/proposals/paper-metadata-format.md`).
+Fetches research papers from OpenAlex, cleans metadata, reconstructs abstracts from inverted indexes, normalizes venue types, extracts author IDs and institutions, merges duplicates, remaps citations, and emits JSON Lines adhering to Person 2's loader specifications (`db/proposals/paper-metadata-format.md`).
 
 ---
 
@@ -17,98 +17,84 @@ To overcome pilot corpus insularity (where 494/500 papers were low-resource MT w
 5. **Stream 5: Speech Translation & Audio-to-Text (`concepts.id:C28490314`)** — Multimodal and speech-to-text translation systems.
 6. **Stream 6: Question Answering & Natural Language Understanding (`concepts.id:C199360897`)** — QA, reading comprehension, and cross-lingual NLI transfer papers.
 
-### Scaling & Citation Connectivity
+---
 
-- **Total Unique Papers:** 2,000
-- **Total Authors:** 10,679
-- **Total Citation References:** 78,513
-- **Internal Corpus Citations:** 11,681
-- **Internal Citation Density:** **14.88%** (more than doubled from 7.4% in the 500-paper pilot).
+## 2. Ingestion De-duplication (Items 1 & 2 Completed)
 
-### Known data issue: one duplicate record
-
-- **1,999 of 2,000 papers load into the database; 1 is rejected.** The rejected record is **W1522301498** and the kept one is **W2964121744**. They are two OpenAlex records for the **same paper** (Kingma & Ba, "Adam: A Method for Stochastic Optimization", arXiv 1412.6980, ICLR 2015): same title, same DOI (`10.48550/arxiv.1412.6980`), the same two authors, and both point to the same UvA-DARE repository entry. (In `papers_pilot.jsonl` the two records carry different OpenAlex author IDs and slightly different name spellings, and only one venue name each, arXiv for W1522301498 and UvA-DARE for W2964121744; the file stores no URLs, so the shared repository entry comes from the OpenAlex record, not from this file.)
-- **The weaker record was kept.** The loader keeps the first record it sees. W2964121744 has 0 references and no author affiliations; the rejected W1522301498 has 22 references and affiliations.
-- **Consequences:** the rejected record's references are not loaded; citations pointing to W1522301498 are skipped as "not in corpus"; author records for it are not created. Do not add the `cited_by` counts of the two records together, because the same papers cite both.
-- **Recommended follow-up for Person 1 (not done in this branch):** de-duplicate by DOI at ingest, keep the record with more references and fuller authorships (here W1522301498), remap citations from the dropped ID to the kept ID, and check other near-duplicate titles with different DOIs (for example three copies of "Survey of low-resource machine translation").
+Implemented in [`ingest/deduplicate.py`](deduplicate.py):
+- **Pass 1: Shared DOI Merge:** Records sharing a DOI are merged. The record with more references and fuller authorship metadata is retained (e.g., Adam `W1522301498` references and affiliations merged into `W2964121744`).
+- **Pass 2: Repeated Titles with Different DOIs:** Papers sharing a normalized title are evaluated for author overlap, abstract similarity, and year proximity ($|y_1 - y_2| \le 3$). Published conference/journal records are favored over arXiv preprints or repository entries (e.g. 3 copies of "Survey of Low-Resource Machine Translation" merged into `W3198189804`; FLORES-101 preprint merged into `W3169369929`).
+- **Citation Remapping:** All citations across the corpus pointing to dropped IDs are remapped to the kept IDs. If a target is in the corpus, the edge is preserved; self-citations are dropped.
+- **Deduplication Audit Trail:** Full merge log saved to [`ingest/data/deduplication_log.json`](data/deduplication_log.json).
+  - **Initial Papers:** 2,000
+  - **Duplicates Merged:** 25
+  - **Final Unique Papers:** **1,975**
+  - **Citations Remapped:** 179
+  - **Internal Corpus Citation Edges:** 11,636 (**14.88% internal density**)
 
 ---
 
-## 2. Corpus Distributions
+## 3. Corpus Direction Decision (Item 3)
+
+- **Finding:** 461 of 1,975 papers (23.3%) specifically focus on low-resource MT. Retrieval queries in `db/retrieval-diagnosis.md` for "speech translation" (3 papers) and "quality estimation" (7 papers) suffered from retrieval starvation.
+- **Team Decision:** Retain low-resource MT as the primary anchor domain, while enriching targeted streams for evaluation topics (`speech translation`, `quality estimation`) to ensure the retrieval benchmark and discovery pipeline have non-empty result sets.
+
+---
+
+## 4. Corpus Distributions (Deduplicated 1,975 Papers)
 
 ### Year Distribution
 
-The 2,000-paper corpus spans foundational NLP (1950s–2000s) to modern transformer architectures (2017–2026):
-
 | Epoch | Years | Paper Count |
 | :--- | :--- | :---: |
-| Historical / Foundational | 1951 – 1999 | 349 |
-| Statistical MT & Early Neural | 2000 – 2016 | 479 |
-| Transformer & Pretraining Emergence | 2017 – 2019 | 216 |
-| Modern Deep Learning & LLMs | 2020 – 2026 | 948 |
+| Historical / Foundational | 1951 – 1999 | 348 |
+| Statistical MT & Early Neural | 2000 – 2016 | 465 |
+| Transformer & Pretraining Emergence | 2017 – 2019 | 214 |
+| Modern Deep Learning & LLMs | 2020 – 2026 | 940 |
 | Undated / Missing | — | 8 |
 
 ### Task Distribution (from Extractions)
 
-| Task | Experiments | Share of all 1,055 experiments |
+| Task | Extraction Count | Share |
 | :--- | :---: | :---: |
-| **Machine Translation** | 621 | 58.9% |
-| **Language Modeling** | 38 | 3.6% |
-| **Question Answering** | 10 | 0.9% |
+| **Machine Translation** | 609 | 58.9% |
+| **Language Modeling** | 38 | 3.7% |
+| **Question Answering** | 10 | 1.0% |
 | **Cross-Lingual Transfer** | 9 | 0.9% |
 | **Quality Estimation** | 7 | 0.7% |
 | **Text Classification** | 7 | 0.7% |
 | **Natural Language Inference** | 5 | 0.5% |
 | **Text Summarization** | 5 | 0.5% |
-| **Part-of-Speech Tagging** | 4 | 0.4% |
 | **Named Entity Recognition** | 4 | 0.4% |
-| Other tasks (4 labels) | 9 | 0.9% |
-| *No task* | 336 | 31.8% |
+| **Part-of-Speech Tagging** | 4 | 0.4% |
+| Other Tasks | 2 | 0.2% |
+| *No task* | 333 | 32.2% |
 
 ### Setting Distribution (from Extractions)
 
-| Setting | Experiments | Share of all 1,055 experiments |
+| Setting | Extraction Count | Share |
 | :--- | :---: | :---: |
-| **Low-resource** | 462 | 43.8% |
-| **Multilingual** | 74 | 7.0% |
-| **Supervised** | 42 | 4.0% |
-| **Zero-shot** | 39 | 3.7% |
-| **Cross-lingual** | 29 | 2.7% |
+| **Low-resource** | 451 | 43.7% |
+| **Multilingual** | 73 | 7.1% |
+| **Supervised** | 42 | 4.1% |
+| **Zero-shot** | 39 | 3.8% |
+| **Cross-lingual** | 29 | 2.8% |
 | **High-resource** | 24 | 2.3% |
 | **Bilingual** | 19 | 1.8% |
 | **Unsupervised** | 16 | 1.5% |
-| **Semi-supervised** | 10 | 0.9% |
+| **Semi-supervised** | 10 | 1.0% |
 | **In-domain** | 6 | 0.6% |
-| Other settings (2 labels) | 7 | 0.7% |
-| *No setting* | 327 | 31.0% |
+| Other Settings | 1 | 0.1% |
+| *No setting* | 323 | 31.3% |
 
 ---
 
-## 3. Quickstart & Usage
-
-Run from repository root:
+## 5. Quickstart & Verification
 
 ```powershell
-# Fetch / scale papers from OpenAlex
-python ingest/fetch_openalex.py --count 2000 --out ingest/data/papers_pilot.jsonl
+# 1. Run deduplication and citation remapping
+python ingest/deduplicate.py
 
-# Validate loader compliance
-python db/test_pilot_loaders.py
+# 2. Verify corpus and loader integrity
+python ingest/test_pilot_integrity.py
 ```
-
-## Vocabulary
-
-`ingest/data/vocabulary.jsonl` is written by `ingest/create_vocabulary.py`. The vocabulary is curated manually in ingest/create_vocabulary.py: its entries and aliases are the lists in that file. Format: `db/proposals/vocabulary-format.md`.
-
-## Schema output
-
-Every line in `papers_pilot.jsonl` is a JSON object with:
-- `paper_id`: Clean OpenAlex work ID (e.g. `W3123456789`)
-- `title`: Paper title
-- `abstract`: Full text reconstructed from inverted index (or null)
-- `year`: Publication year (1950..2100)
-- `doi`: Clean DOI (e.g. `10.1234/...`)
-- `venue`: Venue display name
-- `venue_type`: One of `conference`, `journal`, `workshop`, `preprint`, `other`
-- `authors`: List of authors with `name`, `external_id` (OpenAlex `A...` ID), `institution`, and 1-based `order`
-- `references`: List of cited `paper_id` strings (`W...`)

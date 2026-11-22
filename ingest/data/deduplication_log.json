@@ -1,0 +1,33 @@
+{
+  "total_initial_papers": 2000,
+  "total_deduped_papers": 1975,
+  "total_duplicates_merged": 25,
+  "remapped_citations": 179,
+  "merges": {
+    "W1522301498": "Shared DOI 10.48550/arxiv.1412.6980: merged into W2964121744 (Adam: A Method for Stochastic Optimizati...) [refs: 0 vs 22]",
+    "W4283220248": "Duplicate title (Survey of Low-Resource Machine Translati...): merged W4283220248 (Year: 2022, Refs: 0) into W3198189804 (Year: 2022, Refs: 371)",
+    "W4225929449": "Duplicate title (Survey of Low-Resource Machine Translati...): merged W4225929449 (Year: 2021, Refs: 0) into W3198189804 (Year: 2022, Refs: 371)",
+    "W2946926542": "Duplicate title (Revisiting Low-Resource Neural Machine T...): merged W2946926542 (Year: 2019, Refs: 46) into W2949973181 (Year: 2019, Refs: 60)",
+    "W4300963525": "Duplicate title (The Flores-101 Evaluation Benchmark for ...): merged W4300963525 (Year: 2021, Refs: 0) into W3169369929 (Year: 2022, Refs: 69)",
+    "W4283213265": "Duplicate title (Exploring diversity in back translation ...): merged W4283213265 (Year: 2022, Refs: 0) into W4287854507 (Year: 2022, Refs: 52)",
+    "W7124389128": "Duplicate title (Efficient Architectures For Low-Resource...): merged W7124389128 (Year: 2025, Refs: 0) into W7133196831 (Year: 2025, Refs: 1)",
+    "W4377130505": "Duplicate title (ChatGPT Perpetuates Gender Bias in Machi...): merged W4377130505 (Year: 2023, Refs: 0) into W4386249236 (Year: 2023, Refs: 51)",
+    "W4391591249": "Duplicate title (Predicting Machine Translation Performan...): merged W4391591249 (Year: 2024, Refs: 0) into W7126452893 (Year: 2024, Refs: 4)",
+    "W3114923052": "Duplicate title (Enriching the Transformer with Linguisti...): merged W3114923052 (Year: 2020, Refs: 15) into W3212964586 (Year: 2021, Refs: 17)",
+    "W7106804983": "Duplicate title (Compositional Translation: A Novel LLM-b...): merged W7106804983 (Year: 2025, Refs: 0) into W4415314630 (Year: 2025, Refs: 0)",
+    "W7128012796": "Duplicate title (Beyond Many-Shot Translation: Scaling In...): merged W7128012796 (Year: 2026, Refs: 0) into W7140093916 (Year: 2026, Refs: 8)",
+    "W7130373545": "Duplicate title (Enriching the Low-Resource Neural Machin...): merged W7130373545 (Year: 2025, Refs: 0) into W7213058184 (Year: 2026, Refs: 26)",
+    "W7134820529": "Duplicate title (Domain-Specific Quality Estimation for M...): merged W7134820529 (Year: 2026, Refs: 0) into W7140086055 (Year: 2026, Refs: 3)",
+    "W7168386590": "Duplicate title (Translation or Recitation? Calibrating E...): merged W7168386590 (Year: 2026, Refs: 0) into W7141344522 (Year: 2026, Refs: 0)",
+    "W7106803820": "Duplicate title (Leveraging Loanword Constraints for Impr...): merged W7106803820 (Year: 2025, Refs: 0) into W4416035680 (Year: 2025, Refs: 0)",
+    "W7106840878": "Duplicate title (TopXGen: Topic-Diverse Parallel Data Gen...): merged W7106840878 (Year: 2025, Refs: 0) into W4415285749 (Year: 2025, Refs: 0)",
+    "W7155360718": "Duplicate title (Building and Evaluating a High Quality P...): merged W7155360718 (Year: 2026, Refs: 0) into W7140121851 (Year: 2026, Refs: 0)",
+    "W2949335953": "Duplicate title (Effective Approaches to Attention-based ...): merged W2949335953 (Year: 2015, Refs: 12) into W1902237438 (Year: 2015, Refs: 18)",
+    "W3027879771": "Duplicate title (Retrieval-Augmented Generation for Knowl...): merged W3027879771 (Year: 2020, Refs: 66) into W3098425262 (Year: 2020, Refs: 0)",
+    "W2949998441": "Duplicate title (Thumbs Up or Thumbs Down? Semantic Orien...): merged W2949998441 (Year: 2002, Refs: 9) into W3146306708 (Year: 2002, Refs: 0)",
+    "W3033187248": "Duplicate title (DEBERTA: DECODING-ENHANCED BERT WITH DIS...): merged W3033187248 (Year: 2020, Refs: 63) into W3122890974 (Year: 2021, Refs: 47)",
+    "W3212616005": "Duplicate title (CLIPScore: A Reference-free Evaluation M...): merged W3212616005 (Year: 2021, Refs: 62) into W3153469116 (Year: 2021, Refs: 73)",
+    "W4294216483": "Duplicate title (KEGG: Kyoto Encyclopedia of Genes and Ge...): merged W4294216483 (Year: 2000, Refs: 4) into W2159482845 (Year: 1999, Refs: 14)",
+    "W2059796825": "Duplicate title (The Strengthening the Reporting of Obser...): merged W2059796825 (Year: 2007, Refs: 32) into W2599076725 (Year: 2007, Refs: 36)"
+  }
+}

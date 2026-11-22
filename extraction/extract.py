@@ -120,11 +120,14 @@ def extract_experiments_from_paper(paper, matcher, extractor_tag="rules-v1"):
     if not sentences and title:
         sentences = [title]
 
-    # Global context from title
+    # Global context from title and abstract
     title_matches = matcher.find_matches(title)
     global_tasks = {c for c, _, _ in title_matches["task"]}
     global_datasets = {c for c, _, _ in title_matches["dataset"]}
     global_settings = {c for c, _, _ in title_matches["setting"]}
+
+    abstract_matches = matcher.find_matches(abstract)
+    abstract_datasets = ranked_matches(abstract_matches["dataset"])
 
     experiments = []
     seen_tuples = set()
@@ -140,8 +143,15 @@ def extract_experiments_from_paper(paper, matcher, extractor_tag="rules-v1"):
             continue
 
         for m_canonical, m_is_canon, _ in s_methods:
-            # Determine dataset (sentence match preferred, else global context if unambiguous)
-            dataset = s_datasets[0][0] if s_datasets else (list(global_datasets)[0] if len(global_datasets) == 1 else None)
+            # Determine dataset (sentence match preferred, else unambiguous title/abstract context)
+            if s_datasets:
+                dataset = s_datasets[0][0]
+            elif global_datasets:
+                dataset = longest_first(global_datasets)[0]
+            elif len(set(c for c, _, _ in abstract_datasets)) == 1:
+                dataset = abstract_datasets[0][0]
+            else:
+                dataset = None
             
             # Determine task (sentence match preferred, else global context, else fallback)
             if s_tasks:
