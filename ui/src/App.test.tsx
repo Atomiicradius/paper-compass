@@ -48,6 +48,15 @@ describe("App: the story is the landing view", () => {
     await waitFor(() => expect(window.location.hash).toBe("#/candidates"));
   });
 
+  it("keeps the corpus chip strip under the header (papers, years, cutoff, extraction) now that the footer is gone", async () => {
+    window.history.replaceState(null, "", "#/candidates");
+    render(<App />);
+    const chip = (await screen.findAllByLabelText("Corpus"))[0]!;
+    expect(chip).toHaveTextContent(/papers/);
+    expect(chip).toHaveTextContent(/cutoff/);
+    expect(chip).toHaveTextContent("rules-v1 extraction");
+  });
+
   it("has no fixed footer bar on any screen", async () => {
     const user = userEvent.setup();
     window.history.replaceState(null, "", "#/candidates");
