@@ -63,6 +63,25 @@ labels use the same vocabulary and a similar regex style as `extract.py`, so the
 from `evaluate.py` are circular and are not an accuracy measurement. The first version of this file (first 100
 papers, `create_labeled_benchmark.py`) was replaced.
 
+## Rule-based check set, 50 abstracts (not hand-labeled)
+
+`python extraction/sample_and_label_50.py` samples 50 abstracts (seed 2026) from the deduplicated corpus and labels them with two
+rule passes. **No person labels anything**; both passes are regular expressions over the names in `ingest/data/vocabulary.jsonl`.
+
+| File | What it is |
+| :--- | :--- |
+| `extraction/data/sampled_abstracts_50.json` | the 50 sampled abstracts |
+| `extraction/data/rule_pass_conservative.jsonl` | rule pass A: a match needs a cue in the title or nearby |
+| `extraction/data/rule_pass_inclusive.jsonl` | rule pass B: every match counts |
+| `extraction/data/rule_pass_differences.json` | the 6 papers where the two passes differ |
+| `extraction/data/rule_based_check_set_50.jsonl` | the two passes combined by a rule (A's first task, setting and dataset, else B's; union of the methods) |
+
+The two passes give the same labels for 44 of 50 papers (88.0%). That is the overlap of two rule sets, **not an inter-annotator
+agreement**, and no kappa is computed. The check set is **not independent ground truth**: its patterns come from the same vocabulary
+and have a similar style to `extract.py`, so comparing the extractor with it (`evaluate.py --labels extraction/data/rule_based_check_set_50.jsonl`)
+compares two rule-based systems and is not an accuracy measurement. Measured extraction accuracy needs labels written by people
+(not done yet). The script is deterministic: four `PYTHONHASHSEED` values give byte-identical files.
+
 ## Reproducibility
 
 `extract.py` is deterministic: when two matches have the same length, the order is fixed (longest first, then
@@ -70,7 +89,9 @@ alphabetical), so the output does not depend on Python's randomized set ordering
 with LF line endings. `pytest extraction/tests` runs it in separate processes with different `PYTHONHASHSEED`
 values on a small fixture and checks that the output files are byte-identical.
 
-`extraction/data/extractions_pilot.jsonl` was regenerated with this deterministic version (default command above,
-2,000 papers): 1,055 rows from 634 papers (the earlier non-deterministic file had 1,054 rows and was not reproduced by
-any hash seed). Run with 12 different `PYTHONHASHSEED` values, it gives one identical output. `create_reference_set_v2.py`
-is deterministic too (its sets are sorted before writing).
+`extraction/data/extractions_pilot.jsonl` is the output of the default command above on the deduplicated 1,975-paper corpus:
+1,033 rows from 623 papers. It was re-run on 2026-11-22 with two different `PYTHONHASHSEED` values: both runs gave a file
+byte-identical to the committed one. (An earlier version of this file, made on the 2,000-paper corpus before deduplication, had
+1,055 rows from 634 papers; it was reproduced with 12 hash seeds when it was made.) `create_reference_set_v2.py` is deterministic
+too (its sets are sorted before writing). `sample_and_label_50.py` and `ingest/deduplicate.py` are deterministic as well (see
+`ingest/README.md`).

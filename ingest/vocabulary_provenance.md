@@ -94,5 +94,5 @@ To avoid semantic overlap and label noise (e.g., distinguishing between "Neural 
 a method, so it was removed from the task entry and stays a method alias. The full phrase "Statistical Machine
 Translation" was also listed as an alias of the task "Machine Translation", although it is the name of that method;
 it was removed from the task entry too. The aliases `MT`, `NMT` and `MMT` stay as aliases of the task "Machine
-Translation". Re-running `extraction/extract.py` after both removals gives the same 1,055 rows as before, so no
-extraction numbers changed.
+Translation". Re-running `extraction/extract.py` after both removals gave the same 1,055 rows as before on the then 2,000-paper corpus, so no
+extraction numbers changed. (On the deduplicated 1,975-paper corpus the same command gives 1,033 rows.)

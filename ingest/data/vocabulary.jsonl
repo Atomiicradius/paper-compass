@@ -96,7 +96,7 @@
 {"type": "task", "canonical_name": "Machine Translation", "aliases": ["MT", "NMT", "Neural Machine Translation", "Multilingual Machine Translation", "MMT", "automatic translation"]}
 {"type": "task", "canonical_name": "Speech Translation", "aliases": ["spoken language translation", "speech-to-text translation"]}
 {"type": "task", "canonical_name": "Quality Estimation", "aliases": ["translation quality estimation", "QE"]}
-{"type": "task", "canonical_name": "Automatic Post-Editing", "aliases": ["APE", "post-editing"]}
+{"type": "task", "canonical_name": "Automatic Post-Editing", "aliases": ["post-editing", "neural APE"]}
 {"type": "task", "canonical_name": "Bitext Mining", "aliases": ["parallel sentence extraction", "bitext filtering", "sentence mining"]}
 {"type": "task", "canonical_name": "Cross-Lingual Transfer", "aliases": ["cross-lingual generalization"]}
 {"type": "task", "canonical_name": "Language Modeling", "aliases": ["LM", "autoregressive generation"]}

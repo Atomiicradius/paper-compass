@@ -120,7 +120,7 @@ TASKS = [
     ("Machine Translation", ["MT", "NMT", "Neural Machine Translation", "Multilingual Machine Translation", "MMT", "automatic translation"]),
     ("Speech Translation", ["spoken language translation", "speech-to-text translation"]),
     ("Quality Estimation", ["translation quality estimation", "QE"]),
-    ("Automatic Post-Editing", ["APE", "post-editing"]),
+    ("Automatic Post-Editing", ["automatic post-editing", "post-editing", "neural APE"]),
     ("Bitext Mining", ["parallel sentence extraction", "bitext filtering", "sentence mining"]),
     ("Cross-Lingual Transfer", ["cross-lingual generalization", "cross-lingual transfer"]),
     ("Language Modeling", ["LM", "autoregressive generation"]),
