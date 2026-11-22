@@ -115,12 +115,58 @@ def load_paper_context(pg_conn) -> tuple[dict[str, int | None], dict[str, list[s
     return years, elements
 
 
+# Settings chosen on pc_pilot (decision 33; see graph/README.md): HDBSCAN after PCA to 20 dimensions.
+PILOT_SETTINGS = {"min_cluster_size": 15, "min_samples": 5, "pca_dims": 20, "selection": "eom"}
+
+DEFAULT_OUT = Path(__file__).parent / "out" / "clusters.json"
+
+
+def single_embedding_model(pg_conn) -> str | None:
+    """The one embedding model the papers were made with, or None if there is none or there are several."""
+    with pg_conn.cursor() as cur:
+        cur.execute("SELECT DISTINCT embedding_model FROM paper WHERE embedding IS NOT NULL")
+        models = [r[0] for r in cur.fetchall()]
+    return models[0] if len(models) == 1 else None
+
+
+def build_result(pg_conn, embedding_model: str | None = None, min_cluster_size: int = 15, min_samples: int | None = None,
+                 pca_dims: int | None = None, selection: str = "eom") -> dict:
+    """Cluster the papers' embeddings and return the full result (what graph/out/clusters.json holds)."""
+    ids, vecs = load_embeddings(pg_conn, embedding_model)
+    labels = cluster_embeddings(vecs, min_cluster_size, min_samples, pca_dims, selection)
+    years, elements = load_paper_context(pg_conn)
+    summaries = summarize(ids, labels, years, elements)
+    cents = centroids(vecs, labels) if len(ids) else {}
+    for s in summaries:
+        s["centroid"] = cents[s["cluster_id"]].tolist()
+    return {
+        "method": "hdbscan",
+        "min_cluster_size": min_cluster_size,
+        "min_samples": min_samples,
+        "pca_dims": pca_dims,
+        "selection": selection,
+        "embedding_model": embedding_model,
+        "n_papers": len(ids),
+        "n_noise": int(np.sum(labels == NOISE)),
+        "labels": dict(zip(ids, labels.tolist())),
+        "clusters": summaries,
+    }
+
+
+def write_result(result: dict, out: Path) -> None:
+    out = Path(out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(result, indent=2), encoding="utf-8")
+
+
 def main() -> None:
     import psycopg
 
     ap = argparse.ArgumentParser(description="Cluster papers by embedding (HDBSCAN)")
     ap.add_argument("--pg-dsn", required=True)
-    ap.add_argument("--out", default=str(Path(__file__).parent / "out" / "clusters.json"))
+    ap.add_argument("--out", default=str(DEFAULT_OUT))
+    ap.add_argument("--preset", choices=("pilot",), default=None,
+                    help="use the settings chosen on pc_pilot (HDBSCAN after PCA-20, decision 33) and the database's single embedding model")
     ap.add_argument("--min-cluster-size", type=int, default=15)
     ap.add_argument("--min-samples", type=int, default=None)
     ap.add_argument("--pca-dims", type=int, default=None, help="reduce to this many PCA dimensions first")
@@ -129,29 +175,15 @@ def main() -> None:
     args = ap.parse_args()
 
     with psycopg.connect(args.pg_dsn) as pg:
-        ids, vecs = load_embeddings(pg, args.embedding_model)
-        labels = cluster_embeddings(vecs, args.min_cluster_size, args.min_samples, args.pca_dims, args.selection)
-        years, elements = load_paper_context(pg)
-    summaries = summarize(ids, labels, years, elements)
-    cents = centroids(vecs, labels) if len(ids) else {}
-    for s in summaries:
-        s["centroid"] = cents[s["cluster_id"]].tolist()
-    result = {
-        "method": "hdbscan",
-        "min_cluster_size": args.min_cluster_size,
-        "min_samples": args.min_samples,
-        "pca_dims": args.pca_dims,
-        "selection": args.selection,
-        "embedding_model": args.embedding_model,
-        "n_papers": len(ids),
-        "n_noise": int(np.sum(labels == NOISE)),
-        "labels": dict(zip(ids, labels.tolist())),
-        "clusters": summaries,
-    }
-    out = Path(args.out)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(result, indent=2), encoding="utf-8")
-    print(f"{len(result['clusters'])} clusters, {result['n_noise']} noise papers -> {out}")
+        settings = dict(min_cluster_size=args.min_cluster_size, min_samples=args.min_samples, pca_dims=args.pca_dims,
+                        selection=args.selection)
+        model = args.embedding_model
+        if args.preset == "pilot":
+            settings = dict(PILOT_SETTINGS)
+            model = model or single_embedding_model(pg)
+        result = build_result(pg, model, **settings)
+    write_result(result, Path(args.out))
+    print(f"{len(result['clusters'])} clusters, {result['n_noise']} noise papers -> {args.out}")
 
 
 if __name__ == "__main__":

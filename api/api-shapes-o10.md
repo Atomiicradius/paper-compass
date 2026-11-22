@@ -2,7 +2,7 @@
 
 Status: **proposed by Person 3, 2026-11-22. Not agreed yet.** Once Persons 1 and 2 confirm, the shapes below are copied into `context/data-and-contracts.md` section 5 and O10 is closed in `context/decisions-and-progress.md`.
 
-Every shape below was checked against the real pilot database `pc_pilot` (1,999 papers, 1,055 experiments, 1,999 SPECTER2 embeddings, restored from `pc_pilot_2026-11-21.dump`), with the Neo4j projection synced from it. The checks used `fastapi.testclient` and the Streamlit UI in `ui/`. Times are single requests on a laptop, after warm-up.
+Every shape below was checked against the real pilot database `pc_pilot` (1,999 papers, 1,055 experiments, 1,999 SPECTER2 embeddings, restored from `pc_pilot_2026-11-21.dump`), with the Neo4j projection synced from it. The checks used `fastapi.testclient` and the React UI in `ui/`. Times are single requests on a laptop, after warm-up.
 
 | Endpoint | Status on pc_pilot | Time |
 |---|---|---:|
@@ -69,7 +69,7 @@ Every shape below was checked against the real pilot database `pc_pilot` (1,999 
 
 `GET /papers/{id}/related?top_k&year_min&year_max` returns `{paper_id, score_type, model, results: [SearchHit]}`. It returns 409 if the paper has no embedding.
 
-`GET /papers/{id}/graph?limit=200` returns `{center, nodes: [{id, label, name, year}], edges: [{source, target, type}]}`. Labels and types are the Neo4j ones in contract section 2.
+`GET /papers/{id}/graph?limit=200` returns `{center, nodes: [{id, label, name, year}], edges: [{source, target, type}], truncated, neighbors_total}`. `limit` counts nodes (centre included); `truncated` is true when the paper has more neighbours than fit. Labels and types are the Neo4j ones in contract section 2.
 
 ## 4. Landscape (provisional)
 

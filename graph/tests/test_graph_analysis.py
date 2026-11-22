@@ -99,3 +99,79 @@ def test_sync_uses_merge_never_create():
 
 def test_batched():
     assert [len(b) for b in batched(({"i": i} for i in range(5)), size=2)] == [2, 2, 1]
+
+
+def test_too_few_papers_for_a_cluster_means_everything_is_noise_not_a_crash():
+    x = np.random.default_rng(0).normal(size=(6, 8))
+    labels = cluster_embeddings(x, min_cluster_size=15, min_samples=5, pca_dims=20)
+    assert labels.tolist() == [NOISE] * 6
+    assert cluster_embeddings(np.zeros((0, 0))).tolist() == []
+
+
+def test_pilot_settings_are_the_ones_chosen_in_decision_33():
+    from graph.clusters import PILOT_SETTINGS
+
+    assert PILOT_SETTINGS == {"min_cluster_size": 15, "min_samples": 5, "pca_dims": 20, "selection": "eom"}
+
+
+def _six_cluster_world():
+    # 6 clusters of 2 papers; clusters 0 and 1 have almost the same centroid; only three pairs cite each other
+    labels = {f"P{c}{i}": c for c in range(6) for i in range(2)}
+    cites = [("P20", "P30"), ("P40", "P50"), ("P21", "P41")]
+    angles = [0.00, 0.02, 0.9, 1.3, 1.7, 2.1]
+    cents = {c: np.array([np.cos(a), np.sin(a)]) for c, a in enumerate(angles)}
+    return labels, cites, cents
+
+
+def test_pairs_with_zero_cross_citations_can_be_weakly_connected_with_the_default_thresholds():
+    # Regression: 12 of 15 pairs tie at density 0, so a tie-averaged percentile (about 0.39) was above the 0.25
+    # threshold and a pair with the lowest possible density could never be flagged. The most similar pair (0, 1)
+    # has no citations at all and must be flagged.
+    labels, cites, cents = _six_cluster_world()
+    pairs = cluster_pairs(labels, cites, cents)
+    flagged = {(p.a, p.b) for p in pairs if p.weakly_connected}
+    assert (0, 1) in flagged
+    assert pairs[0].weakly_connected and (pairs[0].a, pairs[0].b) == (0, 1)       # weakly connected sorted first
+    # a pair that does cite, however similar, is not "weakly connected"
+    assert all(p.cross_citations == 0 for p in pairs if p.weakly_connected and p.citation_density == 0)
+    assert not any(p.weakly_connected for p in pairs if p.cross_citations > 0 and p.citation_density > 0.25)
+
+
+def test_density_ranking_counts_only_strictly_lower_densities():
+    from graph.bridges import _share_strictly_below
+
+    assert _share_strictly_below([0.0, 0.0, 0.0, 0.5, 1.0]) == [0.0, 0.0, 0.0, 0.75, 1.0]      # share of the 4 other values below
+    assert _share_strictly_below([3.0]) == [0.0]
+    assert _share_strictly_below([]) == []
+
+
+def test_bridges_for_display_put_clustered_bridges_first():
+    from graph.bridges import BridgePaper, bridges_for_display
+
+    allb = [BridgePaper("N1", NOISE, [0, 1, 2, 3]), BridgePaper("N2", NOISE, [0, 1, 2]),
+            BridgePaper("C1", 1, [0, 2]), BridgePaper("C2", 0, [1, 2, 3])]
+    out = bridges_for_display(allb, 3)
+    assert [b.paper_id for b in out] == ["C2", "C1", "N1"]          # clustered first (most clusters first), then unclustered
+    assert [b.paper_id for b in bridges_for_display(allb, 10)] == ["C2", "C1", "N1", "N2"]
+    assert bridges_for_display([], 5) == []
+
+
+def test_graph_truncation_keeps_the_papers_own_entities_before_its_citations():
+    from graph.queries import select_links
+
+    def link(rel, node_id, year=None):
+        return {"rel": rel, "out": True, "node": {"id": node_id, "year": year}}
+
+    links = ([link("CITES", f"Paper:C{i}", 2000 + i) for i in range(50)] + [link("WROTE", "Author:1"), link("USES_METHOD", "Method:3"),
+             link("SOLVES", "Task:1"), link("PUBLISHED_IN", "Venue:9"), link("EVALUATED_ON", "Dataset:2")])
+    kept, total = select_links(links, limit=7)                       # limit counts nodes: the centre plus 6 neighbours
+    assert total == 55 and len(kept) == 6
+    kinds = [k["rel"] for k in kept]
+    assert kinds.count("CITES") == 1 and {"WROTE", "USES_METHOD", "SOLVES", "PUBLISHED_IN", "EVALUATED_ON"} <= set(kinds)
+    assert kept[-1]["node"]["id"] == "Paper:C49"                     # among citations, the most recent first
+    again, _ = select_links(list(reversed(links)), limit=7)
+    assert [k["node"]["id"] for k in again] == [k["node"]["id"] for k in kept]   # same answer whatever the input order
+    allk, _ = select_links(links, limit=1000)
+    assert len(allk) == 55
+    none, t = select_links(links, limit=1)
+    assert none == [] and t == 55

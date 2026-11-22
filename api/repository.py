@@ -7,11 +7,12 @@ for UI work before real data exists.
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
 from typing import Protocol
 
 from graph import queries
-from graph.bridges import bridge_papers, cluster_pairs
+from graph.bridges import bridge_papers, bridges_for_display, cluster_pairs
 from graph.trends import fetch_papers_per_year, fetch_trends
 
 ROLES = ("supports_A", "supports_B", "bridge", "nearest_existing")
@@ -40,6 +41,12 @@ def _hits(rows: list[dict], score_key: str) -> list[dict]:
     return [{**{k: v for k, v in r.items() if k != score_key}, "score": r[score_key]} for r in rows]
 
 
+def _paper_model(encoder) -> str:
+    """The model the stored paper embeddings must come from. A query encoder may use its own adapter (so its
+    model_string differs) but still queries the paper space; it says so with paper_model_string."""
+    return getattr(encoder, "paper_model_string", None) or encoder.model_string
+
+
 def _check_embedding_model(cur, model: str) -> None:
     cur.execute("SELECT DISTINCT embedding_model FROM paper WHERE embedding IS NOT NULL")
     models = [r[0] for r in cur.fetchall()]
@@ -62,8 +69,10 @@ class Repository(Protocol):
     def trends(self, element_type: str) -> list[dict]: ...
     def clusters(self) -> dict: ...
     def landscape(self) -> dict: ...
+    def health(self) -> dict: ...
     def vector_search(self, encoder, text: str, top_k: int, filters: dict) -> dict: ...
     def keyword_search(self, text: str, top_k: int, filters: dict) -> dict: ...
+    def hybrid_search(self, encoder, text: str, top_k: int, filters: dict) -> dict: ...
     def related(self, paper_id: str, top_k: int, filters: dict) -> dict | None: ...
 
 
@@ -196,10 +205,47 @@ class PostgresRepository:
 
         with self._conn() as conn:
             with conn.cursor() as cur:
-                _check_embedding_model(cur, encoder.model_string)
+                _check_embedding_model(cur, _paper_model(encoder))
             vector = encoder.embed([text])[0]
             rows = search(conn, vector, top_k=top_k, include_entities=True, **filters)
         return {"model": encoder.model_string, "results": _hits(rows, "similarity")}
+
+    # filters that db.retrieval.search_hybrid can apply; anything else would be silently ignored, so it is refused
+    _HYBRID_FILTERS = {"year_min", "year_max", "collapse_same_title"}
+
+    def hybrid_search(self, encoder, text, top_k, filters):
+        """Vector search and keyword search fused by reciprocal rank fusion (Person 2's search_hybrid).
+
+        Supports the year filters and collapse_same_title only. A method, dataset, task or venue filter raises
+        ValueError (a 422) instead of being ignored. Every hit has `score` (the fused score), `vector_rank` and
+        `keyword_rank` (None when the paper is not in that list) and its methods, datasets and tasks.
+        """
+        from db.retrieval.search import ENTITY_COLUMNS, search_hybrid
+
+        unsupported = sorted(k for k, v in filters.items()
+                             if k not in self._HYBRID_FILTERS and k != "match" and v not in (None, [], False))
+        if unsupported:
+            raise ValueError("hybrid search supports only the year filters and collapse_same_title, not "
+                             + ", ".join(unsupported) + "; use vector or keyword mode for those")
+        with self._conn() as conn:
+            with conn.cursor() as cur:
+                _check_embedding_model(cur, _paper_model(encoder))
+            vector = encoder.embed([text])[0]
+            rows = search_hybrid(conn, text, vector, top_k=top_k,
+                                 **{k: v for k, v in filters.items() if k in self._HYBRID_FILTERS})
+            entities: dict[str, tuple] = {}
+            if rows:
+                with conn.cursor() as cur:
+                    cur.execute(f"SELECT p.paper_id{ENTITY_COLUMNS} FROM paper p WHERE p.paper_id = ANY(%s)",
+                                ([r["paper_id"] for r in rows],))
+                    entities = {pid: (m, d, t) for pid, m, d, t in cur.fetchall()}
+        hits = []
+        for r in rows:
+            m, d, t = entities.get(r["paper_id"], ([], [], []))
+            hits.append({"paper_id": r["paper_id"], "title": r["title"], "year": r["year"], "venue": r["venue"],
+                         "score": r["fused_score"], "vector_rank": r["vector_rank"], "keyword_rank": r["keyword_rank"],
+                         "methods": list(m), "datasets": list(d), "tasks": list(t)})
+        return {"model": encoder.model_string, "results": hits}
 
     def keyword_search(self, text, top_k, filters):
         from db.retrieval.search import keyword_search
@@ -232,9 +278,71 @@ class PostgresRepository:
             return [t.__dict__ for t in fetch_trends(conn, element_type)]
 
     def clusters(self):
-        if self.clusters_path is None or not self.clusters_path.exists():
-            raise FileNotFoundError("clusters have not been computed; run python -m graph.clusters")
+        """The clusters file. If it does not exist (it is generated, not committed) it is computed once with the
+        settings chosen on pc_pilot (graph.clusters.PILOT_SETTINGS), written, and then read like any other time."""
+        if self.clusters_path is None:
+            raise FileNotFoundError("no clusters file is configured; run python -m graph.clusters --preset pilot")
+        if not self.clusters_path.exists():
+            self._compute_clusters()
         return json.loads(self.clusters_path.read_text(encoding="utf-8"))
+
+    _clusters_lock = threading.Lock()
+
+    def _compute_clusters(self) -> None:
+        from graph.clusters import PILOT_SETTINGS, build_result, single_embedding_model, write_result
+
+        with self._clusters_lock:                      # two requests at once compute it once
+            if self.clusters_path.exists():
+                return
+            with self._conn() as conn:
+                model = single_embedding_model(conn)
+                if model is None:
+                    raise FileNotFoundError(
+                        "clusters cannot be computed: the papers have no embeddings, or embeddings from several models; "
+                        "run python -m graph.clusters --preset pilot after embedding the papers")
+                result = build_result(conn, model, **PILOT_SETTINGS)
+            write_result(result, self.clusters_path)
+
+    def health(self) -> dict:
+        """What is in the databases and what to run if something is missing. Never raises: every problem is
+        reported in the result, with the first line of the error only (never the connection string)."""
+        def short(e: Exception) -> str:
+            return f"{type(e).__name__}: " + (str(e).strip().splitlines() or [""])[0][:140]
+
+        notes: list[str] = []
+        pg: dict = {"ok": False}
+        try:
+            with self._conn() as conn:
+                row = conn.execute(
+                    "SELECT (SELECT COUNT(*) FROM paper), (SELECT COUNT(*) FROM paper WHERE embedding IS NOT NULL), "
+                    "(SELECT COUNT(*) FROM experiment), (SELECT COUNT(*) FROM opportunity)").fetchone()
+            pg = {"ok": True, "papers": row[0], "with_embeddings": row[1], "experiments": row[2], "opportunities": row[3]}
+            if row[0] == 0:
+                notes.append("PostgreSQL has no papers: restore the pilot dump (see db/README.md)")
+            elif row[1] == 0:
+                notes.append("No paper has an embedding: run python -m embeddings embed-papers (vector search and clusters need them)")
+            if row[0] and row[3] == 0:
+                notes.append("No opportunities are stored: run python -m api.prepare_demo (or python -m scoring.pipeline, see scoring/README.md)")
+        except Exception as e:  # noqa: BLE001 - health must report, not raise
+            pg = {"ok": False, "error": short(e)}
+            notes.append("PostgreSQL is not reachable: start the containers (cd db; docker compose up -d) and check PC_PG_DSN / db/.env")
+
+        neo: dict = {"configured": self.neo4j is not None, "ok": None}
+        if self.neo4j is not None:
+            try:
+                with self.neo4j.session() as session:
+                    n = session.run("MATCH (p:Paper) RETURN count(p) AS n").single()["n"]
+                neo.update(ok=True, papers=n)
+                if pg.get("ok") and n != pg["papers"]:
+                    notes.append(f"Neo4j has {n} papers but PostgreSQL has {pg['papers']}: run python -m graph.sync (or python -m api.prepare_demo)")
+            except Exception as e:  # noqa: BLE001
+                neo.update(ok=False, error=short(e))
+                notes.append("Neo4j is not reachable: the graph endpoint will answer 503 (start it with docker compose up -d in db/)")
+        else:
+            notes.append("Neo4j is not configured (PC_NEO4J_URI / PC_NEO4J_PASSWORD): the graph endpoint will answer 503")
+
+        clusters = {"file": bool(self.clusters_path and self.clusters_path.exists())}
+        return {"mock": False, "postgres": pg, "neo4j": neo, "clusters": clusters, "notes": notes}
 
     def landscape(self):
         import numpy as np
@@ -256,7 +364,7 @@ class PostgresRepository:
             labels = cl["labels"]
             cents = {c["cluster_id"]: np.array(c["centroid"]) for c in cl["clusters"] if "centroid" in c}
             pairs = [p.__dict__ for p in cluster_pairs(labels, citations, cents) if p.weakly_connected][:10]
-            bridges = [b.__dict__ for b in bridge_papers(labels, citations)[:10]]
+            bridges = [b.__dict__ for b in bridges_for_display(bridge_papers(labels, citations), 10)]
         return {
             "corpus": {"papers": n_papers, "cutoff_year": max_year},
             "papers_per_year": per_year,

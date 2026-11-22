@@ -92,3 +92,36 @@ Evidence rows: supports_A 64, supports_B 65, bridge 58, nearest_existing 65.
 **Raw-SQL check (rule 5)** for #1: N = 399, n_A = 14, n_B = 338, observed = 1, expected = 14 · 338 / 399 = 11.8596, sparsity = 1 − 2 / 12.8596 = 0.8445. These equal the stored values. `/opportunities/14/explain` reports the same counts, and its citation check passes.
 
 Reading the list: #1 does not claim nobody has used masked LM for translation. It says that in this corpus, among 14 MLM papers with a task, only 1 is a translation paper, where about 12 would be expected. The nearest-existing-work papers on the detail screen are the first thing to check. Several low-confidence rows (conf ≈ 0.3) rest on 1–2 expected papers and should be read as weak signals.
+
+## 6. Reproducibility (found 2026-11-22)
+
+The same pipeline on the same data gave two different temporal-activity values on Python 3.11 and 3.12 (opportunity 15:
+0.577 vs 0.567; opportunity 22: 0.317 vs 0.327). Python 3.12 sums floats with compensation and 3.11 does not; two
+elements whose trend slopes are mathematically equal then differed in the last bit, and percentile ranking turned that
+into a one-step rank change. `scoring/signals.py` now computes the trend slope with exact rational arithmetic and uses
+`math.fsum`, and tests pin both (`test_signals.py`). Checked afterwards: identical results on 3.11.9 and 3.12.13 for all
+13 candidates, a rerun reproduces the stored rows on all 8 fields, a cold restore of the dump plus
+`python -m api.prepare_demo` gives the same 13 rows, and every holdout number in section 2 reproduces to three decimals.
+The values stored and published here are the exact ones; the 3.11 results before the fix were the inaccurate ones.
+
+## 7. Known limits of the data (measured on pc_pilot, 2026-11-22)
+
+These come from queries on the restored dump. The counts marked *heuristic* use simple text rules and are estimates, not
+labels. None of this is extraction accuracy: no human-labelled benchmark exists (the reference set is rule-generated and
+circular, see `extraction/accuracy_report.md`).
+
+| Limit | What was measured | Effect on the 13 candidates |
+|---|---|---|
+| Duplicate records | 51 titles occur more than once (105 papers); 9 extra copies sit in the 399-paper Method x Task data | Removing them leaves the same 13 candidates and the same top 5; expected counts move by less than 0.1 |
+| Proceedings / front matter as papers (*heuristic*) | 7 titles look like proceedings volumes, 1 of them in the extraction output, 1 of 399 in the Method x Task data | negligible |
+| Abstracts that begin with an author list (*heuristic*) | about 80 papers, 11 in the extraction output, 5 of 399 in the Method x Task data | negligible; these papers' extracted elements are less reliable |
+| One task dominates | Machine Translation is 338 of the 399 papers in the Method x Task data | most expected counts are driven by it; only Method x Task is scored (Method x Dataset has N = 32, Dataset x Task N = 27) |
+| "Used together" means the same abstract | An experiment stores one source sentence, where the **method** was found. It also mentions the tagged task in only 350 of 719 task-tagged experiments (48.7%); the task is found elsewhere in the title or abstract | a method and a task counted as "used together" were both extracted from one paper, not necessarily from one sentence |
+| Task tags that are not in the paper's text | 10 of 719 task tags (1.4%) appear in neither title nor abstract, all "Machine Translation". Some are errors (GraphCodeBERT is code translation; mT5's abstract never mentions translation), some are fine (a seq2seq paper whose title says "translation") | small; it can add a wrong paper to a "Machine Translation" group |
+| Keyword search needs every word | PostgreSQL full-text search ANDs the words: "machine translation unicorn" finds nothing | use the vector or hybrid mode; the API says why when keyword search finds nothing |
+
+**Choosing demo pairs.** Confidence is shown on every candidate. The most defensible are those with confidence 1.00 and no
+duplicate-title evidence: #14 Masked Language Modeling x Machine Translation, #16 Fine-tuning x Language Modeling and
+#17 Cross-Lingual Language Model Pretraining x Machine Translation. Low-confidence candidates (#15, #21, #23, #24, #25,
+#26, all below 0.35) rest on one or two expected papers; present them as weak signals. For #14 the "Nearest Existing" list
+includes mT5, tagged Machine Translation although its abstract does not mention it: say so if asked.
