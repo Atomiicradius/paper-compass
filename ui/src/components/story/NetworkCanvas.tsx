@@ -172,7 +172,8 @@ export default function NetworkCanvas({ step, groupSizes }: NetworkCanvasProps) 
     let h = 0;
     let colors = readColors();
     // animated amounts (0..1): how much each look is "on"
-    const k = { color: 0, lines: 0, dim: 0, pulse: 0, time: 0 };
+    // `show` is how much of the network is visible: 0 on step 0 (the particle sphere is shown there instead)
+    const k = { color: 0, lines: 0, dim: 0, pulse: 0, time: 0, show: stateRef.current === "scattered" ? 0 : 1 };
     let raf = 0;
     let last = 0;
     let frames = 0;
@@ -216,6 +217,7 @@ export default function NetworkCanvas({ step, groupSizes }: NetworkCanvasProps) 
       k.dim = ease(state === "pair" || state === "pulse" ? 1 : state === "lines" ? 0.55 : 0, 3, k.dim);
       k.pulse = ease(state === "pulse" ? 1 : 0, 3, k.pulse);
       k.time = ease(state === "time" ? 1 : 0, 3, k.time);
+      k.show = ease(state === "scattered" ? 0 : 1, 2.2, k.show);
 
       const move = 1 - Math.exp(-dt * 2.4);
       for (const n of scene.nodes) {
@@ -258,8 +260,8 @@ export default function NetworkCanvas({ step, groupSizes }: NetworkCanvasProps) 
         ctx.stroke();
       }
       // the dots: neutral first, then the group colour fading in on top
-      for (const n of scene.nodes) {
-        const dim = scene.pair && !inPair(n.group) ? 1 - 0.78 * k.dim : 1;
+      for (const n of k.show > 0.01 ? scene.nodes : []) {
+        const dim = (scene.pair && !inPair(n.group) ? 1 - 0.78 * k.dim : 1) * k.show;
         const r = 2.1 + (inPair(n.group) ? 0.9 * k.dim : 0);
         ctx.fillStyle = colors.muted;
         ctx.globalAlpha = 0.55 * (1 - k.color) * dim;

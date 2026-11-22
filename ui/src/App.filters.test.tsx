@@ -234,12 +234,12 @@ describe("App with reduced motion", () => {
     window.history.replaceState(null, "", "/");
   });
 
-  it("hides nothing and animates nothing: a static ambient layer, instant tab indicator, and every screen still works", async () => {
+  it("hides nothing and animates nothing: a static dot field, instant tab indicator, and every screen still works", async () => {
     restore = setReducedMotion(true);
     const user = userEvent.setup();
     window.history.replaceState(null, "", "#/candidates");
     render(<App />);
-    expect(screen.getByTestId("ambient")).toHaveAttribute("data-static");
+    expect(await screen.findByTestId("dot-field")).toHaveAttribute("data-static");
     expect(await screen.findAllByTestId("candidate-row")).toHaveLength(3); // the three candidates of the fixture
     expect(nav().getByRole("button", { name: "Candidates" })).toHaveAttribute("aria-current", "page");
     await user.keyboard("{Control>}k{/Control}");

@@ -10,6 +10,11 @@ vi.mock("@/components/story/NetworkCanvas", async () => {
   return { default: ({ step, groupSizes }: { step: number; groupSizes: number[] }) => React.createElement("div", { "data-testid": "network-canvas", "data-canvas-step": step, "data-groups": groupSizes.join(",") }) };
 });
 
+vi.mock("@/components/story/ParticleSphere", async () => {
+  const React = await import("react");
+  return { default: ({ visible, still }: { visible: boolean; still?: boolean }) => React.createElement("div", { "data-testid": "sphere", "data-visible": String(visible), "data-still": String(!!still) }) };
+});
+
 vi.mock("@/api/client", async (orig) => {
   const actual = await orig<typeof import("@/api/client")>();
   return { ...actual, api: { ...actual.api, landscape: vi.fn(), clusters: vi.fn(), trends: vi.fn(), opportunities: vi.fn(), explain: vi.fn() } };
@@ -122,6 +127,25 @@ describe("StoryView: the pinned stage", () => {
     restore = setReducedMotion(true);
     render(<StoryView onOpenExplorer={() => {}} />);
     expect(screen.queryByTestId("network-canvas")).not.toBeInTheDocument();
+  });
+
+  it("shows the particle sphere on step 0 and fades it out from step 1, while the network canvas takes over", async () => {
+    render(<StoryView onOpenExplorer={() => {}} />);
+    const sphere = await screen.findByTestId("sphere");
+    expect(sphere).toHaveAttribute("data-visible", "true");
+    expect(sphere).toHaveAttribute("data-still", "false");
+    scrollTo(0.2); // step 1
+    expect(sphere).toHaveAttribute("data-visible", "false");
+    scrollTo(0);
+    expect(sphere).toHaveAttribute("data-visible", "true");
+  });
+
+  it("under reduced motion the sphere is still (one drawn frame), and the story stays stacked", async () => {
+    restore = setReducedMotion(true);
+    render(<StoryView onOpenExplorer={() => {}} />);
+    const sphere = await screen.findByTestId("sphere");
+    expect(sphere).toHaveAttribute("data-still", "true");
+    expect(screen.getByTestId("story-sphere-still")).toContainElement(sphere);
   });
 
   it("under reduced motion: all steps stacked, nothing pinned, no counter or rail, no trigger, no GSAP work", () => {

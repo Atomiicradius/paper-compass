@@ -1,49 +1,26 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { installSpotlight, useSpotlight } from "@/lib/spotlight";
 import { setReducedMotion } from "@/test/motion";
-import { Ambient } from "@/components/Ambient";
 
 const css = readFileSync(join(process.cwd(), "src", "index.css"), "utf-8");
 
-describe("Ambient layer", () => {
-  let restore = () => {};
-  afterEach(() => restore());
-
-  it("is decoration: hidden from assistive technology, with three glows, a dot grid and grain", () => {
-    const { container } = render(<Ambient />);
-    const root = screen.getByTestId("ambient");
-    expect(root).toHaveAttribute("aria-hidden", "true");
-    expect(container.querySelectorAll(".ambient-glow")).toHaveLength(3);
-    expect(container.querySelector(".ambient-grid")).not.toBeNull();
-    expect(container.querySelector(".ambient-grain")).not.toBeNull();
-    expect(root).not.toHaveAttribute("data-static");
-  });
-
-  it("stands still with reduced motion (the glows get no animation)", () => {
-    restore = setReducedMotion(true);
-    render(<Ambient />);
-    expect(screen.getByTestId("ambient")).toHaveAttribute("data-static");
-    expect(css).toMatch(/\.ambient\[data-static\] \.ambient-glow \{ animation: none; \}/);
-    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.ambient-glow \{ animation: none; \}/);
-  });
-});
-
-describe("the ambient and glass CSS", () => {
+describe("the glass CSS and the flat background", () => {
   it("makes no request: every url() is an inline data URI and nothing is imported from outside", () => {
     const urls = [...css.matchAll(/url\(([^)]*)\)/g)].map((m) => m[1]!.trim().replace(/^["']/, ""));
-    expect(urls.length).toBeGreaterThan(0);
     for (const u of urls) expect(u.startsWith("data:")).toBe(true);
     expect(css).not.toMatch(/@import url/);
     expect(css).not.toMatch(/@import "https?:/);
   });
 
-  it("drifts the glows by at most 20 px", () => {
-    const shifts = [...css.matchAll(/--d[xy]:\s*(-?\d+)px/g)].map((m) => Math.abs(Number(m[1])));
-    expect(shifts.length).toBeGreaterThanOrEqual(6); // x and y for each of the three glows
-    for (const px of shifts) expect(px).toBeLessThanOrEqual(20);
+  it("has one flat background colour: no gradients, aurora glows, dot grid or grain in the stylesheet", () => {
+    expect(css).not.toMatch(/--backdrop/);
+    expect(css).not.toMatch(/ambient/);
+    expect(css).not.toMatch(/grain/);
+    expect(css).not.toMatch(/background-image:\s*var\(--backdrop/);
+    expect(css).toMatch(/body \{\s*background-color: var\(--background\);/);
   });
 
   it("gives a rounded glass card a gradient hairline and a spotlight, and switches the spotlight off with reduced motion", () => {
@@ -54,7 +31,7 @@ describe("the ambient and glass CSS", () => {
   });
 
   it("defines the hairline and the spotlight in both themes", () => {
-    for (const v of ["--hair-a", "--hair-b", "--hair-c", "--spot-color", "--glow-opacity", "--grid-dot", "--grain-opacity"]) {
+    for (const v of ["--hair-a", "--hair-b", "--hair-c", "--spot-color", "--dot-rgb", "--dot-hot-rgb"]) {
       expect(css.split(v + ":").length - 1).toBeGreaterThanOrEqual(2); // :root and .dark
     }
   });

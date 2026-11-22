@@ -13,7 +13,6 @@ import { cn } from "@/lib/utils";
 import { Button, Mono, Skeleton, Tip, TooltipProvider } from "@/components/ui/primitives";
 import { SmoothScrollProvider, useRegisterScroller, useScroller } from "@/components/SmoothScroll";
 import { Reveal } from "@/components/Reveal";
-import { Ambient } from "@/components/Ambient";
 import { CommandPalette } from "@/components/CommandPalette";
 import { useSpotlight } from "@/lib/spotlight";
 import type { FilterOptions, SearchForm } from "@/components/Sidebar";
@@ -31,6 +30,7 @@ import { LandscapeView } from "@/components/LandscapeView";
 const GraphView = lazy(() => import("@/components/GraphView").then((m) => ({ default: m.GraphView })));
 // the story page (and its canvas) is loaded when the story is opened, so it adds nothing to the first bundle
 const StoryView = lazy(() => import("@/components/story/StoryView"));
+const DotField = lazy(() => import("@/components/DotField").then((m) => ({ default: m.DotField })));
 
 // the tabs of the header: the story is the home page (the logo links to it), so it is not a tab
 const VIEWS: { id: View; label: string }[] = [
@@ -203,7 +203,10 @@ function AppShell() {
 
   return (
     <TooltipProvider delayDuration={150} skipDelayDuration={300}>
-      <Ambient />
+      {/* the dot field is decoration: it loads after the app, so it does not weigh on the first paint */}
+      <Suspense fallback={null}>
+        <DotField />
+      </Suspense>
       <div className="relative z-10 flex h-full flex-col">
         <Reveal as="header" self trigger="mount" y={-10} className="glass sticky top-0 z-20 flex h-14 shrink-0 items-center gap-3 rounded-none border-0 border-b px-4 backdrop-blur-xl">
           <h1 className="shrink-0 font-display text-2xl leading-none tracking-tight whitespace-nowrap">
