@@ -114,9 +114,9 @@ describe("App: the command palette", () => {
 
   it("'Search papers' runs the existing paper search with the typed text in the current mode and opens Papers", async () => {
     const user = userEvent.setup();
-    window.history.replaceState(null, "", "/");
+    window.history.replaceState(null, "", "#/papers");
     render(<App />);
-    await user.selectOptions(screen.getByLabelText("Search mode"), "hybrid"); // the mode chosen in the existing control
+    await user.click(await screen.findByRole("radio", { name: "Hybrid" })); // the mode chosen in the segmented control of the Papers screen
     await user.keyboard("{Control>}k{/Control}");
     await user.type(await screen.findByRole("combobox", { name: "Search or jump to" }), "back-translation for low-resource languages{Enter}");
     await waitFor(() => expect(api.search).toHaveBeenCalledTimes(1));
@@ -125,7 +125,8 @@ describe("App: the command palette", () => {
     expect(await screen.findByRole("heading", { level: 2, name: "Papers" })).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
     // the same text is now in the search box, so it can be edited and run again
-    expect(screen.getByPlaceholderText("Describe a research idea…")).toHaveValue("back-translation for low-resource languages");
+    expect(within(screen.getByRole("region", { name: "Paper search" })).getByRole("textbox", { name: "Search the corpus" })).toHaveValue("back-translation for low-resource languages");
+    expect(screen.getByRole("radio", { name: "Hybrid" })).toHaveAttribute("aria-checked", "true");
   });
 
   it("has a sliding indicator on the active tab only", async () => {

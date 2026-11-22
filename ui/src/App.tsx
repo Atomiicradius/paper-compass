@@ -20,6 +20,7 @@ import { Sidebar, type FilterOptions, type SearchForm } from "@/components/Sideb
 import { CandidatesView } from "@/components/CandidatesView";
 import { EvidenceDrawer } from "@/components/EvidenceDrawer";
 import { PaperDrawer, PapersView } from "@/components/PapersView";
+import { PapersSearchBar } from "@/components/PapersSearchBar";
 import { LandscapeView } from "@/components/LandscapeView";
 
 // the graph library is large and only needed on the Graph tab
@@ -263,7 +264,10 @@ function AppShell() {
                   onOpen={(o) => setSelectedId(o.opportunity_id)} onClearFilters={() => setFilters(EMPTY_FILTERS)}
                 />
               ) : view === "papers" ? (
-                <PapersView state={search} submitted={submitted != null} notes={submitted?.notes ?? []} onOpenPaper={setPaperId} />
+                <div className="space-y-6">
+                  <PapersSearchBar form={form} onForm={setForm} onSearch={runSearch} searching={search.loading && submitted != null} />
+                  <PapersView state={search} submitted={submitted != null} notes={submitted?.notes ?? []} onOpenPaper={setPaperId} />
+                </div>
               ) : view === "graph" ? (
                 <Suspense fallback={<Skeleton className="min-h-[420px] flex-1" />}>
                   <GraphView paperId={graphId} onPaperId={setGraphId} bridgeIds={bridgeIds} theme={theme} onOpenPaper={setPaperId} />
