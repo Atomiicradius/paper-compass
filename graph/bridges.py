@@ -87,13 +87,35 @@ def cluster_pairs(
     density = [cross.get(k, 0) / (sizes[k[0]] * sizes[k[1]]) for k in keys]
     sim = [_cos(centroids[a], centroids[b]) for a, b in keys]
     sim_pr = percentile_rank(sim)
-    den_pr = percentile_rank(density)
+    den_pr = _share_strictly_below(density)
     out = [
         ClusterPair(a, b, cross.get((a, b), 0), d, s, sp >= min_similarity_pct and dp <= max_density_pct)
         for (a, b), d, s, sp, dp in zip(keys, density, sim, sim_pr, den_pr)
     ]
     out.sort(key=lambda p: (not p.weakly_connected, p.citation_density, -p.semantic_similarity))
     return out
+
+
+def _share_strictly_below(values: list[float]) -> list[float]:
+    """For each value, the share of the OTHER values that are strictly lower (0 for the lowest).
+
+    Used for citation density. percentile_rank gives tied values the mean of their positions, so when many pairs tie
+    at density 0 (no cross-citations at all) they all got about 0.4, above the 0.25 threshold, and a pair with the
+    lowest possible density could never be flagged as weakly connected.
+    """
+    n = len(values)
+    if n <= 1:
+        return [0.0] * n
+    return [sum(1 for w in values if w < v) / (n - 1) for v in values]
+
+
+def bridges_for_display(bridges: list[BridgePaper], limit: int) -> list[BridgePaper]:
+    """The bridges to show first: papers that sit in a real cluster and cite into others, most clusters first, then
+    the unclustered papers that link two or more clusters. Without this, the unclustered foundational papers
+    (they reach the most clusters) take every slot and no clustered bridge is ever shown."""
+    clustered = sorted((b for b in bridges if b.own_cluster != NOISE), key=lambda b: (-len(b.linked_clusters), b.paper_id))
+    unclustered = sorted((b for b in bridges if b.own_cluster == NOISE), key=lambda b: (-len(b.linked_clusters), b.paper_id))
+    return (clustered + unclustered)[:limit]
 
 
 def _cos(a: np.ndarray, b: np.ndarray) -> float:

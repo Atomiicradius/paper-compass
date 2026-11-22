@@ -328,3 +328,164 @@ def test_collapse_same_title_is_passed_through_to_the_repository(monkeypatch):
         assert c.post("/search", json={"query": "x", "collapse_same_title": "maybe"}).status_code == 422
     finally:
         app.dependency_overrides.clear()
+
+
+# --- hybrid mode and the query encoder --------------------------------------------------------
+
+class HybridRepo(StubRepo):
+    def hybrid_search(self, encoder, text, top_k, filters):
+        self.calls.append(("hybrid", filters))
+        out = MockRepository.vector_search(self, encoder, text, top_k, filters)
+        for i, h in enumerate(out["results"], start=1):
+            h.update(vector_rank=i, keyword_rank=None if i % 2 else i)
+        return out
+
+
+def test_hybrid_mode_routes_to_hybrid_search_and_reports_ranks(use):
+    repo = HybridRepo()
+    body = use(repo, FakeEncoder()).post("/search", json={"query": "q", "mode": "hybrid", "top_k": 3, "year_min": 2020}).json()
+    assert (body["mode"], body["score_type"]) == ("hybrid", "rrf_fused")
+    assert [c[0] for c in repo.calls] == ["hybrid"]
+    assert repo.calls[0][1]["year_min"] == 2020
+    assert [h["vector_rank"] for h in body["results"]] == [1, 2, 3]
+    assert [h["keyword_rank"] for h in body["results"]] == [None, 2, None]
+
+
+def test_hybrid_mode_needs_the_encoder_and_usable_embeddings(use):
+    assert use(HybridRepo(), None).post("/search", json={"query": "q", "mode": "hybrid"}).status_code == 503
+    class Unavailable(HybridRepo):
+        def hybrid_search(self, *a, **k):
+            raise VectorSearchUnavailable("paper embeddings come from another model")
+    r = use(Unavailable(), FakeEncoder()).post("/search", json={"query": "q", "mode": "hybrid"})
+    assert r.status_code == 409 and "another model" in r.json()["detail"]
+
+
+def test_hybrid_mode_rejects_filters_it_cannot_apply_with_a_422(use):
+    class Strict(HybridRepo):
+        def hybrid_search(self, *a, **k):
+            raise ValueError("hybrid search supports only the year filters")
+    r = use(Strict(), FakeEncoder()).post("/search", json={"query": "q", "mode": "hybrid", "methods": ["KD"]})
+    assert r.status_code == 422 and "hybrid" in r.json()["detail"]
+
+
+def test_auto_mode_is_unchanged_by_hybrid(use):
+    repo = HybridRepo()
+    body = use(repo, FakeEncoder()).post("/search", json={"query": "q"}).json()
+    assert body["mode"] == "vector" and [c[0] for c in repo.calls] == ["vector"]
+
+
+def test_query_encoder_uses_the_adhoc_adapter_by_default_and_compares_against_the_paper_model(monkeypatch):
+    pytest.importorskip("torch")
+    from api import query_encoder as qe
+    from db.embeddings.encoder import model_string as paper_model
+
+    qe.get_query_encoder.cache_clear()
+    monkeypatch.delenv("PC_QUERY_ENCODER", raising=False)
+    monkeypatch.delenv("PC_QUERY_ADAPTER", raising=False)
+    enc = qe.get_query_encoder()                                   # builds the object; does not load the model
+    assert enc is not None and "adhoc_query" in enc.model_string
+    assert enc.paper_model_string == paper_model()                # what the stored paper embeddings were made with
+    qe.get_query_encoder.cache_clear()
+    monkeypatch.setenv("PC_QUERY_ADAPTER", "proximity")
+    assert "(proximity)" in qe.get_query_encoder().model_string
+    qe.get_query_encoder.cache_clear()
+    monkeypatch.setenv("PC_QUERY_ENCODER", "none")
+    assert qe.get_query_encoder() is None
+    qe.get_query_encoder.cache_clear()
+
+
+def test_keyword_search_with_no_hits_explains_that_every_word_must_match(use):
+    class Empty(StubRepo):
+        def keyword_search(self, text, top_k, filters):
+            return {"model": None, "results": []}
+
+    body = use(Empty(), FakeEncoder()).post("/search", json={"query": "machine translation unicorn", "mode": "keyword"}).json()
+    assert body["results"] == [] and "every word" in body["note"] and "hybrid" in body["note"]
+    # the fallback from auto keeps its own note, and a normal keyword hit has no note
+    ok = use(StubRepo(), FakeEncoder()).post("/search", json={"query": "q", "mode": "keyword"}).json()
+    assert ok["note"] is None
+
+
+def test_health_endpoint_in_mock_mode_and_with_a_broken_backend(client, monkeypatch):
+    h = client.get("/health").json()
+    assert h["status"] in ("ok", "degraded") and h["mock"] is True
+    assert set(h) >= {"status", "mock", "postgres", "neo4j", "query_encoder", "clusters", "notes"}
+
+    class Broken(MockRepository):
+        def health(self):
+            return {"mock": False, "postgres": {"ok": False, "error": "OperationalError"}, "neo4j": {"configured": False, "ok": None},
+                    "clusters": {"file": False}, "notes": ["PostgreSQL is not reachable"]}
+    monkeypatch.setattr("api.main.get_repo", lambda: Broken())       # /health resolves the repository itself
+    r = TestClient(app).get("/health")
+    assert r.status_code == 200 and r.json()["status"] == "degraded"       # reports the problem, does not 500
+    assert "PostgreSQL" in " ".join(r.json()["notes"])
+
+
+def test_health_when_not_configured_still_answers(monkeypatch):
+    monkeypatch.delenv("PC_PG_DSN", raising=False)
+    monkeypatch.delenv("PC_API_MOCK", raising=False)
+    monkeypatch.setattr("api.main._settings_from_env_file", lambda *a, **k: {})
+    get_repo.cache_clear()
+    try:
+        r = TestClient(app).get("/health")
+    finally:
+        get_repo.cache_clear()
+    assert r.status_code == 200 and r.json()["status"] == "degraded" and "PC_PG_DSN" in " ".join(r.json()["notes"])
+
+
+# --- a database that is down is a clear 503, never a bare 500 ---------------------------------
+
+def test_postgres_down_is_a_503_that_names_the_problem_and_never_leaks_the_password(monkeypatch):
+    from api.repository import PostgresRepository
+
+    repo = PostgresRepository("postgresql://someone:s3cretpw@127.0.0.1:1/none?connect_timeout=2")
+    monkeypatch.setenv("PC_API_MOCK", "1")
+    app.dependency_overrides[get_repo] = lambda: repo
+    try:
+        c = TestClient(app)
+        for r in (c.get("/opportunities"), c.get("/papers/W1"), c.get("/landscape"), c.get("/trends"),
+                  c.post("/search", json={"query": "x", "mode": "keyword"}), c.post("/opportunities/1/explain")):
+            assert r.status_code == 503, (r.request.url, r.status_code, r.text[:120])
+            detail = r.json()["detail"]
+            assert "PostgreSQL is not reachable" in detail and "docker compose" in detail
+            assert "s3cretpw" not in r.text and "someone" not in r.text
+    finally:
+        app.dependency_overrides.clear()
+
+
+# --- the first vector search must not take half a minute: the model is loaded at startup ---------
+
+def test_the_query_encoder_is_warmed_up_at_startup_unless_switched_off(monkeypatch):
+    import threading
+
+    warmed = threading.Event()
+
+    class Enc:
+        model_string = "MOCK"
+        paper_model_string = "MOCK"
+        def embed(self, texts):
+            warmed.set()
+            return [[0.0] * 768 for _ in texts]
+
+    monkeypatch.setenv("PC_API_MOCK", "1")
+    monkeypatch.delenv("PC_WARMUP", raising=False)
+    monkeypatch.setattr("api.main.get_query_encoder", lambda: Enc())
+    with TestClient(app):                               # entering the context runs the startup
+        assert warmed.wait(timeout=5), "the encoder was not warmed up"
+    warmed.clear()
+    monkeypatch.setenv("PC_WARMUP", "0")
+    with TestClient(app):
+        assert not warmed.wait(timeout=0.5), "PC_WARMUP=0 must switch the warm-up off"
+
+
+def test_a_failing_warmup_does_not_stop_the_api_from_starting(monkeypatch):
+    class Broken:
+        model_string = paper_model_string = "MOCK"
+        def embed(self, texts):
+            raise RuntimeError("model files missing")
+
+    monkeypatch.setenv("PC_API_MOCK", "1")
+    monkeypatch.delenv("PC_WARMUP", raising=False)
+    monkeypatch.setattr("api.main.get_query_encoder", lambda: Broken())
+    with TestClient(app) as c:
+        assert c.get("/opportunities").status_code == 200

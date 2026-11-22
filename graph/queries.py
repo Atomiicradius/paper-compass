@@ -58,8 +58,27 @@ MATCH (p:Paper {paper_id: $paper_id})
 OPTIONAL MATCH (p)-[r]-(n)
 WHERE type(r) IN ['WROTE', 'PUBLISHED_IN', 'ABOUT', 'USES_METHOD', 'EVALUATED_ON', 'SOLVES', 'CITES']
 WITH p, collect(DISTINCT {rel: type(r), out: startNode(r) = p, node: n}) AS links
-RETURN p, links[0..$limit] AS links
+RETURN p, links AS links
 """
+
+# What to keep first when a paper has more neighbours than the limit: the paper's own content (authors, venue, topics,
+# methods, tasks, datasets) before its citations, so a hub paper never shows only citations.
+_LINK_PRIORITY = {"PUBLISHED_IN": 0, "SOLVES": 1, "USES_METHOD": 2, "EVALUATED_ON": 3, "ABOUT": 4, "WROTE": 5, "CITES": 9}
+
+
+def select_links(links: list[dict], limit: int) -> tuple[list[dict], int]:
+    """Keep at most limit - 1 neighbours (the limit counts nodes, the centre paper included).
+
+    Order: relationship priority above, then, among citations, the most recent paper first, then the node id, so the
+    same request always gives the same graph. Returns (kept links, number of neighbours there were)."""
+    real = [lk for lk in links if lk.get("node") is not None]
+    ordered = sorted(real, key=lambda lk: (_LINK_PRIORITY.get(lk["rel"], 8), -(dict(lk["node"]).get("year") or 0),
+                                           str(dict(lk["node"]).get("id") or dict(lk["node"]).get("paper_id") or
+                                               dict(lk["node"]).get("author_id") or dict(lk["node"]).get("method_id") or
+                                               dict(lk["node"]).get("task_id") or dict(lk["node"]).get("dataset_id") or
+                                               dict(lk["node"]).get("venue_id") or "")))
+    return ordered[: max(0, limit - 1)], len(real)
+
 
 _ID_KEYS = {
     "Paper": "paper_id", "Author": "author_id", "Venue": "venue_id", "Topic": "topic_id",
@@ -112,11 +131,11 @@ def paper_neighborhood(session, paper_id: str, limit: int = 200) -> dict | None:
     center = _node_json(rec["p"])
     nodes = {center["id"]: center}
     edges = []
-    for link in rec["links"]:
-        if link["node"] is None:
-            continue
+    kept, total = select_links(rec["links"], limit)
+    for link in kept:
         other = _node_json(link["node"])
         nodes[other["id"]] = other
         src, dst = (center["id"], other["id"]) if link["out"] else (other["id"], center["id"])
         edges.append({"source": src, "target": dst, "type": link["rel"]})
-    return {"center": center["id"], "nodes": list(nodes.values()), "edges": edges}
+    return {"center": center["id"], "nodes": list(nodes.values()), "edges": edges,
+            "truncated": total > len(kept), "neighbors_total": total}

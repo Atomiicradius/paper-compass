@@ -23,7 +23,7 @@ A candidate opportunity is a **signal for human review, not proof of a research 
 **Precedence when files disagree:** top-level context files (the five in `context/`) > `docs/reference/project-plan-v2.md` > `docs/reference/original-context.md`. The reference documents explain the reasoning; they are not the working spec. If a reference document conflicts with a root file, follow the root file and tell the team so the reference can be corrected.
 
 ## Folder ownership
-`ingest/`, `extraction/` · `db/`, `retrieval/` · `graph/`, `scoring/` · `rag/` · `api/` · UI folder is **not created yet** (stack undecided).
+`ingest/`, `extraction/` · `db/`, `retrieval/` · `graph/`, `scoring/` · `rag/` · `api/` · `ui/` (React + Vite + TypeScript, see `ui/README.md`).
 Owners per folder are in `build-plan.md`. Do not edit another person's folder without telling them.
 
 ## Hard rules
@@ -40,7 +40,7 @@ Owners per folder are in `build-plan.md`. Do not edit another person's folder wi
 ## Open decisions (do not assume, ask first)
 The live list is in `decisions-and-progress.md`. If a task touches an Open item (corpus source, embedding model, UI stack, score weights, thresholds, domain), stop and ask rather than choosing silently.
 
-**UI stack is undecided: do not scaffold a UI.** Work against the mock data format in `data-and-contracts.md` if a prototype is requested.
+**UI stack: React + Vite + TypeScript in `ui/` (decision 35).** It talks to the API over HTTP only; start it as described in `ui/README.md`. Run the API with `PC_API_MOCK=1` for clearly marked mock data.
 
 ## Wording rules (code comments, UI text, reports, RAG output)
 Use: "potentially underexplored", "candidate research opportunity", "weakly represented in the analyzed corpus", "research-element combination", "evidence-grounded explanation".
