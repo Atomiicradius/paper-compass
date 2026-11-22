@@ -13,12 +13,12 @@ import { cn } from "@/lib/utils";
 import { Button, Mono, Skeleton, Tip, TooltipProvider } from "@/components/ui/primitives";
 import { SmoothScrollProvider, useRegisterScroller, useScroller } from "@/components/SmoothScroll";
 import { Reveal } from "@/components/Reveal";
-import { Ambient } from "@/components/Ambient";
 import { CommandPalette } from "@/components/CommandPalette";
 import { useSpotlight } from "@/lib/spotlight";
 import type { FilterOptions, SearchForm } from "@/components/Sidebar";
 import { FiltersPanel } from "@/components/FiltersPanel";
-import { FilterToolbar } from "@/components/FilterToolbar";
+import { FilterButton, FilterChips } from "@/components/FilterToolbar";
+import { PageHeader } from "@/components/PageHeader";
 import { activeFilterChips, activeTotal, clearedFilters, removeFilterChip, type FilterChip } from "@/lib/filter-chips";
 import { CandidatesView } from "@/components/CandidatesView";
 import { EvidenceDrawer } from "@/components/EvidenceDrawer";
@@ -30,14 +30,17 @@ import { LandscapeView } from "@/components/LandscapeView";
 const GraphView = lazy(() => import("@/components/GraphView").then((m) => ({ default: m.GraphView })));
 // the story page (and its canvas) is loaded when the story is opened, so it adds nothing to the first bundle
 const StoryView = lazy(() => import("@/components/story/StoryView"));
+const DotField = lazy(() => import("@/components/DotField").then((m) => ({ default: m.DotField })));
 
+// the tabs of the header: the story is the home page (the logo links to it), so it is not a tab
 const VIEWS: { id: View; label: string }[] = [
-  { id: "story", label: "Story" },
   { id: "candidates", label: "Candidates" },
   { id: "papers", label: "Papers" },
   { id: "graph", label: "Graph" },
   { id: "landscape", label: "Landscape" },
 ];
+// the command palette's "Go to" list: the story is called Home there
+const PALETTE_VIEWS: { id: View; label: string }[] = [{ id: "story", label: "Home" }, ...VIEWS];
 
 const DEFAULT_YEARS: [number, number] = [1951, 2026];
 
@@ -70,6 +73,8 @@ function AppShell() {
   const [submitted, setSubmitted] = useState<BuiltSearch | null>(null);
 
   const [selectedId, setSelectedId] = useState<number | null>(initialRoute.opp);
+  // the evidence drawer is opened by the "Evidence & explanation" button, not by selecting a row
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [paperId, setPaperId] = useState<string | null>(initialRoute.paper);
   const [graphId, setGraphId] = useState(initialRoute.graph);
 
@@ -83,8 +88,8 @@ function AppShell() {
   }, []);
 
   const selected: Opportunity | null = useMemo(
-    () => (selectedId === null ? null : (opps.data?.items.find((o) => o.opportunity_id === selectedId) ?? null)),
-    [selectedId, opps.data],
+    () => (!drawerOpen || selectedId === null ? null : (opps.data?.items.find((o) => o.opportunity_id === selectedId) ?? null)),
+    [drawerOpen, selectedId, opps.data],
   );
 
   // keep the hash in step with the state (a new history entry per change, so Back closes a drawer) and the state in
@@ -182,11 +187,13 @@ function AppShell() {
     setFilters(cleared.filters);
     setForm((f) => ({ ...f, years: cleared.years }));
   }, [yearBounds]);
-  const filterToolbar = <FilterToolbar count={filterCount} chips={chips} onOpen={() => setFiltersOpen(true)} onRemove={removeChip} onClearAll={clearAllFilters} />;
+  const filterButton = <FilterButton count={filterCount} onOpen={() => setFiltersOpen(true)} />;
+  const filterChips = <FilterChips chips={chips} count={filterCount} onRemove={removeChip} onClearAll={clearAllFilters} />;
 
   const openGraph = useCallback((id: string) => {
     setGraphId(normalizePaperId(id));
     setSelectedId(null);
+    setDrawerOpen(false);
     setPaperId(null);
     setView("graph");
   }, []);
@@ -196,12 +203,30 @@ function AppShell() {
 
   return (
     <TooltipProvider delayDuration={150} skipDelayDuration={300}>
-      <Ambient />
+      {/* the dot field is decoration: it loads after the app, so it does not weigh on the first paint */}
+      <Suspense fallback={null}>
+        <DotField />
+      </Suspense>
       <div className="relative z-10 flex h-full flex-col">
         <Reveal as="header" self trigger="mount" y={-10} className="glass sticky top-0 z-20 flex h-14 shrink-0 items-center gap-3 rounded-none border-0 border-b px-4 backdrop-blur-xl">
-          <h1 className="flex shrink-0 items-center gap-2 font-display text-2xl leading-none tracking-tight whitespace-nowrap">
-            <Compass className="size-5 text-primary" aria-hidden />
-            <span className="sr-only sm:not-sr-only">Paper Compass</span>
+          <h1 className="shrink-0 font-display text-2xl leading-none tracking-tight whitespace-nowrap">
+            {/* the logo and the name are a link to the home page (the story) */}
+            <a
+              href="#/story"
+              aria-label="Paper Compass home"
+              aria-current={view === "story" ? "page" : undefined}
+              onClick={(e) => {
+                e.preventDefault();
+                setView("story");
+              }}
+              className={cn(
+                "group flex items-center gap-2 rounded-lg px-1.5 py-1 transition-colors hover:bg-hover",
+                view === "story" ? "text-foreground" : "text-foreground/85 hover:text-foreground",
+              )}
+            >
+              <Compass className={cn("size-5 transition-transform duration-300 group-hover:rotate-12", view === "story" ? "text-primary drop-shadow-[0_0_6px_var(--primary)]" : "text-primary")} aria-hidden />
+              <span className="sr-only sm:not-sr-only">Paper Compass</span>
+            </a>
           </h1>
           <nav aria-label="Views" data-lenis-prevent className="ml-2 flex gap-1 overflow-x-auto">
             {VIEWS.map((v) => (
@@ -260,7 +285,7 @@ function AppShell() {
         <div className="relative flex min-h-0 flex-1">
           {/* the content: one centred column (the story and the graph use the full width) */}
           <main ref={registerScroller} className={cn("scroll-thin min-w-0 flex-1 overflow-y-auto", view === "story" ? "p-0" : "p-4 sm:p-6", view === "graph" && "flex flex-col")}>
-            <div className={cn("mx-auto w-full", view === "graph" ? "flex min-h-0 max-w-none flex-1 flex-col" : view === "story" ? "max-w-none" : "max-w-6xl")}>
+            <div key={view} className={cn("screen-enter mx-auto w-full", view === "graph" ? "flex min-h-0 max-w-6xl flex-1 flex-col" : view === "story" ? "max-w-none" : view === "candidates" ? "max-w-[1500px]" : "max-w-6xl")}>
               {view === "story" ? (
                 <Suspense fallback={<Skeleton className="m-6 min-h-[420px]" />}>
                   <StoryView onOpenExplorer={() => setView("candidates")} />
@@ -268,44 +293,41 @@ function AppShell() {
               ) : view === "candidates" ? (
                 <CandidatesView
                   state={opps} filters={filters} selectedId={selectedId}
-                  onOpen={(o) => setSelectedId(o.opportunity_id)} onClearFilters={() => setFilters(EMPTY_FILTERS)}
-                  toolbar={<div className="mb-4">{filterToolbar}</div>}
+                  onSelect={(o) => setSelectedId(o.opportunity_id)} onOpenEvidence={(o) => { setSelectedId(o.opportunity_id); setDrawerOpen(true); }} onClearFilters={() => setFilters(EMPTY_FILTERS)}
+                  filterButton={filterButton} filterChips={filterChips}
                 />
               ) : view === "papers" ? (
                 <div className="space-y-6">
-                  <PapersSearchBar form={form} onForm={setForm} onSearch={runSearch} searching={search.loading && submitted != null}>
-                    {filterToolbar}
-                  </PapersSearchBar>
+                  <PageHeader title="Papers" description="Search the analyzed corpus" actions={filterButton}>
+                    {filterChips}
+                  </PageHeader>
+                  <PapersSearchBar form={form} onForm={setForm} onSearch={runSearch} searching={search.loading && submitted != null} />
                   <PapersView state={search} submitted={submitted != null} notes={submitted?.notes ?? []} onOpenPaper={setPaperId} />
                 </div>
               ) : view === "graph" ? (
                 <Suspense fallback={<Skeleton className="min-h-[420px] flex-1" />}>
-                  <GraphView paperId={graphId} onPaperId={setGraphId} bridgeIds={bridgeIds} theme={theme} onOpenPaper={setPaperId} toolbar={filterToolbar} />
+                  <GraphView paperId={graphId} onPaperId={setGraphId} bridgeIds={bridgeIds} theme={theme} onOpenPaper={setPaperId} filterButton={filterButton} filterChips={filterChips} />
                 </Suspense>
               ) : (
-                <LandscapeView state={landscape} onOpenGraph={openGraph} toolbar={filterToolbar} />
+                <LandscapeView state={landscape} onOpenGraph={openGraph} filterButton={filterButton} filterChips={filterChips} />
               )}
             </div>
           </main>
         </div>
-
-        <footer className="glass shrink-0 rounded-none border-0 border-t px-4 py-2 text-center text-[11px] leading-snug text-muted">
-          Evidence-grounded analysis of a curated corpus. Candidate opportunities are potentially underexplored combinations: signals for human review, not proof of a research gap.
-        </footer>
       </div>
 
       <FiltersPanel open={filtersOpen} onClose={() => setFiltersOpen(false)} form={form} onForm={setForm} filters={filters} onFilters={setFilters} options={options} yearBounds={yearBounds} />
       <CommandPalette
         open={paletteOpen}
         onOpenChange={setPaletteOpen}
-        views={VIEWS}
+        views={PALETTE_VIEWS}
         currentView={view}
         onGo={setView}
         onSearch={searchFor}
       />
 
       {/* right pane: slide-over details */}
-      <EvidenceDrawer opportunity={selected} onClose={() => setSelectedId(null)} onOpenGraph={openGraph} />
+      <EvidenceDrawer opportunity={selected} onClose={() => setDrawerOpen(false)} onOpenGraph={openGraph} />
       <PaperDrawer paperId={paperId} onClose={() => setPaperId(null)} onOpenPaper={setPaperId} onOpenGraph={openGraph} />
     </TooltipProvider>
   );

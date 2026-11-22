@@ -27,11 +27,13 @@ describe("App: the story is the landing view", () => {
   });
   afterEach(() => window.history.replaceState(null, "", "/"));
 
-  it("opens on the story when there is no hash, with Story as the first navigation item", async () => {
+  it("opens on the story when there is no hash; the story is the home page, not a tab, and no tab is highlighted", async () => {
     window.history.replaceState(null, "", "/");
     render(<App />);
-    expect(nav().getAllByRole("button").map((b) => b.textContent)).toEqual(["Story", "Candidates", "Papers", "Graph", "Landscape"]);
-    expect(nav().getByRole("button", { name: "Story" })).toHaveAttribute("aria-current", "page");
+    expect(nav().getAllByRole("button").map((b) => b.textContent)).toEqual(["Candidates", "Papers", "Graph", "Landscape"]);
+    expect(nav().queryByRole("button", { name: "Story" })).not.toBeInTheDocument();
+    for (const tab of nav().getAllByRole("button")) expect(tab).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: "Paper Compass home" })).toHaveAttribute("aria-current", "page");
     expect(await screen.findByRole("heading", { level: 2, name: "Paper Compass" })).toBeInTheDocument();
     expect(window.location.hash).toBe("");
   });
@@ -44,6 +46,41 @@ describe("App: the story is the landing view", () => {
     expect(nav().getByRole("button", { name: "Candidates" })).toHaveAttribute("aria-current", "page");
     expect(await screen.findByRole("heading", { level: 2, name: "Candidate opportunities" })).toBeInTheDocument();
     await waitFor(() => expect(window.location.hash).toBe("#/candidates"));
+  });
+
+  it("keeps the corpus chip strip under the header (papers, years, cutoff, extraction) now that the footer is gone", async () => {
+    window.history.replaceState(null, "", "#/candidates");
+    render(<App />);
+    const chip = (await screen.findAllByLabelText("Corpus"))[0]!;
+    expect(chip).toHaveTextContent(/papers/);
+    expect(chip).toHaveTextContent(/cutoff/);
+    expect(chip).toHaveTextContent("rules-v1 extraction");
+  });
+
+  it("has no fixed footer bar on any screen", async () => {
+    const user = userEvent.setup();
+    window.history.replaceState(null, "", "#/candidates");
+    render(<App />);
+    await screen.findByRole("heading", { level: 2, name: "Candidate opportunities" });
+    for (const tab of ["Candidates", "Papers", "Graph", "Landscape"]) {
+      await user.click(nav().getByRole("button", { name: tab }));
+      expect(document.querySelector("footer")).toBeNull();
+      expect(screen.queryByRole("contentinfo")).toBeNull();
+      expect(screen.queryByText(/Evidence-grounded analysis of a curated corpus/)).toBeNull();
+    }
+  });
+
+  it("a new screen enters with a fade-and-rise: each screen is a fresh element with the screen-enter class", async () => {
+    const user = userEvent.setup();
+    window.history.replaceState(null, "", "#/candidates");
+    render(<App />);
+    const heading = await screen.findByRole("heading", { level: 2, name: "Candidate opportunities" });
+    const column = heading.closest(".screen-enter");
+    expect(column).not.toBeNull();
+    await user.click(nav().getByRole("button", { name: "Landscape" }));
+    const next = (await screen.findByRole("heading", { level: 2, name: /Landscape/ })).closest(".screen-enter");
+    expect(next).not.toBeNull();
+    expect(next).not.toBe(column);
   });
 
   it("#/story opens the story and #/candidates opens the explorer directly", async () => {
@@ -64,7 +101,7 @@ describe("App: the story is the landing view", () => {
     render(<App />);
     await user.click(nav().getByRole("button", { name: "Landscape" }));
     expect(await screen.findByRole("heading", { level: 2, name: "Landscape" })).toBeInTheDocument();
-    await user.click(nav().getByRole("button", { name: "Story" }));
+    await user.click(screen.getByRole("link", { name: "Paper Compass home" })); // home is the logo
     expect(await screen.findByRole("heading", { level: 2, name: "Paper Compass" })).toBeInTheDocument();
   });
 });
@@ -129,11 +166,69 @@ describe("App: the command palette", () => {
     expect(screen.getByRole("radio", { name: "Hybrid" })).toHaveAttribute("aria-checked", "true");
   });
 
-  it("has a sliding indicator on the active tab only", async () => {
-    window.history.replaceState(null, "", "/");
+  it("has a sliding indicator on the active tab only, and none on the home page", async () => {
+    window.history.replaceState(null, "", "#/candidates");
     render(<App />);
-    const active = nav().getByRole("button", { name: "Story" });
-    expect(active.querySelectorAll("[aria-hidden]")).toHaveLength(1); // the indicator
+    expect(nav().getByRole("button", { name: "Candidates" }).querySelectorAll("[aria-hidden]")).toHaveLength(1); // the indicator
     expect(nav().getByRole("button", { name: "Papers" }).querySelectorAll("[aria-hidden]")).toHaveLength(0);
+    window.history.replaceState(null, "", "/");
+  });
+});
+
+describe("App: the home link", () => {
+  beforeEach(() => {
+    vi.mocked(api.landscape).mockResolvedValue(makeLandscape());
+    vi.mocked(api.clusters).mockResolvedValue(makeClusters());
+    vi.mocked(api.trends).mockImplementation((kind) => Promise.resolve(makeTrends(kind === "task" ? "task" : "method")));
+    vi.mocked(api.opportunities).mockResolvedValue(makeOpportunityList());
+    vi.mocked(api.explain).mockResolvedValue(makeStoryExplanation());
+  });
+  afterEach(() => window.history.replaceState(null, "", "/"));
+
+  it("the logo and name are a keyboard-focusable link to #/story, named 'Paper Compass home'", async () => {
+    window.history.replaceState(null, "", "#/landscape");
+    render(<App />);
+    const home = screen.getByRole("link", { name: "Paper Compass home" });
+    expect(home).toHaveAttribute("href", "#/story");
+    expect(home.tabIndex).toBeGreaterThanOrEqual(0); // reachable with Tab
+    expect(home.className).toContain("hover:bg-hover"); // a hover state
+    expect(home).not.toHaveAttribute("aria-current"); // no active state away from the home page
+    home.focus();
+    expect(home).toHaveFocus();
+  });
+
+  it("Enter on the focused link goes home, and the link is then marked as the current page", async () => {
+    const user = userEvent.setup();
+    window.history.replaceState(null, "", "#/landscape");
+    render(<App />);
+    screen.getByRole("link", { name: "Paper Compass home" }).focus();
+    await user.keyboard("{Enter}");
+    expect(await screen.findByRole("heading", { level: 2, name: "Paper Compass" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Paper Compass home" })).toHaveAttribute("aria-current", "page");
+    for (const tab of nav().getAllByRole("button")) expect(tab).not.toHaveAttribute("aria-current");
+    await waitFor(() => expect(window.location.hash).toBe("")); // the home page is the empty hash
+  });
+
+  it("an explicit #/story opens the home page too, and the explorer button still leads to Candidates", async () => {
+    const user = userEvent.setup();
+    window.history.replaceState(null, "", "#/story");
+    render(<App />);
+    expect(await screen.findByRole("heading", { level: 2, name: "Paper Compass" })).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: /Open the explorer/ }));
+    expect(nav().getByRole("button", { name: "Candidates" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Paper Compass home" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("the command palette calls the story 'Home' in its Go to group, and Enter on it goes home", async () => {
+    const user = userEvent.setup();
+    window.history.replaceState(null, "", "#/landscape");
+    render(<App />);
+    await user.keyboard("{Control>}k{/Control}");
+    const box = await screen.findByRole("combobox", { name: "Search or jump to" });
+    const group = screen.getByRole("group", { name: "Go to" });
+    expect(within(group).getAllByRole("option").map((o) => o.textContent?.replace(/current$/, ""))).toEqual(["Home", "Candidates", "Papers", "Graph", "Landscape"]);
+    expect(within(group).queryByText("Story")).not.toBeInTheDocument();
+    await user.type(box, "home{Enter}");
+    expect(await screen.findByRole("heading", { level: 2, name: "Paper Compass" })).toBeInTheDocument();
   });
 });

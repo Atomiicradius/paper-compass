@@ -69,7 +69,9 @@ function Bar({ label, share, active, color }: { label: string; share: number; ac
   );
 }
 
-const SIGNAL_COLORS = { sparsity: "#F59E0B", semantic: "#38BDF8", temporal: "#A78BFA" } as const;
+// the same accent gradient as the score rings and signal bars of the Candidates screen
+const ACCENT_BAR = "linear-gradient(90deg, var(--ring-a), var(--ring-b))";
+const SIGNAL_COLORS = { sparsity: ACCENT_BAR, semantic: ACCENT_BAR, temporal: ACCENT_BAR } as const;
 
 /** "Method × Task" in the tag colours, as on the Candidates screen. */
 function PairTitle({ o }: { o: Opportunity }) {
@@ -187,7 +189,7 @@ function Body({ index, data, active, onOpenExplorer }: StepProps) {
                   <Count active={active} value={top.expected_count} decimals={1} />
                 </span>
               </div>
-              <Bar label="Expected" share={top.expected_count / max} active={active} color="#F59E0B" />
+              <Bar label="Expected" share={top.expected_count / max} active={active} color="var(--tick)" />
             </div>
           </div>
           {data.universeN !== null ? (

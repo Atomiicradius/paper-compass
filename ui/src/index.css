@@ -39,13 +39,13 @@
   --hair-b: rgba(15, 23, 42, 0.05);
   --hair-c: rgba(15, 76, 129, 0.24);
   --spot-color: rgba(15, 76, 129, 0.07);
-  /* the ambient layer */
-  --glow-opacity: 0.1;
-  --grid-dot: rgba(15, 23, 42, 0.1);
-  --grain-opacity: 0.035;
-  /* page backdrop: a faint wash behind the glass */
-  --backdrop: radial-gradient(900px 480px at 85% -8%, rgba(15, 76, 129, 0.08), transparent 70%),
-    radial-gradient(700px 420px at -5% 105%, rgba(13, 148, 136, 0.06), transparent 70%);
+  /* the dot field behind the app (r, g, b): dark dots on the light page, and the accent they turn into near the pointer */
+  /* one accent family for the scores: the gradient of the score rings and bars, and the tick of the expected count */
+  --ring-a: #0f4c81;
+  --ring-b: #0ea5e9;
+  --tick: #64748b;
+  --dot-rgb: 15, 23, 42;
+  --dot-hot-rgb: 15, 76, 129;
 }
 
 .dark {
@@ -81,11 +81,11 @@
   --hair-b: rgba(255, 255, 255, 0.05);
   --hair-c: rgba(56, 189, 248, 0.26);
   --spot-color: rgba(56, 189, 248, 0.09);
-  --glow-opacity: 0.2;
-  --grid-dot: rgba(148, 163, 184, 0.17);
-  --grain-opacity: 0.05;
-  --backdrop: radial-gradient(1000px 520px at 82% -10%, rgba(56, 189, 248, 0.1), transparent 70%),
-    radial-gradient(800px 480px at -8% 108%, rgba(56, 189, 248, 0.05), transparent 70%);
+  --ring-a: #0ea5e9;
+  --ring-b: #7dd3fc;
+  --tick: #cbd5e1;
+  --dot-rgb: 148, 163, 184;
+  --dot-hot-rgb: 56, 189, 248;
 }
 
 @theme inline {
@@ -121,13 +121,13 @@
   html, body, #root { height: 100%; }
   body {
     background-color: var(--background);
-    background-image: var(--backdrop);
-    background-attachment: fixed;
     color: var(--foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
   }
   :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  /* controls that switch the outline off for their own look still get the same ring from the keyboard */
+  [class*="outline-none"]:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
   ::selection { background: color-mix(in srgb, var(--primary) 30%, transparent); }
 }
 
@@ -210,65 +210,7 @@
 .lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
 .lenis.lenis-stopped { overflow: hidden; }
 
-/* ---------------------------------------------------------------------------------------------
- * The ambient layer: three very soft glows that drift a few pixels, a faint dot grid and fine grain. Only CSS and an
- * inline SVG: no request, no image file. It sits behind everything and never takes the pointer.
- * ------------------------------------------------------------------------------------------- */
-.ambient {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-.ambient-glow {
-  position: absolute;
-  border-radius: 50%;
-  opacity: var(--glow-opacity);
-  will-change: transform;
-  animation: ambient-drift 40s ease-in-out infinite alternate;
-}
-.ambient-glow-a {
-  width: 64vmax; height: 64vmax; left: -16vmax; top: -26vmax;
-  background: radial-gradient(circle, rgba(45, 212, 191, 0.95), transparent 62%);
-  --dx: 18px; --dy: 12px;
-}
-.ambient-glow-b {
-  width: 60vmax; height: 60vmax; right: -20vmax; top: 6vh;
-  background: radial-gradient(circle, rgba(59, 130, 246, 0.95), transparent 62%);
-  --dx: -16px; --dy: 18px; animation-duration: 52s;
-}
-.ambient-glow-c {
-  width: 54vmax; height: 54vmax; left: 26vw; bottom: -34vmax;
-  background: radial-gradient(circle, rgba(34, 211, 238, 0.85), transparent 62%);
-  --dx: 14px; --dy: -16px; animation-duration: 60s;
-}
-/* a drift of at most 20 px in each direction */
-@keyframes ambient-drift {
-  from { transform: translate3d(0, 0, 0); }
-  to { transform: translate3d(var(--dx, 16px), var(--dy, -14px), 0); }
-}
-.ambient-grid {
-  position: absolute;
-  inset: 0;
-  opacity: 0.6;
-  background-image: radial-gradient(var(--grid-dot) 1px, transparent 1.3px);
-  background-size: 26px 26px;
-  -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 28%, #000 0%, transparent 78%);
-  mask-image: radial-gradient(ellipse 80% 70% at 50% 28%, #000 0%, transparent 78%);
-}
-.ambient-grain {
-  position: absolute;
-  inset: 0;
-  opacity: var(--grain-opacity);
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-/* nothing moves with reduced motion (the global rule below would only make an endless animation flicker) */
-.ambient[data-static] .ambient-glow { animation: none; }
-
 @media (prefers-reduced-motion: reduce) {
-  .ambient-glow { animation: none; }
   .glass:hover { --spot-image: none; }
   *, ::before, ::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
@@ -283,4 +225,28 @@
   font: 500 11px/1.4 var(--font-mono);
   letter-spacing: 0.02em;
   box-shadow: 0 8px 24px -10px rgba(0, 0, 0, 0.8);
+}
+
+/* skeleton shimmer: a soft highlight sweeps across a placeholder; still when the visitor prefers reduced motion */
+@keyframes shimmer-sweep {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+.shimmer {
+  background-image: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--foreground) 9%, transparent) 50%, transparent 70%);
+  background-size: 200% 100%;
+  animation: shimmer-sweep 1.8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .shimmer { animation: none; background-image: none; }
+}
+
+/* changing screen: the new screen fades in and rises a few pixels (nothing moves with reduced motion) */
+@keyframes screen-enter {
+  from { opacity: 0; translate: 0 12px; }
+  to { opacity: 1; translate: 0 0; }
+}
+.screen-enter { animation: screen-enter 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .screen-enter { animation: none; }
 }

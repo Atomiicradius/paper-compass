@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 /* ----------------------------------------------------------------------------- Button */
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 rounded-lg text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 cursor-pointer",
+  "inline-flex items-center justify-center gap-2 rounded-lg text-sm font-medium transition-[color,background-color,opacity,scale] active:scale-[0.97] motion-reduce:active:scale-100 disabled:pointer-events-none disabled:opacity-50 cursor-pointer",
   {
     variants: {
       variant: {
@@ -182,8 +182,8 @@ export function Switch({ className, ...props }: React.ComponentPropsWithoutRef<t
 
 /* ----------------------------------------------------------------------------- misc */
 
-export function Skeleton({ className }: { className?: string }) {
-  return <div className={cn("animate-pulse rounded-lg bg-hover", className)} aria-hidden />;
+export function Skeleton({ className, ...rest }: { className?: string; "data-testid"?: string }) {
+  return <div className={cn("shimmer rounded-lg bg-hover", className)} aria-hidden {...rest} />;
 }
 
 export function ErrorNote({ title = "Something went wrong", message, action }: { title?: string; message: string; action?: React.ReactNode }) {

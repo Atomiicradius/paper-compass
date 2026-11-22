@@ -21,19 +21,21 @@ export function SpringNumber({ value, className, format = (n: number) => String(
  * with an ease-out transition on mount.
  */
 export function SignalMeter({
-  label, value, color, tip, delay = 0, className,
+  label, value, color, tip, delay = 0, className, card = false,
 }: {
   label: string; value: number | null; color: string; tip: React.ReactNode; delay?: number; className?: string;
+  /** a card: the label on top, the value large under it, then the bar (the three signals of a candidate) */
+  card?: boolean;
 }) {
   const v = value == null ? 0 : clamp01(value);
   return (
     <Tip content={tip}>
-      <div className={cn("group cursor-help", className)} data-testid={"meter-" + label.toLowerCase()}>
-        <div className="mb-1 flex items-center justify-between text-[11px] text-muted">
-          <span className="font-mono font-medium uppercase tracking-[0.14em]">{label}</span>
-          <span className="font-mono tabular-nums text-foreground">{value == null ? "n/a" : v.toFixed(2)}</span>
+      <div className={cn("group cursor-help", card && "glass rounded-2xl p-4", className)} data-testid={"meter-" + label.toLowerCase()}>
+        <div className={cn("mb-1 text-[11px] text-muted", card ? "mb-3 space-y-1" : "flex items-center justify-between")}>
+          <span className="block font-mono font-medium uppercase tracking-[0.14em]">{label}</span>
+          <span className={cn("block font-mono tabular-nums text-foreground", card && "text-3xl leading-none")}>{value == null ? "n/a" : v.toFixed(2)}</span>
         </div>
-        <div className="h-1.5 overflow-hidden rounded-full bg-hover" role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={1} aria-valuenow={v}>
+        <div className={cn("overflow-hidden rounded-full bg-hover", card ? "h-2" : "h-1.5")} role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={1} aria-valuenow={v}>
           <motion.div
             className="h-full rounded-full"
             style={{ width: `${v * 100}%`, background: color }}

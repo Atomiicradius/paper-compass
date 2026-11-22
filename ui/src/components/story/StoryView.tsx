@@ -8,6 +8,8 @@ import { useStoryData, type StoryData } from "@/components/story/useStoryData";
 
 // the canvas is decoration: it is its own chunk, loaded after the story page, and not at all with reduced motion
 const NetworkCanvas = lazy(() => import("@/components/story/NetworkCanvas"));
+// the particle sphere of step 0 is its own chunk too
+const ParticleSphere = lazy(() => import("@/components/story/ParticleSphere"));
 
 export interface StoryViewProps {
   /** go to the explorer (the Candidates screen) */
@@ -40,6 +42,12 @@ export default function StoryView({ onOpenExplorer }: StoryViewProps) {
 function StackedStory({ data, onOpenExplorer }: { data: StoryData; onOpenExplorer: () => void }) {
   return (
     <section aria-label="Story" className="mx-auto max-w-3xl space-y-6 p-6 py-10">
+      {/* reduced motion: the sphere is drawn once and does not move */}
+      <div className="relative h-72" data-testid="story-sphere-still">
+        <Suspense fallback={null}>
+          <ParticleSphere visible still centerX={0.5} />
+        </Suspense>
+      </div>
       {Array.from({ length: STEP_COUNT }, (_, i) => (
         <div key={i} className="glass rounded-2xl p-7" data-step={i}>
           <StepPanel index={i} data={data} active onOpenExplorer={onOpenExplorer} />
@@ -139,6 +147,8 @@ function PinnedStory({ data, onOpenExplorer }: { data: StoryData; onOpenExplorer
     <section ref={sectionRef} aria-label="Story" className="relative" style={{ height: h * STEP_COUNT }}>
       <div className="sticky top-0 overflow-hidden" style={{ height: h }} data-testid="story-stage">
         <Suspense fallback={null}>
+          {/* step 0 is the sphere; it fades out as the network canvas takes over from step 1 */}
+          <ParticleSphere visible={step === 0} />
           <NetworkCanvas step={step} groupSizes={data.clusterSizes} />
         </Suspense>
         <nav aria-label="Story steps" className="absolute top-1/2 left-5 z-10 flex -translate-y-1/2 flex-col gap-3">

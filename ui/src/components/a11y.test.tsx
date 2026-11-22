@@ -7,7 +7,8 @@ import { EMPTY_FILTERS } from "@/lib/opportunities";
 import type { SearchFormState } from "@/lib/search";
 import { makeExplanation, makeOpportunities, makeOpportunity } from "@/test/fixtures";
 import { TooltipProvider } from "@/components/ui/primitives";
-import { CandidateCard } from "@/components/CandidateCard";
+import { CandidateDetail } from "@/components/CandidateDetail";
+import { CandidateRow } from "@/components/CandidateRow";
 import { CandidatesView } from "@/components/CandidatesView";
 import { FiltersPanel } from "@/components/FiltersPanel";
 
@@ -34,20 +35,18 @@ async function violations(container: HTMLElement) {
 const wrap = (ui: React.ReactNode) => render(<TooltipProvider>{ui}</TooltipProvider>);
 
 describe("accessibility (axe-core structural rules)", () => {
-  it("a candidate card has valid roles, one named button and no nested interactive roles", async () => {
-    const { container } = wrap(<CandidateCard opportunity={makeOpportunity(14)} rank={1} selected={false} onOpen={() => {}} score={73.7} scoreLabel="" />);
+  it("a candidate detail has valid roles and one named evidence button", async () => {
+    const { container } = wrap(<CandidateDetail opportunity={makeOpportunity(14)} rank={1} score={73.7} scoreLabel="" onOpenEvidence={() => {}} />);
     expect(await violations(container)).toEqual([]);
-    const card = screen.getByTestId("candidate-card");
-    expect(card.tagName).toBe("ARTICLE");
-    expect(card).not.toHaveAttribute("role");                                  // regression: role=button on an article
-    expect(within(card).getAllByRole("button")).toHaveLength(1);
-    expect(within(card).getByRole("heading", { level: 3 })).toContainElement(within(card).getByRole("button"));
+    const detail = screen.getByTestId("candidate-detail");
+    expect(within(detail).getAllByRole("button")).toHaveLength(1);
+    expect(within(detail).getByRole("button", { name: /Evidence & explanation/ })).toBeInTheDocument();
   });
 
-  it("the whole card list, the what-if panel and pagination pass", async () => {
+  it("the ranked list (a listbox of options), the detail and the what-if panel pass", async () => {
     const user = userEvent.setup();
     const { container } = wrap(<CandidatesView state={{ data: { items: makeOpportunities(), total: 13 }, error: null, loading: false, reload: () => {} }}
-      filters={EMPTY_FILTERS} selectedId={null} onOpen={() => {}} onClearFilters={() => {}} />);
+      filters={EMPTY_FILTERS} selectedId={null} onSelect={() => {}} onClearFilters={() => {}} />);
     await user.click(screen.getByRole("button", { name: /What-if weights/ }));
     expect(await violations(container)).toEqual([]);
   });
@@ -77,19 +76,22 @@ describe("accessibility (axe-core structural rules)", () => {
 });
 
 describe("keyboard behaviour", () => {
-  it("a card is exactly one tab stop: the article itself is not focusable (motion's whileTap adds tabindex=0)", async () => {
+  it("the ranked list is exactly one tab stop: the rows are options, not tab stops", async () => {
     const user = userEvent.setup();
     wrap(<>
-      <CandidateCard opportunity={makeOpportunity(14)} rank={1} selected={false} onOpen={() => {}} score={73.7} scoreLabel="" />
-      <CandidateCard opportunity={makeOpportunity(15)} rank={2} selected={false} onOpen={() => {}} score={70} scoreLabel="" />
+      <div role="listbox" aria-label="list" tabIndex={0}>
+        <CandidateRow opportunity={makeOpportunity(14)} rank={1} selected score={73.7} onSelect={() => {}} />
+        <CandidateRow opportunity={makeOpportunity(15)} rank={2} selected={false} score={70} onSelect={() => {}} />
+      </div>
     </>);
-    for (const card of screen.getAllByTestId("candidate-card")) expect(card).not.toHaveAttribute("tabindex");
-    const stops: string[] = [];
-    for (let i = 0; i < 2; i++) { await user.tab(); stops.push(document.activeElement?.tagName ?? "none"); }
-    expect(stops).toEqual(["BUTTON", "BUTTON"]);                                   // button, button: one per card
+    for (const row of screen.getAllByTestId("candidate-row")) expect(row).not.toHaveAttribute("tabindex");
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole("listbox"));
+    await user.tab();
+    expect(document.activeElement).toBe(document.body);
   });
 
-  it("opening the evidence drawer moves focus into it, Tab stays inside, Escape closes it and focus returns to the card", async () => {
+  it("opening the evidence drawer moves focus into it, Tab stays inside, Escape closes it and focus returns to where it came from", async () => {
     vi.mocked(api.explain).mockResolvedValue(makeExplanation());
     const user = userEvent.setup();
     function Host() {

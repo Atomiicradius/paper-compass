@@ -15,7 +15,7 @@ vi.mock("@/components/story/NetworkCanvas", async () => {
 });
 vi.mock("@/components/GraphView", async () => {
   const React = await import("react");
-  return { GraphView: ({ toolbar }: { toolbar?: React.ReactNode }) => React.createElement("section", { "aria-label": "Research graph stub" }, React.createElement("h2", null, "Research graph"), toolbar) };
+  return { GraphView: ({ filterButton, filterChips }: { filterButton?: React.ReactNode; filterChips?: React.ReactNode }) => React.createElement("section", { "aria-label": "Research graph stub" }, React.createElement("h2", null, "Research graph"), filterButton, filterChips) };
 });
 vi.mock("@/api/client", async (orig) => {
   const actual = await orig<typeof import("@/api/client")>();
@@ -125,7 +125,7 @@ describe("App: the filters panel replaces the sidebar", () => {
     expect(screen.queryByRole("button", { name: "Clear all" })).not.toBeInTheDocument();
   });
 
-  it("keeps the filters when the screen changes, and shows them on Papers inside the search bar", async () => {
+  it("keeps the filters when the screen changes, and shows them in the Papers page header", async () => {
     const user = userEvent.setup();
     window.history.replaceState(null, "", "#/candidates");
     render(<App />);
@@ -135,9 +135,10 @@ describe("App: the filters panel replaces the sidebar", () => {
     await user.keyboard("{Escape}");
     await panelGone();
     await user.click(nav().getByRole("button", { name: "Papers" }));
-    const bar = await screen.findByRole("region", { name: "Paper search" });
-    expect(within(bar).getByRole("button", { name: "Remove filter: Method: Transformer" })).toBeInTheDocument();
-    expect(within(bar).getByRole("button", { name: "Filters, 1 active" })).toBeInTheDocument();
+    const header = (await screen.findByRole("heading", { level: 2, name: "Papers" })).closest("header")!;
+    expect(within(header).getByRole("button", { name: "Remove filter: Method: Transformer" })).toBeInTheDocument();
+    expect(within(header).getByRole("button", { name: "Filters, 1 active" })).toBeInTheDocument();
+    expect(header.compareDocumentPosition(screen.getByRole("region", { name: "Paper search" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); // the header is above the search bar
   });
 
   it("the search options (the duplicate switch) are in the panel and stay in step with the one on the Papers screen", async () => {
@@ -146,7 +147,7 @@ describe("App: the filters panel replaces the sidebar", () => {
     render(<App />);
     const bar = await screen.findByRole("region", { name: "Paper search" });
     expect(within(bar).getByRole("switch", { name: "Hide duplicate records of one title" })).toHaveAttribute("aria-checked", "true");
-    await user.click(within(bar).getByRole("button", { name: "Filters" }));
+    await user.click(screen.getByRole("button", { name: "Filters" })); // in the page header, above the search bar
     const panel = await screen.findByRole("dialog", { name: "Filters" });
     await user.click(within(panel).getByRole("button", { name: /Search options/ }));
     const inPanel = await within(panel).findByRole("switch", { name: "Hide duplicate records of one title" });
@@ -164,12 +165,70 @@ describe("App: the filters panel replaces the sidebar", () => {
     expect(screen.queryByText(/left pane/)).not.toBeInTheDocument();
   });
 
-  it("the content is a wide centred column", async () => {
+  it("the content is a wide centred column: Candidates up to 1500 px (the title is inside the same column), the other screens 6xl", async () => {
     window.history.replaceState(null, "", "#/candidates");
-    render(<App />);
+    const first = render(<App />);
     const title = await screen.findByRole("heading", { level: 2, name: "Candidate opportunities" });
     const column = title.closest(".mx-auto");
-    expect(column?.className).toContain("max-w-6xl");
+    expect(column?.className).toContain("max-w-[1500px]");
+    expect(column).toContainElement(await screen.findByTestId("candidates-grid")); // list and detail share the title's column
+    first.unmount();
+    window.history.replaceState(null, "", "#/landscape");
+    render(<App />);
+    const other = await screen.findByRole("heading", { level: 2, name: "Landscape" });
+    expect(other.closest(".mx-auto")?.className).toContain("max-w-6xl");
+  });
+});
+
+describe("App: every screen has the same page header", () => {
+  beforeEach(mockApi);
+  afterEach(() => window.history.replaceState(null, "", "/"));
+
+  it("has a serif title, a description and the Filters button in the actions row on Candidates, Papers and Landscape, and no orphaned filters line", async () => {
+    const user = userEvent.setup();
+    window.history.replaceState(null, "", "#/candidates");
+    render(<App />);
+    for (const [screenName, title] of [["Candidates", "Candidate opportunities"], ["Papers", "Papers"], ["Landscape", "Landscape"]] as const) {
+      await user.click(nav().getByRole("button", { name: screenName }));
+      const heading = await screen.findByRole("heading", { level: 2, name: title });
+      expect(heading).toHaveClass("display-heading");
+      const header = heading.closest("header")!;
+      expect(header.querySelector("p.text-muted")).not.toBeNull(); // the one-line description
+      expect(within(within(header).getByTestId("page-actions")).getByRole("button", { name: /^Filters/ })).toBeInTheDocument();
+      // exactly one Filters button on the screen (the old separate line is gone)
+      expect(screen.getAllByRole("button", { name: /^Filters/ })).toHaveLength(1);
+    }
+  });
+
+  it("keeps What-if weights in the Candidates actions row, next to the Filters button", async () => {
+    window.history.replaceState(null, "", "#/candidates");
+    render(<App />);
+    const actions = within(await screen.findByTestId("page-actions"));
+    expect(actions.getByRole("button", { name: /^Filters/ })).toBeInTheDocument();
+    expect(actions.getByRole("button", { name: /What-if weights/ })).toBeInTheDocument();
+  });
+
+  it("puts the chips under the title on every screen, and Papers has the shared header above its search bar", async () => {
+    const user = userEvent.setup();
+    window.history.replaceState(null, "", "#/papers");
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: /^Filters/ }));
+    const panel = await screen.findByRole("dialog", { name: "Filters" });
+    await user.click(await within(panel).findByRole("checkbox", { name: "Transformer" }));
+    await user.keyboard("{Escape}");
+    await panelGone();
+    const header = screen.getByRole("heading", { level: 2, name: "Papers" }).closest("header")!;
+    expect(within(header).getByTestId("filter-chips")).toBeInTheDocument();
+    expect(within(header).queryByRole("region", { name: "Paper search" })).not.toBeInTheDocument();
+  });
+
+  it("puts the Graph screen in the same centred column as the others", async () => {
+    window.history.replaceState(null, "", "#/graph");
+    render(<App />);
+    await screen.findByRole("heading", { level: 2, name: "Research graph" });
+    const column = document.querySelector("main > div") as HTMLElement;
+    expect(column.className).toContain("max-w-6xl");
+    expect(column.className).not.toContain("max-w-none");
   });
 });
 
@@ -181,13 +240,13 @@ describe("App with reduced motion", () => {
     window.history.replaceState(null, "", "/");
   });
 
-  it("hides nothing and animates nothing: a static ambient layer, instant tab indicator, and every screen still works", async () => {
+  it("hides nothing and animates nothing: a static dot field, instant tab indicator, and every screen still works", async () => {
     restore = setReducedMotion(true);
     const user = userEvent.setup();
     window.history.replaceState(null, "", "#/candidates");
     render(<App />);
-    expect(screen.getByTestId("ambient")).toHaveAttribute("data-static");
-    expect(await screen.findAllByTestId("candidate-card")).toHaveLength(3); // the three candidates of the fixture
+    expect(await screen.findByTestId("dot-field")).toHaveAttribute("data-static");
+    expect(await screen.findAllByTestId("candidate-row")).toHaveLength(3); // the three candidates of the fixture
     expect(nav().getByRole("button", { name: "Candidates" })).toHaveAttribute("aria-current", "page");
     await user.keyboard("{Control>}k{/Control}");
     expect(await screen.findByRole("dialog", { name: "Command palette" })).toBeInTheDocument();

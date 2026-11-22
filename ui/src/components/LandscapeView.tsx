@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useId, useMemo, useState, type ReactNode } from "react";
 import { Network } from "lucide-react";
 import { api } from "@/api/client";
 import type { Landscape, TrendItem } from "@/api/types";
@@ -6,29 +6,52 @@ import { KIND_COLORS } from "@/lib/colors";
 import { useAsync, type AsyncState } from "@/lib/hooks";
 import { Badge, Button, ErrorNote, IdBadge, Mono, Skeleton, Slider, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/primitives";
 import { Reveal } from "@/components/Reveal";
+import { PageHeader } from "@/components/PageHeader";
 
 export function YearBars({ perYear }: { perYear: Record<string, number> }) {
+  const gradId = useId();
+  const [hover, setHover] = useState<number | null>(null);
   const years = Object.keys(perYear).map(Number).sort((a, b) => a - b);
   const max = Math.max(1, ...Object.values(perYear));
   const W = 720, H = 140, pad = 6;
   const bw = (W - 2 * pad) / Math.max(1, years.length);
+  const hovered = hover === null ? null : years[hover];
+  const hoveredValue = hovered === undefined || hovered === null ? 0 : (perYear[String(hovered)] ?? 0);
   return (
-    <svg viewBox={`0 0 ${W} ${H + 18}`} className="h-44 w-full" role="img" aria-label={`Papers per year from ${years[0]} to ${years[years.length - 1]}`}>
-      {years.map((y, i) => {
-        const v = perYear[String(y)] ?? 0;
-        const h = (v / max) * (H - pad);
-        return (
-          <g key={y}>
-            <rect x={pad + i * bw + 1} y={H - h} width={Math.max(1, bw - 2)} height={h} rx={2} fill={KIND_COLORS.method} opacity={0.85}>
-              <title>{`${y}: ${v} papers`}</title>
-            </rect>
-          </g>
-        );
-      })}
-      {years.filter((_, i) => i % Math.ceil(years.length / 8) === 0).map((y) => (
-        <text key={y} x={pad + years.indexOf(y) * bw + bw / 2} y={H + 13} textAnchor="middle" className="fill-muted font-mono" fontSize="10">{y}</text>
-      ))}
-    </svg>
+    <div className="relative">
+      <svg viewBox={`0 0 ${W} ${H + 18}`} className="h-44 w-full" role="img" aria-label={`Papers per year from ${years[0]} to ${years[years.length - 1]}`} onPointerLeave={() => setHover(null)}>
+        <defs>
+          <linearGradient id={gradId} x1="0" y1="1" x2="0" y2="0">
+            <stop offset="0%" stopColor={KIND_COLORS.method} stopOpacity="0.35" />
+            <stop offset="100%" stopColor="#38BDF8" stopOpacity="0.95" />
+          </linearGradient>
+        </defs>
+        {years.map((y, i) => {
+          const v = perYear[String(y)] ?? 0;
+          const h = (v / max) * (H - pad);
+          return (
+            <g key={y} data-testid="year-bar" data-year={y} data-count={v}>
+              <rect x={pad + i * bw + 1} y={H - h} width={Math.max(1, bw - 2)} height={h} rx={2} fill={`url(#${gradId})`} opacity={hover === null || hover === i ? 1 : 0.55} />
+              {/* a full-height strip per year, so the hover area is not just the (sometimes tiny) bar */}
+              <rect x={pad + i * bw} y={0} width={bw} height={H} fill="transparent" onPointerEnter={() => setHover(i)} />
+            </g>
+          );
+        })}
+        {years.filter((_, i) => i % Math.ceil(years.length / 8) === 0).map((y) => (
+          <text key={y} x={pad + years.indexOf(y) * bw + bw / 2} y={H + 13} textAnchor="middle" className="fill-muted font-mono" fontSize="10">{y}</text>
+        ))}
+      </svg>
+      {hover !== null && hovered !== undefined && hovered !== null ? (
+        <div
+          role="tooltip"
+          data-testid="year-tooltip"
+          className="glass pointer-events-none absolute top-1 z-10 -translate-x-1/2 rounded-lg px-2.5 py-1 font-mono text-xs whitespace-nowrap"
+          style={{ left: `${((pad + hover * bw + bw / 2) / W) * 100}%` }}
+        >
+          <b>{hovered}</b> · {hoveredValue} papers
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -48,7 +71,7 @@ function TrendList({ items, empty }: { items: TrendItem[]; empty: string }) {
   );
 }
 
-export function LandscapeView({ state, onOpenGraph, toolbar }: { state: AsyncState<Landscape>; onOpenGraph: (id: string) => void; toolbar?: ReactNode }) {
+export function LandscapeView({ state, onOpenGraph, filterButton, filterChips }: { state: AsyncState<Landscape>; onOpenGraph: (id: string) => void; filterButton?: ReactNode; filterChips?: ReactNode }) {
   const clusters = useAsync((s) => api.clusters(s), []);
   const [kind, setKind] = useState<"method" | "task" | "dataset">("method");
   const trends = useAsync((s) => api.trends(kind, s), [kind]);
@@ -56,17 +79,20 @@ export function LandscapeView({ state, onOpenGraph, toolbar }: { state: AsyncSta
   const shown = useMemo(() => (trends.data ?? []).filter((t) => t.total >= minPapers), [trends.data, minPapers]);
 
   if (state.error) return <ErrorNote title="Could not load the landscape" message={state.error.message.replace(/^\d+: /, "")} action={<Button variant="outline" size="sm" onClick={state.reload}>Try again</Button>} />;
-  if (!state.data) return <div className="space-y-3" aria-busy="true"><Skeleton className="h-48" /><Skeleton className="h-64" /></div>;
+  if (!state.data) return <div className="space-y-6" aria-busy="true" aria-label="Loading landscape" data-testid="landscape-skeleton"><Skeleton className="h-48" /><Skeleton className="h-64" /><Skeleton className="h-40" /></div>;
   const land = state.data;
+  const maxSize = Math.max(1, ...(clusters.data?.clusters ?? []).map((c) => c.size));
   const total = Object.values(land.papers_per_year).reduce((a, b) => a + b, 0);
 
   return (
     <section aria-label="Landscape" className="space-y-8">
-      <Reveal as="header" self trigger="mount">
-        <h2 className="display-heading mb-1">Landscape</h2>
-        <p className="text-sm text-muted">How the analyzed corpus is spread over time, clusters and research elements. Counts are papers in this corpus, not the whole literature.</p>
-      </Reveal>
-      {toolbar}
+      <PageHeader
+        title="Landscape"
+        description="How the analyzed corpus is spread over time, clusters and research elements. Counts are papers in this corpus, not the whole literature."
+        actions={filterButton}
+      >
+        {filterChips}
+      </PageHeader>
 
       <Reveal as="section" self className="glass rounded-2xl p-4">
         <h3 className="mb-2 mono-label">Papers per year <Mono className="ml-2 text-foreground normal-case">{total.toLocaleString()} with a year</Mono></h3>
@@ -87,7 +113,15 @@ export function LandscapeView({ state, onOpenGraph, toolbar }: { state: AsyncSta
                   {clusters.data.clusters.map((c) => (
                     <tr key={c.cluster_id} className="border-t border-border">
                       <td className="px-3 py-2 font-mono">{c.cluster_id}</td>
-                      <td className="px-3 py-2 font-mono">{c.size}</td>
+                      <td className="px-3 py-2 font-mono">
+                        <div className="flex items-center gap-2">
+                          <span className="w-10 shrink-0">{c.size}</span>
+                          {/* the bar is proportional to the paper count of the largest cluster; the number stays */}
+                          <div className="h-1.5 w-28 overflow-hidden rounded-full bg-hover" aria-hidden>
+                            <div className="h-full rounded-full bg-gradient-to-r from-primary to-[#38BDF8]" data-testid="cluster-bar" style={{ width: `${(c.size / maxSize) * 100}%` }} />
+                          </div>
+                        </div>
+                      </td>
                       <td className="px-3 py-2 font-mono">{c.year_min}–{c.year_max}</td>
                       <td className="px-3 py-2">{c.top_elements.length ? c.top_elements.slice(0, 4).map((e) => `${e.name} (${e.n_papers})`).join(", ") : <span className="text-muted">none extracted</span>}</td>
                     </tr>

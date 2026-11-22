@@ -12,7 +12,7 @@ import { useAsync, useElementSize, type Theme } from "@/lib/hooks";
 import { nodePaperId, normalizePaperId } from "@/lib/ids";
 import { cn } from "@/lib/utils";
 import { Badge, Button, ErrorNote, IdBadge, Mono, Skeleton, TagBadge, Tip } from "@/components/ui/primitives";
-import { Reveal } from "@/components/Reveal";
+import { PageHeader } from "@/components/PageHeader";
 import { useGraphMotion } from "@/components/useGraphMotion";
 
 type Kind = GraphLabel | "Bridge";
@@ -49,11 +49,12 @@ function useCappedPixelRatio() {
 }
 
 export function GraphView({
-  paperId, onPaperId, bridgeIds, theme, onOpenPaper, toolbar,
+  paperId, onPaperId, bridgeIds, theme, onOpenPaper, filterButton, filterChips,
 }: {
   paperId: string; onPaperId: (id: string) => void; bridgeIds: ReadonlySet<string>; theme: Theme; onOpenPaper: (id: string) => void;
-  /** shown under the title (the Filters button and the active filter chips) */
-  toolbar?: ReactNode;
+  /** the Filters button (in the header's actions) and the active filter chips (under the title) */
+  filterButton?: ReactNode;
+  filterChips?: ReactNode;
 }) {
   const [draft, setDraft] = useState(paperId);
   const [limit, setLimit] = useState(200);
@@ -119,24 +120,28 @@ export function GraphView({
 
   return (
     <section aria-label="Research graph" className="flex min-h-0 flex-1 flex-col gap-3">
-      <Reveal as="header" self trigger="mount" className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="display-heading mb-1">Research <span className="accent-word">graph</span></h2>
-          <p className="text-sm text-muted">The neighbourhood of one paper in the Neo4j projection: authors, venue, extracted elements and citations.</p>
-        </div>
-        <form
-          className="flex items-center gap-2"
-          onSubmit={(e) => { e.preventDefault(); onPaperId(normalizePaperId(draft)); }}
-        >
-          <label htmlFor="graph-id" className="sr-only">Center paper id</label>
-          <input
-            id="graph-id" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Paper id, e.g. W3028876793"
-            className="h-9 w-64 rounded-lg border border-border bg-background px-3 font-mono text-sm outline-none focus-visible:border-primary"
-          />
-          <Button type="submit" disabled={!normalizePaperId(draft)}>Show</Button>
-        </form>
-      </Reveal>
-      {toolbar}
+      <PageHeader
+        title={<>Research <span className="accent-word">graph</span></>}
+        description="The neighbourhood of one paper in the Neo4j projection: authors, venue, extracted elements and citations."
+        actions={
+          <>
+            {filterButton}
+            <form
+              className="flex items-center gap-2"
+              onSubmit={(e) => { e.preventDefault(); onPaperId(normalizePaperId(draft)); }}
+            >
+              <label htmlFor="graph-id" className="sr-only">Center paper id</label>
+              <input
+                id="graph-id" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Paper id, e.g. W3028876793"
+                className="h-9 w-64 rounded-lg border border-border bg-background px-3 font-mono text-sm outline-none focus-visible:border-primary"
+              />
+              <Button type="submit" disabled={!normalizePaperId(draft)}>Show</Button>
+            </form>
+          </>
+        }
+      >
+        {filterChips}
+      </PageHeader>
 
       {id === "" ? (
         <div className="grid min-h-64 flex-1 place-items-center rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted">
@@ -182,7 +187,7 @@ export function GraphView({
           {note ? <p role="note" className="rounded-lg border border-border bg-hover px-3 py-1.5 text-xs text-muted">{note}</p> : null}
 
           <div ref={setBox} data-lenis-prevent data-theme={theme} style={GLASS_BACKGROUND} className="glass relative min-h-[420px] flex-1 overflow-hidden rounded-2xl" data-testid="graph-canvas">
-            {graph.loading && !view ? <Skeleton className="absolute inset-0 rounded-none" /> : null}
+            {graph.loading && !view ? <Skeleton className="absolute inset-0 rounded-none" data-testid="graph-skeleton" /> : null}
             {view && size.width > 0 ? (
               <ForceGraph2D
                 ref={fgRef}

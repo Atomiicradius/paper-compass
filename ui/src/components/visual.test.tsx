@@ -8,7 +8,7 @@ import { makeExplanation, makeOpportunities, makeOpportunity } from "@/test/fixt
 import { setReducedMotion } from "@/test/motion";
 import { TooltipProvider } from "@/components/ui/primitives";
 import { CandidatesView } from "@/components/CandidatesView";
-import { CandidateCard } from "@/components/CandidateCard";
+import { CandidateDetail } from "@/components/CandidateDetail";
 import { EvidenceDrawer } from "@/components/EvidenceDrawer";
 
 vi.mock("@/api/client", async (orig) => {
@@ -27,34 +27,33 @@ describe("the visual rework keeps the content", () => {
   afterEach(() => restore());
 
   it("keeps the heading text (an italic accent word inside it does not change the accessible name)", () => {
-    wrap(<CandidatesView state={state(makeOpportunities())} filters={EMPTY_FILTERS} selectedId={null} onOpen={() => {}} onClearFilters={() => {}} />);
+    wrap(<CandidatesView state={state(makeOpportunities())} filters={EMPTY_FILTERS} selectedId={null} onSelect={() => {}} onClearFilters={() => {}} />);
     const h = screen.getByRole("heading", { level: 2, name: "Candidate opportunities" });
     expect(h).toHaveClass("display-heading");
     expect(h.querySelector(".accent-word")).toHaveTextContent("opportunities");
   });
 
-  it("has the final score in the card's DOM text and label (CountUp), and the card is a glass surface", () => {
-    wrap(<CandidateCard opportunity={makeOpportunity(14)} rank={1} selected={false} onOpen={() => {}} score={73.73} scoreLabel="Stored score." />);
+  it("has the final score in the detail's DOM text and label (CountUp), and the detail is a glass surface", () => {
+    wrap(<CandidateDetail opportunity={makeOpportunity(14)} rank={1} score={73.73} scoreLabel="Stored score." onOpenEvidence={() => {}} />);
     const badge = screen.getByTestId("score-badge");
     expect(badge).toHaveTextContent("74");
     expect(within(badge).getByRole("img")).toHaveAttribute("aria-label", "74");
-    expect(screen.getByTestId("candidate-card")).toHaveClass("glass");
+    expect(screen.getByTestId("candidate-detail")).toHaveClass("glass");
   });
 
-  it("reveals the list of cards through GSAP, with every card in the DOM", () => {
-    wrap(<CandidatesView state={state(makeOpportunities())} filters={EMPTY_FILTERS} selectedId={null} onOpen={() => {}} onClearFilters={() => {}} />);
-    expect(screen.getAllByTestId("candidate-card")).toHaveLength(6);
-    // one hidden-state set per Reveal (the header at mount, the list on scroll); the list's targets are the 6 cards
+  it("reveals the list of rows through GSAP, with every row in the DOM", () => {
+    wrap(<CandidatesView state={state(makeOpportunities())} filters={EMPTY_FILTERS} selectedId={null} onSelect={() => {}} onClearFilters={() => {}} />);
+    expect(screen.getAllByTestId("candidate-row")).toHaveLength(13);
     const sets = vi.mocked(gsap.set).mock.calls.map((c) => c[0] as Element[]);
-    expect(sets.some((targets) => targets.length === 6 && targets.every((t) => (t as HTMLElement).dataset.testid === "candidate-card"))).toBe(true);
+    expect(sets.some((targets) => targets.length === 13 && targets.every((t) => (t as HTMLElement).dataset.testid === "candidate-row"))).toBe(true);
     expect(ScrollTrigger.create).toHaveBeenCalled();
   });
 
   it("shows everything with no GSAP work at all when the visitor prefers reduced motion", () => {
     restore = setReducedMotion(true);
-    wrap(<CandidatesView state={state(makeOpportunities())} filters={EMPTY_FILTERS} selectedId={null} onOpen={() => {}} onClearFilters={() => {}} />);
-    expect(screen.getAllByTestId("candidate-card")).toHaveLength(6);
-    expect(screen.getAllByTestId("score-badge")[0]).toHaveTextContent(/\d/);
+    wrap(<CandidatesView state={state(makeOpportunities())} filters={EMPTY_FILTERS} selectedId={null} onSelect={() => {}} onClearFilters={() => {}} />);
+    expect(screen.getAllByTestId("candidate-row")).toHaveLength(13);
+    expect(screen.getByTestId("score-badge")).toHaveTextContent(/\d/);
     expect(gsap.set).not.toHaveBeenCalled();
     expect(gsap.to).not.toHaveBeenCalled();
     expect(ScrollTrigger.create).not.toHaveBeenCalled();
