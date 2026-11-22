@@ -30,7 +30,7 @@ export function SignalMeter({
     <Tip content={tip}>
       <div className={cn("group cursor-help", className)} data-testid={"meter-" + label.toLowerCase()}>
         <div className="mb-1 flex items-center justify-between text-[11px] text-muted">
-          <span className="font-medium uppercase tracking-wide">{label}</span>
+          <span className="font-mono font-medium uppercase tracking-[0.14em]">{label}</span>
           <span className="font-mono tabular-nums text-foreground">{value == null ? "n/a" : v.toFixed(2)}</span>
         </div>
         <div className="h-1.5 overflow-hidden rounded-full bg-hover" role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={1} aria-valuenow={v}>
@@ -84,7 +84,8 @@ export function SlideOver({
               }}
             >
               <motion.div
-                className={cn("fixed inset-y-0 right-0 z-50 flex flex-col border-l border-border bg-card shadow-2xl", widthClass)}
+                data-lenis-prevent
+                className={cn("glass fixed inset-y-0 right-0 z-50 flex flex-col rounded-none border-y-0 border-r-0 bg-card/90", widthClass)}
                 initial={{ x: "100%" }}
                 animate={{ x: 0 }}
                 exit={{ x: "100%" }}

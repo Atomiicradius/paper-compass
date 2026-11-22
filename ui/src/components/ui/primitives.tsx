@@ -18,7 +18,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground hover:opacity-90",
-        outline: "border border-border bg-card hover:bg-hover",
+        outline: "border border-[var(--glass-border)] bg-glass backdrop-blur-sm hover:bg-hover",
         ghost: "hover:bg-hover",
         danger: "border border-warning/50 text-warning-text hover:bg-warning-soft",
       },
@@ -106,7 +106,7 @@ export function Tip({ content, children, side = "top" }: { content: React.ReactN
 export const Tabs = TabsPrimitive.Root;
 
 export const TabsList = React.forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>>(({ className, ...props }, ref) => (
-  <TabsPrimitive.List ref={ref} className={cn("flex gap-1 overflow-x-auto rounded-xl border border-border bg-background p-1 scroll-thin", className)} {...props} />
+  <TabsPrimitive.List ref={ref} data-lenis-prevent className={cn("glass flex gap-1 overflow-x-auto rounded-xl p-1 scroll-thin", className)} {...props} />
 ));
 TabsList.displayName = "TabsList";
 
@@ -114,7 +114,7 @@ export const TabsTrigger = React.forwardRef<HTMLButtonElement, React.ComponentPr
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      "inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium text-muted transition-colors cursor-pointer",
+      "inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 font-mono text-[11px] font-medium tracking-[0.14em] text-muted uppercase transition-colors cursor-pointer",
       "hover:text-foreground data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm",
       className,
     )}

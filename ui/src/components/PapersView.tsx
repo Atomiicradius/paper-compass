@@ -1,4 +1,3 @@
-import { motion } from "motion/react";
 import { Network, SearchX } from "lucide-react";
 import { api } from "@/api/client";
 import type { SearchHit, SearchResponse } from "@/api/types";
@@ -6,7 +5,8 @@ import { useAsync, type AsyncState } from "@/lib/hooks";
 import { normalizePaperId } from "@/lib/ids";
 import { plainText } from "@/lib/text";
 import { Badge, Button, ErrorNote, IdBadge, Mono, Skeleton, TagBadge } from "@/components/ui/primitives";
-import { SlideOver, fadeUp, stagger } from "@/components/motion";
+import { SlideOver } from "@/components/motion";
+import { Reveal } from "@/components/Reveal";
 
 export function PapersView({
   state, submitted, notes = [], onOpenPaper,
@@ -37,22 +37,22 @@ export function PapersView({
   const res = state.data;
   return (
     <section aria-label="Paper search results" className="space-y-4">
-      <header className="space-y-1">
-        <h2 className="text-xl font-semibold tracking-tight">Papers</h2>
+      <Reveal as="header" self trigger="mount" className="space-y-1">
+        <h2 className="display-heading mb-1">Papers</h2>
         <p className="text-sm text-muted">
           <b className="text-foreground">{res.results.length}</b> results for “{res.query}” · mode <Mono>{res.mode}</Mono> · score <Mono>{res.score_type}</Mono>
           {res.note ? <> · {res.note}</> : null}
         </p>
         {notes.map((n) => <p key={n} role="note" className="rounded-lg border border-warning/50 bg-warning-soft px-3 py-2 text-xs text-warning-text">{n}</p>)}
-      </header>
+      </Reveal>
       {res.results.length === 0 ? (
         <div className="grid place-items-center gap-2 rounded-2xl border border-dashed border-border p-10 text-sm text-muted">
           <SearchX className="size-6" /> No papers matched. Try other words or remove filters.
         </div>
       ) : (
-        <motion.ul key={res.query + res.results.length} variants={stagger} initial="hidden" animate="show" className="space-y-3 p-0">
+        <Reveal as="ul" key={res.query + res.results.length} className="space-y-3 p-0">
           {res.results.map((h) => <HitCard key={h.paper_id} hit={h} onOpen={onOpenPaper} />)}
-        </motion.ul>
+        </Reveal>
       )}
     </section>
   );
@@ -60,16 +60,11 @@ export function PapersView({
 
 function HitCard({ hit: h, onOpen }: { hit: SearchHit; onOpen: (id: string) => void }) {
   return (
-    <motion.li
-      variants={fadeUp}
-      whileHover={{ scale: 1.01 }}
-      transition={{ type: "spring", stiffness: 300, damping: 24 }}
-      className="defer-paint list-none"
-    >
+    <li className="defer-paint list-none">
       <button
         type="button"
         onClick={() => onOpen(h.paper_id)}
-        className="block w-full cursor-pointer rounded-2xl border border-border bg-card p-4 text-left transition-colors hover:border-primary/60"
+        className="glass block w-full cursor-pointer rounded-2xl p-4 text-left transition-[translate,border-color] duration-300 hover:-translate-y-0.5 hover:border-primary/60"
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -77,8 +72,8 @@ function HitCard({ hit: h, onOpen }: { hit: SearchHit; onOpen: (id: string) => v
             <p className="mt-0.5 text-xs text-muted">{h.year ?? "n.d."} · {h.venue ?? "venue unknown"}</p>
           </div>
           <div className="shrink-0 text-right">
-            <div className="font-mono text-lg font-semibold tabular-nums">{h.vector_rank !== undefined ? h.score.toFixed(4) : h.score.toFixed(3)}</div>
-            <div className="text-[10px] tracking-wide text-muted uppercase">score</div>
+            <div className="mono-figure text-2xl">{h.vector_rank !== undefined ? h.score.toFixed(4) : h.score.toFixed(3)}</div>
+            <div className="mono-label mt-1 text-[10px]">score</div>
           </div>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -94,7 +89,7 @@ function HitCard({ hit: h, onOpen }: { hit: SearchHit; onOpen: (id: string) => v
           <IdBadge id={h.paper_id} className="ml-auto" />
         </div>
       </button>
-    </motion.li>
+    </li>
   );
 }
 
@@ -110,15 +105,15 @@ export function PaperDrawer({
   const p = paper.data && paper.data.paper_id === id ? paper.data : null;
   return (
     <SlideOver open={id != null} onClose={onClose} title={p ? p.title : "Paper details"} description="Details of one paper in the analyzed corpus">
-      <div className="scroll-thin flex-1 space-y-5 overflow-y-auto p-5 pr-16">
+      <div data-lenis-prevent className="scroll-thin flex-1 space-y-5 overflow-y-auto p-5 pr-16">
         {paper.error ? (
           <ErrorNote title="Could not load this paper" message={paper.error.message.replace(/^\d+: /, "")} action={<Button variant="outline" size="sm" onClick={paper.reload}>Try again</Button>} />
         ) : !p ? (
           <div className="space-y-3" aria-busy="true"><Skeleton className="h-8 w-3/4" /><Skeleton className="h-24" /><Skeleton className="h-40" /></div>
         ) : (
-          <>
+          <Reveal trigger="mount" className="space-y-5">
             <header className="space-y-2">
-              <h2 className="text-xl leading-snug font-semibold tracking-tight">{p.title}</h2>
+              <h2 className="display-heading display-md">{p.title}</h2>
               <p className="text-sm text-muted">
                 {p.year ?? "n.d."} · {p.venue ?? "venue unknown"}
                 {p.doi ? <> · <a className="text-primary underline" href={`https://doi.org/${p.doi}`} target="_blank" rel="noreferrer">DOI</a></> : null}
@@ -135,14 +130,14 @@ export function PaperDrawer({
               {p.methods.length + p.tasks.length + p.datasets.length === 0 ? <Badge className="border-border bg-hover text-muted">no elements extracted</Badge> : null}
             </div>
             {p.abstract ? (
-              <section><h3 className="mb-1 text-xs font-semibold tracking-wide text-muted uppercase">Abstract</h3><p className="text-sm leading-relaxed">{plainText(p.abstract)}</p></section>
+              <section><h3 className="mb-1 mono-label">Abstract</h3><p className="text-sm leading-relaxed">{plainText(p.abstract)}</p></section>
             ) : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <IdList title={`Cites (${p.cites.length} in corpus)`} ids={p.cites} onOpen={onOpenPaper} />
               <IdList title={`Cited by (${p.cited_by.length} in corpus)`} ids={p.cited_by} onOpen={onOpenPaper} />
             </div>
             <section>
-              <h3 className="mb-2 text-xs font-semibold tracking-wide text-muted uppercase">Related by embedding</h3>
+              <h3 className="mb-2 mono-label">Related by embedding</h3>
               {related.loading ? <Skeleton className="h-24" /> : related.error ? (
                 <p className="text-xs text-muted">{related.error.message.replace(/^\d+: /, "")}</p>
               ) : (
@@ -158,7 +153,7 @@ export function PaperDrawer({
                 </ul>
               )}
             </section>
-          </>
+          </Reveal>
         )}
       </div>
     </SlideOver>
@@ -168,7 +163,7 @@ export function PaperDrawer({
 function IdList({ title, ids, onOpen }: { title: string; ids: string[]; onOpen: (id: string) => void }) {
   return (
     <section>
-      <h3 className="mb-1 text-xs font-semibold tracking-wide text-muted uppercase">{title}</h3>
+      <h3 className="mb-1 mono-label">{title}</h3>
       {ids.length === 0 ? <p className="text-xs text-muted">none</p> : (
         <ul className="flex flex-wrap gap-1 p-0">
           {ids.slice(0, 12).map((i) => (

@@ -9,7 +9,9 @@ import { opportunityTitle } from "@/lib/opportunities";
 import { citationStatus, highlightSegments, parseSummary, type Entity, type SummaryToken } from "@/lib/text";
 import { cn, formatNumber } from "@/lib/utils";
 import { Badge, Button, ErrorNote, IdBadge, Mono, Skeleton, TagBadge, Tabs, TabsContent, TabsList, TabsTrigger, Tip } from "@/components/ui/primitives";
-import { SlideOver, SpringNumber } from "@/components/motion";
+import { SlideOver } from "@/components/motion";
+import { CountUp } from "@/components/CountUp";
+import { Reveal } from "@/components/Reveal";
 import { scoreStrength } from "@/lib/colors";
 
 const ROLES: { role: EvidenceRole; label: string }[] = [
@@ -68,7 +70,7 @@ function EvidenceCard({
       layout="position"
       animate={highlighted ? { boxShadow: "0 0 0 2px var(--cite)" } : { boxShadow: "0 0 0 0px transparent" }}
       transition={{ duration: 0.3 }}
-      className="list-none rounded-xl border border-border bg-background p-3"
+      className="glass list-none rounded-xl p-3"
       data-testid="evidence-card"
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -163,7 +165,7 @@ function Sparkline({ data, a, b }: { data: Explanation["evidence"]["yearly"]; a:
   const y = (v: number) => H - pad - (v / max) * (H - 2 * pad);
   const line = (key: "a" | "b" | "both") => rows.map((r, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(r[key]).toFixed(1)}`).join(" ");
   return (
-    <figure className="rounded-xl border border-border bg-background p-3">
+    <figure className="glass rounded-xl p-3">
       <figcaption className="mb-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted">
         <span className="font-medium text-foreground">Papers per year</span>
         <span style={{ color: KIND_TEXT[a.kind] }}>● {a.name}</span>
@@ -264,14 +266,14 @@ function EvidenceBody({ o, onOpenGraph }: { o: Opportunity; onOpenGraph: (paperI
               A candidate opportunity is a signal for human review, not proof of a research gap.
             </div>
             <div className="flex items-start justify-between gap-3">
-              <motion.h2 layoutId={`title-${o.opportunity_id}`} className="text-xl leading-snug font-semibold tracking-tight">
+              <motion.h2 layoutId={`title-${o.opportunity_id}`} className="display-heading display-md">
                 {(["method", "dataset", "task", "setting"] as const).filter((k) => o.elements[k]).map((k, i) => (
                   <span key={k}>{i > 0 ? <span className="mx-1.5 text-muted">×</span> : null}<span style={{ color: KIND_TEXT[k] }}>{o.elements[k]}</span></span>
                 ))}
               </motion.h2>
               <div className="shrink-0 rounded-xl border px-3 py-1 text-center" style={{ borderColor: tone.color, color: tone.text }}>
                 <div className="text-[10px] font-semibold uppercase tracking-wider">Score</div>
-                <SpringNumber value={o.score ?? 0} className="font-mono text-xl font-bold" />
+                <CountUp value={o.score ?? 0} trigger="mount" className="mono-figure text-3xl" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
@@ -282,16 +284,16 @@ function EvidenceBody({ o, onOpenGraph }: { o: Opportunity; onOpenGraph: (paperI
                 ["Cutoff", String(o.corpus.cutoff_year), "Only papers published up to this year are counted."],
               ].map(([k, v, tip]) => (
                 <Tip key={k} content={tip}>
-                  <div className="cursor-help rounded-lg border border-border bg-background px-3 py-2">
-                    <div className="text-[10px] tracking-wide text-muted uppercase">{k}</div>
-                    <div className="font-mono text-base font-semibold tabular-nums">{v}</div>
+                  <div className="glass cursor-help rounded-xl px-3 py-2">
+                    <div className="mono-label text-[10px]">{k}</div>
+                    <div className="mono-figure mt-1 text-2xl">{v}</div>
                   </div>
                 </Tip>
               ))}
             </div>
           </div>
 
-          <div className="scroll-thin min-h-0 flex-1 space-y-6 overflow-y-auto p-5">
+          <div data-lenis-prevent className="scroll-thin min-h-0 flex-1 space-y-6 overflow-y-auto p-5">
             {state.error ? (
               <ErrorNote
                 title="Could not load the explanation"
@@ -305,10 +307,10 @@ function EvidenceBody({ o, onOpenGraph }: { o: Opportunity; onOpenGraph: (paperI
                 <Skeleton className="h-24" /><Skeleton className="h-40" /><Skeleton className="h-56" />
               </div>
             ) : (
-              <>
+              <Reveal trigger="mount" className="space-y-6">
                 <section aria-label="Why this is a candidate" className="space-y-2">
                   <div className="flex items-center justify-between gap-2">
-                    <h3 className="text-sm font-semibold tracking-wide uppercase text-muted">Why? Evidence-grounded explanation</h3>
+                    <h3 className="mono-label">Why? Evidence-grounded explanation</h3>
                     <Tip content={check?.ok ? "Every cited paper is part of the retrieved evidence set." : "At least one citation could not be verified."}>
                       <Badge
                         data-testid="citation-check"
@@ -319,10 +321,10 @@ function EvidenceBody({ o, onOpenGraph }: { o: Opportunity; onOpenGraph: (paperI
                       </Badge>
                     </Tip>
                   </div>
-                  <div className="space-y-1.5 rounded-xl border border-border bg-background p-4 text-sm leading-relaxed">
+                  <div className="glass space-y-1.5 rounded-xl p-4 text-sm leading-relaxed">
                     {parseSummary(ex.summary).map((b, i) =>
                       b.type === "heading" ? (
-                        <h4 key={i} className="pt-2 text-xs font-semibold tracking-wide text-primary uppercase first:pt-0">{b.text}</h4>
+                        <h4 key={i} className="mono-label pt-2 text-primary! first:pt-0">{b.text}</h4>
                       ) : (
                         <p key={i} className={cn(b.type === "bullet" && "relative pl-4 before:absolute before:left-1 before:content-['•']")}>
                           <SummaryTokens
@@ -349,7 +351,7 @@ function EvidenceBody({ o, onOpenGraph }: { o: Opportunity; onOpenGraph: (paperI
                 <Sparkline data={ex.evidence.yearly} a={ex.evidence.pair.a} b={ex.evidence.pair.b} />
 
                 <section aria-label="Evidence chain" className="space-y-2">
-                  <h3 className="text-sm font-semibold tracking-wide uppercase text-muted">Evidence chain</h3>
+                  <h3 className="mono-label">Evidence chain</h3>
                   <Tabs value={tab} onValueChange={(v) => setTab(v as EvidenceRole)}>
                     <TabsList aria-label="Evidence role">
                       {ROLES.map(({ role, label }) => (
@@ -377,14 +379,14 @@ function EvidenceBody({ o, onOpenGraph }: { o: Opportunity; onOpenGraph: (paperI
                 </section>
 
                 <section aria-label="Limitations" className="space-y-2">
-                  <h3 className="text-sm font-semibold tracking-wide uppercase text-muted">Limitations</h3>
+                  <h3 className="mono-label">Limitations</h3>
                   <ul className="space-y-1.5 pl-4 text-xs leading-relaxed text-muted">
                     {ex.evidence.limitations.map((l, i) => <li key={i} className="list-disc">{l}</li>)}
                   </ul>
                 </section>
 
                 <AskBox opportunity={o} />
-              </>
+              </Reveal>
             )}
           </div>
         </div>
