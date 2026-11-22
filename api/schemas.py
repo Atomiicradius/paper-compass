@@ -92,6 +92,8 @@ class PaperGraph(BaseModel):
     center: str
     nodes: list[GraphNode]
     edges: list[GraphEdge]
+    truncated: bool = False          # True when the paper has more neighbours than the limit allowed
+    neighbors_total: int = 0         # how many neighbours it has in all
 
 
 class TrendItem(BaseModel):
@@ -125,12 +127,15 @@ class SearchHit(BaseModel):
     methods: list[str] = []
     datasets: list[str] = []
     tasks: list[str] = []
+    # hybrid mode only: rank in the vector list and in the keyword list (None = not in that list)
+    vector_rank: int | None = None
+    keyword_rank: int | None = None
 
 
 class SearchResponse(BaseModel):
     query: str
-    mode: str                  # "vector" or "keyword": the mode actually used
-    score_type: str            # "cosine_similarity" (vector) or "ts_rank" (keyword)
+    mode: str                  # "vector", "keyword" or "hybrid": the mode actually used
+    score_type: str            # "cosine_similarity" (vector), "ts_rank" (keyword) or "rrf_fused" (hybrid)
     model: str | None          # embedding model of the query vector; null for keyword search
     note: str | None = None    # set when auto mode fell back to keyword search
     results: list[SearchHit]

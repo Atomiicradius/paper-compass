@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import math
 from bisect import bisect_left, bisect_right
+from fractions import Fraction
 from typing import Mapping, Sequence
 
 
@@ -78,9 +79,9 @@ def cosine_similarity(a: Sequence[float], b: Sequence[float]) -> float:
     """Raw cosine similarity in [-1, 1]. Rescale with percentile_rank before scoring."""
     if len(a) != len(b):
         raise ValueError("vectors must have the same dimension")
-    dot = sum(x * y for x, y in zip(a, b))
-    na = math.sqrt(sum(x * x for x in a))
-    nb = math.sqrt(sum(y * y for y in b))
+    dot = math.fsum(x * y for x, y in zip(a, b))            # fsum: the same result on every Python version
+    na = math.sqrt(math.fsum(x * x for x in a))
+    nb = math.sqrt(math.fsum(y * y for y in b))
     if na == 0 or nb == 0:
         raise ValueError("zero vector has no direction")
     return dot / (na * nb)
@@ -112,12 +113,15 @@ def trend_slope(yearly: Mapping[int, int], cutoff_year: int, window: int = 5) ->
     """
     if window < 2:
         raise ValueError("window must be at least 2")
+    # Exact rational arithmetic, rounded once at the end. A plain float sum rounds differently on different
+    # Python versions (3.12 sums floats with compensation, 3.11 does not); two elements whose slopes are
+    # mathematically equal then differ in the last bit, and percentile ranking turns that into a rank change.
     xs = list(range(cutoff_year - window + 1, cutoff_year + 1))
-    ys = [yearly.get(x, 0) for x in xs]
-    mx = sum(xs) / window
+    ys = [Fraction(yearly.get(x, 0)) for x in xs]
+    mx = Fraction(sum(xs), window)
     my = sum(ys) / window
     denom = sum((x - mx) ** 2 for x in xs)
-    return sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / denom
+    return float(sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / denom)
 
 
 def _clip01(x: float) -> float:

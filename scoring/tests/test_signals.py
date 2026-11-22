@@ -79,3 +79,48 @@ def test_trend_slope():
     assert trend_slope({2025: 5}, 2025, 5) == pytest.approx(1.0)
     assert trend_slope({y: 3 for y in range(2021, 2026)}, 2025, 5) == 0.0
     assert math.isclose(trend_slope({2024: 4, 2025: 2}, 2025, 2), -2.0)
+
+
+# --- results must not depend on float summation order (or on the Python version) -------------------
+
+def _exact_slope(yearly, cutoff, window):
+    from fractions import Fraction
+
+    xs = list(range(cutoff - window + 1, cutoff + 1))
+    ys = [Fraction(yearly.get(x, 0)) for x in xs]
+    mx, my = Fraction(sum(xs), window), sum(ys) / window
+    return float(sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sum((x - mx) ** 2 for x in xs))
+
+
+def test_trend_slope_is_the_exactly_rounded_value_for_many_series():
+    import random
+
+    rnd = random.Random(7)
+    for _ in range(400):
+        window = rnd.choice([2, 3, 5, 7])
+        yearly = {y: rnd.randint(0, 40) for y in range(2015, 2027) if rnd.random() < 0.7}
+        assert trend_slope(yearly, 2026, window) == _exact_slope(yearly, 2026, window)
+
+
+def test_trend_slope_equal_series_give_bit_identical_slopes():
+    import random
+
+    from scoring.signals import trend_slope as slope
+
+    rnd = random.Random(11)
+    for _ in range(400):
+        base = {y: rnd.randint(0, 30) for y in range(2022, 2027)}
+        shifted = {y: v + 7 for y, v in base.items()}        # same slope mathematically
+        assert slope(base, 2026) == slope(shifted, 2026)      # a float sum can differ here in the last bit
+
+
+def test_cosine_similarity_matches_an_exactly_rounded_sum():
+    import math
+    import random
+
+    rnd = random.Random(3)
+    for _ in range(50):
+        a = [rnd.uniform(-1, 1) for _ in range(40)]
+        b = [rnd.uniform(-1, 1) for _ in range(40)]
+        want = math.fsum(x * y for x, y in zip(a, b)) / math.sqrt(math.fsum(x * x for x in a) * math.fsum(y * y for y in b))
+        assert cosine_similarity(a, b) == pytest.approx(want, rel=0, abs=1e-15)

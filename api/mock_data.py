@@ -137,6 +137,16 @@ class MockRepository:
     def keyword_search(self, text, top_k, filters):
         return {"model": None, "results": self._hits(top_k)}
 
+    def health(self):
+        return {"mock": True, "postgres": {"ok": None}, "neo4j": {"configured": False, "ok": None},
+                "clusters": {"file": False}, "notes": [MOCK_NOTICE]}
+
+    def hybrid_search(self, encoder, text, top_k, filters):
+        hits = self._hits(top_k)
+        for i, h in enumerate(hits, start=1):
+            h.update(vector_rank=i, keyword_rank=None if i % 2 else i)
+        return {"model": "MOCK", "results": hits}
+
     def related(self, paper_id, top_k, filters):
         if paper_id not in _PAPERS:
             return None

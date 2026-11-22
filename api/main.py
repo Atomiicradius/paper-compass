@@ -17,7 +17,10 @@ optional LLM explanation (PC_LLM_SUMMARY=1, rag/llm_summary.py) falls back to th
 
 from __future__ import annotations
 
+import logging
 import os
+import threading
+from contextlib import asynccontextmanager
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
@@ -34,7 +37,28 @@ DISCLAIMER = (
     "They are signals for human review, not proof of a research gap."
 )
 
-app = FastAPI(title="paper-compass API", version="0.1.0")
+log = logging.getLogger("paper-compass.api")
+
+
+def _warm_up_encoder(encoder) -> None:
+    """Load the SPECTER2 model now (about 30 s) so that the first search does not pay for it."""
+    try:
+        encoder.embed(["warm up"])
+        log.info("query encoder is loaded")
+    except Exception as e:  # noqa: BLE001 - a failed warm-up must never stop the API; the first search will say why
+        log.warning("query encoder warm-up failed: %s: %s", type(e).__name__, str(e)[:200])
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    if os.environ.get("PC_WARMUP", "1") != "0":
+        encoder = get_query_encoder()
+        if encoder is not None:
+            threading.Thread(target=_warm_up_encoder, args=(encoder,), daemon=True, name="encoder-warmup").start()
+    yield
+
+
+app = FastAPI(title="paper-compass API", version="0.1.0", lifespan=lifespan)
 
 # OpenAlex ids look like W1234567890. PostgreSQL cannot store NUL characters, so one in a path or a
 # search term would otherwise surface as a 500; reject it (and absurd lengths) with a 422 instead.
@@ -50,6 +74,22 @@ def _not_configured(request, exc):
     from fastapi.responses import JSONResponse
 
     return JSONResponse(status_code=503, content={"detail": str(exc)})
+
+
+def _register_database_errors() -> None:
+    """A database that is down is a 503 that says what to do, not a bare 500. Only the error's class is named: the
+    message of a connection error can contain the host, user or other connection details."""
+    import psycopg
+    from fastapi.responses import JSONResponse
+
+    @app.exception_handler(psycopg.OperationalError)
+    def _postgres_unreachable(request, exc):
+        return JSONResponse(status_code=503, content={"detail": (
+            "PostgreSQL is not reachable (" + type(exc).__name__ + "). Start the containers (cd db; docker compose up -d) "
+            "and check PC_PG_DSN / db/.env. GET /health shows the state of each service.")})
+
+
+_register_database_errors()
 
 
 DB_ENV_FILE = Path(__file__).resolve().parent.parent / "db" / ".env"
@@ -104,6 +144,8 @@ def get_repo() -> Repository:
         driver = GraphDatabase.driver(
             os.environ["PC_NEO4J_URI"],
             auth=(os.environ.get("PC_NEO4J_USER", "neo4j"), os.environ.get("PC_NEO4J_PASSWORD", "")),
+            # fail in seconds, not a minute, when Neo4j is down (the graph endpoint and /health both depend on it)
+            connection_timeout=3, connection_acquisition_timeout=5, max_transaction_retry_time=2,
         )
     clusters = os.environ.get("PC_CLUSTERS_PATH", str(Path(__file__).resolve().parent.parent / "graph" / "out" / "clusters.json"))
     return PostgresRepository(dsn, driver, clusters)
@@ -115,6 +157,31 @@ def _disclaimer() -> str:
 
         return f"{MOCK_NOTICE}. {DISCLAIMER}"
     return DISCLAIMER
+
+
+# --- health ---------------------------------------------------------------------
+
+@app.get("/health")
+def health(encoder: QueryEncoder | None = Depends(get_query_encoder)):
+    """Is the backend ready for a demo? Always answers 200; `status` is "ok" or "degraded" and `notes` says what
+    to run for each problem. Reports mock mode, PostgreSQL counts, Neo4j, the query encoder and the clusters file."""
+    try:
+        data = get_repo().health()
+    except NotConfigured as e:
+        data = {"mock": False, "postgres": {"ok": False, "error": "not configured"},
+                "neo4j": {"configured": False, "ok": None}, "clusters": {"file": False}, "notes": [str(e)]}
+    notes = list(data["notes"])
+    enc: dict = {"available": encoder is not None}
+    if encoder is not None:
+        enc.update(model=encoder.model_string, paper_model=encoder.paper_model_string, loaded=getattr(encoder, "loaded", None))
+    elif not data.get("mock"):
+        notes.append("No query encoder (torch / transformers / adapters missing, or PC_QUERY_ENCODER=none): "
+                     "search falls back to keyword mode and hybrid mode is unavailable")
+    pg, neo = data["postgres"], data["neo4j"]
+    ready = bool(pg.get("ok") and pg.get("opportunities", 0) > 0 and pg.get("with_embeddings", 0) > 0
+                 and neo.get("ok") is True and encoder is not None)
+    return {"status": "ok" if (ready or data.get("mock")) else "degraded", "mock": bool(data.get("mock")),
+            "postgres": pg, "neo4j": neo, "query_encoder": enc, "clusters": data["clusters"], "notes": notes}
 
 
 # --- Person 3 endpoints ------------------------------------------------------
@@ -208,8 +275,9 @@ class SearchRequest(BaseModel):
     match: Literal["same_experiment", "any"] = "same_experiment"
     # hide extra records of one title (the pilot corpus has duplicate OpenAlex records); off = Person 2's default
     collapse_same_title: bool = False
-    # auto: vector search when a query encoder and matching paper embeddings exist, else keyword search
-    mode: Literal["auto", "vector", "keyword"] = "auto"
+    # auto: vector search when a query encoder and matching paper embeddings exist, else keyword search.
+    # hybrid: vector and keyword search fused by reciprocal rank fusion (year filters only; never chosen by auto)
+    mode: Literal["auto", "vector", "keyword", "hybrid"] = "auto"
 
     @field_validator("query")
     @classmethod
@@ -235,7 +303,8 @@ class SearchRequest(BaseModel):
         return self
 
 
-@app.post("/search", response_model=schemas.SearchResponse)
+# exclude_unset: vector and keyword hits keep their original shape; only hybrid hits carry vector_rank/keyword_rank
+@app.post("/search", response_model=schemas.SearchResponse, response_model_exclude_unset=True)
 def search(body: SearchRequest, repo: Repository = Depends(get_repo),
            encoder: QueryEncoder | None = Depends(get_query_encoder)):
     filters = body.model_dump(exclude={"query", "top_k", "mode"})
@@ -244,11 +313,16 @@ def search(body: SearchRequest, repo: Repository = Depends(get_repo),
         mode = "vector" if encoder is not None else "keyword"
         if encoder is None:
             note = "query encoder not available; used keyword search"
-    if mode == "vector" and encoder is None:
+    if mode in ("vector", "hybrid") and encoder is None:
         raise HTTPException(503, "query encoder not available (PC_QUERY_ENCODER=none or torch/transformers/adapters "
                                  "not installed); use mode=keyword")
     try:
-        if mode == "vector":
+        if mode == "hybrid":
+            try:
+                out = repo.hybrid_search(encoder, body.query, body.top_k, filters)
+            except VectorSearchUnavailable as e:
+                raise HTTPException(409, str(e))
+        elif mode == "vector":
             try:
                 out = repo.vector_search(encoder, body.query, body.top_k, filters)
             except VectorSearchUnavailable as e:
@@ -260,8 +334,12 @@ def search(body: SearchRequest, repo: Repository = Depends(get_repo),
             out = repo.keyword_search(body.query, body.top_k, filters)
     except ValueError as e:
         raise HTTPException(422, str(e))
+    if mode == "keyword" and not out["results"]:
+        # PostgreSQL full-text search needs every word to match, so one unknown word empties the result
+        no_hits = "no paper contains every word of the query; try fewer words, or the vector or hybrid mode"
+        note = f"{note}; {no_hits}" if note else no_hits
     return {"query": body.query, "mode": mode, "note": note,
-            "score_type": "cosine_similarity" if mode == "vector" else "ts_rank", **out}
+            "score_type": {"vector": "cosine_similarity", "keyword": "ts_rank", "hybrid": "rrf_fused"}[mode], **out}
 
 
 @app.get("/papers/{paper_id}/related", response_model=schemas.RelatedResponse)
