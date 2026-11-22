@@ -182,7 +182,7 @@ describe("story steps: a number the API could not provide is not shown (and noth
     expect(within(step(0)).getByText("Finding what the literature has not connected yet.")).toBeInTheDocument();
     expect(within(step(2)).getByText(/rule-based extractor \(rules-v1\)/)).toBeInTheDocument();
     expect(within(step(3)).getByText("HDBSCAN on SPECTER2 embeddings.")).toBeInTheDocument();
-    expect(within(step(5)).getByText("Low expected counts lower the confidence.")).toBeInTheDocument();
+    expect(within(step(5)).queryByText("Low expected counts lower the confidence.")).not.toBeInTheDocument(); // no confidence shown, so nothing to explain
     expect(within(step(7)).getByRole("button", { name: /Open the explorer/ })).toBeInTheDocument();
   });
 
@@ -203,6 +203,69 @@ describe("story steps: a number the API could not provide is not shown (and noth
     await waitFor(() => expect(within(step(4)).getByText("399")).toBeInTheDocument());
     expect(within(step(6)).queryByText(/citations verified/)).not.toBeInTheDocument();
     expect(within(step(6)).getByText("WN1")).toBeInTheDocument(); // the evidence itself is still listed
+  });
+});
+
+describe("story step 05: the confidence sentence", () => {
+  let restore = () => {};
+  beforeEach(mockApi);
+  afterEach(() => restore());
+  const SENTENCE = "Low expected counts lower the confidence.";
+
+  async function withConfidence(confidence: number | null) {
+    const list = makeOpportunityList();
+    list.items[1] = { ...list.items[1]!, confidence }; // opportunity 7 is the top one
+    vi.mocked(api.opportunities).mockResolvedValue(list);
+    restore = setReducedMotion(true);
+    render(<StoryView onOpenExplorer={() => {}} />);
+    await waitFor(() => expect(within(step(4)).getByText("399")).toBeInTheDocument());
+  }
+
+  it("is shown when the confidence shown is below 1.00", async () => {
+    await withConfidence(0.32);
+    expect(within(step(5)).getByText("0.32")).toBeInTheDocument();
+    expect(within(step(5)).getByText(SENTENCE)).toBeInTheDocument();
+  });
+
+  it("is shown for 0.994, which is displayed as 0.99", async () => {
+    await withConfidence(0.994);
+    expect(within(step(5)).getByText("0.99")).toBeInTheDocument();
+    expect(within(step(5)).getByText(SENTENCE)).toBeInTheDocument();
+  });
+
+  it("is not shown at 1.00, nor for 0.996 (displayed as 1.00)", async () => {
+    await withConfidence(1);
+    expect(within(step(5)).getByText("1.00")).toBeInTheDocument();
+    expect(within(step(5)).queryByText(SENTENCE)).not.toBeInTheDocument();
+  });
+
+  it("is not shown when 0.996 is displayed as 1.00", async () => {
+    await withConfidence(0.996);
+    expect(within(step(5)).getByText("1.00")).toBeInTheDocument();
+    expect(within(step(5)).queryByText(SENTENCE)).not.toBeInTheDocument();
+  });
+
+  it("is not shown when there is no confidence to show", async () => {
+    await withConfidence(null);
+    expect(within(step(5)).queryByText("Confidence")).not.toBeInTheDocument();
+    expect(within(step(5)).queryByText(SENTENCE)).not.toBeInTheDocument();
+  });
+});
+
+describe("story steps: the card content is centred", () => {
+  let restore = () => {};
+  beforeEach(mockApi);
+  afterEach(() => restore());
+
+  it("centres every step's content vertically in its card (min-h-full, so a tall step can still scroll)", async () => {
+    restore = setReducedMotion(true);
+    render(<StoryView onOpenExplorer={() => {}} />);
+    for (let i = 0; i < 8; i += 1) {
+      const wrapper = step(i).firstElementChild as HTMLElement;
+      expect(wrapper.className).toContain("justify-center");
+      expect(wrapper.className).toContain("min-h-full");
+      expect(wrapper.className).not.toMatch(/(^|\s)h-full(\s|$)/);
+    }
   });
 });
 

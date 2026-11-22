@@ -89,7 +89,7 @@ function PairTitle({ o }: { o: Opportunity }) {
 /** The hero: the title, the subtitle and the corpus size from the API. */
 function Hero({ data, active }: StepProps) {
   return (
-    <div className="flex h-full flex-col justify-center gap-5">
+    <div className="flex min-h-full flex-col justify-center gap-5">
       <h2 className="display-heading" style={{ fontSize: "clamp(2.8rem, 5vw, 4.5rem)" }}>
         Paper <span className="accent-word">Compass</span>
       </h2>
@@ -203,6 +203,7 @@ function Body({ index, data, active, onOpenExplorer }: StepProps) {
     }
     case 5: {
       const s = top?.signals;
+      const displayedConfidence = top?.confidence === null || top?.confidence === undefined ? null : Number(top.confidence.toFixed(2));
       const rows: { label: string; value: number | null | undefined; color: string }[] = [
         { label: "Sparsity", value: s?.sparsity, color: SIGNAL_COLORS.sparsity },
         { label: "Semantic", value: s?.semantic_compatibility, color: SIGNAL_COLORS.semantic },
@@ -230,7 +231,8 @@ function Body({ index, data, active, onOpenExplorer }: StepProps) {
               <Count active={active} value={top.confidence} decimals={2} />
             </Figure>
           ) : null}
-          <p className="text-sm text-muted">Low expected counts lower the confidence.</p>
+          {/* only when the confidence shown (two decimals) is below 1.00; at 1.00 there is nothing lowering it */}
+          {displayedConfidence !== null && displayedConfidence < 1 ? <p className="text-sm text-muted">Low expected counts lower the confidence.</p> : null}
         </>
       );
     }
@@ -284,7 +286,7 @@ export function StepPanel(props: StepProps) {
   if (index === 0) return <Hero {...props} />;
   const meta = STEPS[index]!;
   return (
-    <div className="flex h-full flex-col gap-4">
+    <div className="flex min-h-full flex-col justify-center gap-4">
       <p className="mono-label">{meta.eyebrow}</p>
       <h3 className="display-heading display-md">{meta.heading}</h3>
       <Body {...props} />
