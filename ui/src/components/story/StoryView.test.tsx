@@ -1,9 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, render, screen, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { gsap, ScrollTrigger } from "@/lib/gsap";
 import { makeClusters, makeLandscape, makeOpportunityList, makeStoryExplanation, makeTrends } from "@/test/story-fixtures";
 import { setReducedMotion } from "@/test/motion";
+
+vi.mock("@/components/story/NetworkCanvas", async () => {
+  const React = await import("react");
+  return { default: ({ step, groupSizes }: { step: number; groupSizes: number[] }) => React.createElement("div", { "data-testid": "network-canvas", "data-canvas-step": step, "data-groups": groupSizes.join(",") }) };
+});
 
 vi.mock("@/api/client", async (orig) => {
   const actual = await orig<typeof import("@/api/client")>();
@@ -103,6 +108,20 @@ describe("StoryView: the pinned stage", () => {
     render(<StoryView onOpenExplorer={onOpen} />);
     await userEvent.click(screen.getByRole("button", { name: /Open the explorer/ }));
     expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it("passes the real cluster sizes and the current step to the canvas (and renders no canvas under reduced motion)", async () => {
+    const first = render(<StoryView onOpenExplorer={() => {}} />);
+    const canvas = await screen.findByTestId("network-canvas");
+    await waitFor(() => expect(canvas).toHaveAttribute("data-groups", "420,398,135,69,38,37,19"));
+    expect(canvas).toHaveAttribute("data-canvas-step", "0");
+    scrollTo(0.5);
+    expect(canvas).toHaveAttribute("data-canvas-step", "4");
+    first.unmount();
+
+    restore = setReducedMotion(true);
+    render(<StoryView onOpenExplorer={() => {}} />);
+    expect(screen.queryByTestId("network-canvas")).not.toBeInTheDocument();
   });
 
   it("under reduced motion: all steps stacked, nothing pinned, no counter or rail, no trigger, no GSAP work", () => {

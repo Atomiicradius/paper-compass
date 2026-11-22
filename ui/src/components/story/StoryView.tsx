@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { gsap, ScrollTrigger } from "@/lib/gsap";
 import { usePrefersReducedMotion } from "@/lib/reduced-motion";
 import { cn } from "@/lib/utils";
 import { useScrollTarget, useScroller } from "@/components/SmoothScroll";
 import { counterText, STEP_COUNT, StepPanel } from "@/components/story/steps";
 import { useStoryData, type StoryData } from "@/components/story/useStoryData";
+
+// the canvas is decoration: it is its own chunk, loaded after the story page, and not at all with reduced motion
+const NetworkCanvas = lazy(() => import("@/components/story/NetworkCanvas"));
 
 export interface StoryViewProps {
   /** go to the explorer (the Candidates screen) */
@@ -135,6 +138,9 @@ function PinnedStory({ data, onOpenExplorer }: { data: StoryData; onOpenExplorer
   return (
     <section ref={sectionRef} aria-label="Story" className="relative" style={{ height: h * STEP_COUNT }}>
       <div className="sticky top-0 overflow-hidden" style={{ height: h }} data-testid="story-stage">
+        <Suspense fallback={null}>
+          <NetworkCanvas step={step} groupSizes={data.clusterSizes} />
+        </Suspense>
         <nav aria-label="Story steps" className="absolute top-1/2 left-5 z-10 flex -translate-y-1/2 flex-col gap-3">
           {Array.from({ length: STEP_COUNT }, (_, i) => (
             <button

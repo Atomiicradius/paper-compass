@@ -3,6 +3,11 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { makeClusters, makeLandscape, makeOpportunityList, makeStoryExplanation, makeTrends } from "@/test/story-fixtures";
 
+vi.mock("@/components/story/NetworkCanvas", async () => {
+  const React = await import("react");
+  return { default: ({ step, groupSizes }: { step: number; groupSizes: number[] }) => React.createElement("div", { "data-testid": "network-canvas", "data-canvas-step": step, "data-groups": groupSizes.join(",") }) };
+});
+
 vi.mock("@/api/client", async (orig) => {
   const actual = await orig<typeof import("@/api/client")>();
   return { ...actual, api: { ...actual.api, landscape: vi.fn(), clusters: vi.fn(), trends: vi.fn(), opportunities: vi.fn(), explain: vi.fn() } };
