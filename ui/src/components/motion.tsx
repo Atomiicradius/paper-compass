@@ -84,6 +84,7 @@ export function SlideOver({
               }}
             >
               <motion.div
+                data-lenis-prevent
                 className={cn("fixed inset-y-0 right-0 z-50 flex flex-col border-l border-border bg-card shadow-2xl", widthClass)}
                 initial={{ x: "100%" }}
                 animate={{ x: 0 }}

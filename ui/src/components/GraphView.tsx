@@ -160,7 +160,7 @@ export function GraphView({
 
           {note ? <p role="note" className="rounded-lg border border-border bg-hover px-3 py-1.5 text-xs text-muted">{note}</p> : null}
 
-          <div ref={boxRef} className="relative min-h-[420px] flex-1 overflow-hidden rounded-2xl border border-border bg-card" data-testid="graph-canvas">
+          <div ref={boxRef} data-lenis-prevent className="relative min-h-[420px] flex-1 overflow-hidden rounded-2xl border border-border bg-card" data-testid="graph-canvas">
             {graph.loading && !view ? <Skeleton className="absolute inset-0 rounded-none" /> : null}
             {view && size.width > 0 ? (
               <ForceGraph2D
@@ -208,6 +208,7 @@ function NodeOverlay({
   return (
     <motion.div
       role="region"
+      data-lenis-prevent
       initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 24 }}
       transition={{ type: "spring", damping: 25, stiffness: 180 }}
       className="absolute top-3 right-3 z-10 max-h-[calc(100%-1.5rem)] w-80 max-w-[calc(100%-1.5rem)] overflow-y-auto rounded-xl border border-border bg-card/95 p-4 shadow-xl backdrop-blur scroll-thin"

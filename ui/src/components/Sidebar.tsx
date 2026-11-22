@@ -63,7 +63,7 @@ function CheckList({ kind, options, selected, onChange }: { kind: ElementKind; o
           className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs outline-none focus-visible:border-primary"
         />
       ) : null}
-      <ul className="scroll-thin max-h-44 space-y-1 overflow-y-auto pr-1">
+      <ul data-lenis-prevent className="scroll-thin max-h-44 space-y-1 overflow-y-auto pr-1">
         {shown.map((name) => {
           const checked = selected.includes(name);
           const cid = `${kind}-${name}`;
@@ -127,7 +127,7 @@ export function Sidebar({
         </div>
       </form>
 
-      <div className="scroll-thin min-h-0 flex-1 overflow-y-auto px-4">
+      <div data-lenis-prevent className="scroll-thin min-h-0 flex-1 overflow-y-auto px-4">
         <div className="flex items-center justify-between py-3">
           <span className="text-xs font-semibold tracking-wide uppercase">Filters{total ? <span className="ml-1.5 font-mono text-primary">({total})</span> : null}</span>
           {total ? (

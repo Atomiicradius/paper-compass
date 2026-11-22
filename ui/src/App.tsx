@@ -9,6 +9,7 @@ import { normalizePaperId } from "@/lib/ids";
 import { EMPTY_FILTERS, isMockData, type CandidateFilters } from "@/lib/opportunities";
 import { cn } from "@/lib/utils";
 import { Button, Mono, Skeleton, Tip, TooltipProvider } from "@/components/ui/primitives";
+import { SmoothScrollProvider, useRegisterScroller } from "@/components/SmoothScroll";
 import { Sidebar, type FilterOptions, type SearchForm } from "@/components/Sidebar";
 import { CandidatesView } from "@/components/CandidatesView";
 import { EvidenceDrawer } from "@/components/EvidenceDrawer";
@@ -39,7 +40,8 @@ function CorpusStats({ papers, years, cutoff, className }: { papers: number; yea
   );
 }
 
-export default function App() {
+function AppShell() {
+  const registerScroller = useRegisterScroller();
   const [theme, toggleTheme] = useTheme();
   // the address bar remembers the view, the open drawer and the graph paper (see lib/route.ts)
   const [initialRoute] = useState(() => parseRoute(window.location.hash));
@@ -148,7 +150,7 @@ export default function App() {
             <Compass className="size-5 text-primary" aria-hidden />
             <span className="sr-only sm:not-sr-only">Paper Compass</span>
           </h1>
-          <nav aria-label="Views" className="ml-2 flex gap-1 overflow-x-auto">
+          <nav aria-label="Views" data-lenis-prevent className="ml-2 flex gap-1 overflow-x-auto">
             {VIEWS.map((v) => (
               <button
                 key={v.id}
@@ -194,7 +196,7 @@ export default function App() {
           {sidebarOpen ? <button aria-label="Close filters" className="fixed inset-0 z-20 bg-black/40 lg:hidden" onClick={() => setSidebarOpen(false)} /> : null}
 
           {/* center pane */}
-          <main className={cn("scroll-thin min-w-0 flex-1 overflow-y-auto p-4 sm:p-6", view === "graph" && "flex flex-col")}>
+          <main ref={registerScroller} className={cn("scroll-thin min-w-0 flex-1 overflow-y-auto p-4 sm:p-6", view === "graph" && "flex flex-col")}>
             <div className={cn("mx-auto w-full", view === "graph" ? "flex min-h-0 max-w-none flex-1 flex-col" : "max-w-4xl")}>
               {view === "candidates" ? (
                 <CandidatesView
@@ -223,5 +225,14 @@ export default function App() {
       <EvidenceDrawer opportunity={selected} onClose={() => setSelectedId(null)} onOpenGraph={openGraph} />
       <PaperDrawer paperId={paperId} onClose={() => setPaperId(null)} onOpenPaper={setPaperId} onOpenGraph={openGraph} />
     </TooltipProvider>
+  );
+}
+
+/** The app. The provider gives the centre pane smooth scrolling (Lenis driven by the GSAP ticker; off with reduced motion). */
+export default function App() {
+  return (
+    <SmoothScrollProvider>
+      <AppShell />
+    </SmoothScrollProvider>
   );
 }

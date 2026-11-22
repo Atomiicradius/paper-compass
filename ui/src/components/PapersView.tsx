@@ -110,7 +110,7 @@ export function PaperDrawer({
   const p = paper.data && paper.data.paper_id === id ? paper.data : null;
   return (
     <SlideOver open={id != null} onClose={onClose} title={p ? p.title : "Paper details"} description="Details of one paper in the analyzed corpus">
-      <div className="scroll-thin flex-1 space-y-5 overflow-y-auto p-5 pr-16">
+      <div data-lenis-prevent className="scroll-thin flex-1 space-y-5 overflow-y-auto p-5 pr-16">
         {paper.error ? (
           <ErrorNote title="Could not load this paper" message={paper.error.message.replace(/^\d+: /, "")} action={<Button variant="outline" size="sm" onClick={paper.reload}>Try again</Button>} />
         ) : !p ? (

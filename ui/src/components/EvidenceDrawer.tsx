@@ -291,7 +291,7 @@ function EvidenceBody({ o, onOpenGraph }: { o: Opportunity; onOpenGraph: (paperI
             </div>
           </div>
 
-          <div className="scroll-thin min-h-0 flex-1 space-y-6 overflow-y-auto p-5">
+          <div data-lenis-prevent className="scroll-thin min-h-0 flex-1 space-y-6 overflow-y-auto p-5">
             {state.error ? (
               <ErrorNote
                 title="Could not load the explanation"

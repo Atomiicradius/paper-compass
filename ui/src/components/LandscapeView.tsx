@@ -80,7 +80,7 @@ export function LandscapeView({ state, onOpenGraph }: { state: AsyncState<Landsc
             <p className="text-xs text-muted">
               HDBSCAN on SPECTER2 embeddings (PCA {clusters.data.pca_dims ?? "none"}, min cluster size {clusters.data.min_cluster_size}). {clusters.data.n_noise.toLocaleString()} of {clusters.data.n_papers.toLocaleString()} papers belong to no cluster.
             </p>
-            <div className="overflow-x-auto rounded-2xl border border-border">
+            <div data-lenis-prevent className="overflow-x-auto rounded-2xl border border-border">
               <table className="w-full min-w-[520px] text-sm">
                 <thead className="bg-hover text-left text-xs text-muted uppercase"><tr><th className="px-3 py-2">Cluster</th><th className="px-3 py-2">Papers</th><th className="px-3 py-2">Years</th><th className="px-3 py-2">Most frequent elements</th></tr></thead>
                 <tbody>
@@ -106,7 +106,7 @@ export function LandscapeView({ state, onOpenGraph }: { state: AsyncState<Landsc
             Clusters that are close in meaning but whose papers rarely cite each other. A signal for human review, not proof that the
             two areas are unconnected: the corpus is small and citations outside it are not counted.
           </p>
-          <div className="overflow-x-auto rounded-2xl border border-border">
+          <div data-lenis-prevent className="overflow-x-auto rounded-2xl border border-border">
             <table className="w-full min-w-[440px] text-sm">
               <thead className="bg-hover text-left text-xs text-muted uppercase">
                 <tr><th className="px-3 py-2">Clusters</th><th className="px-3 py-2">Similarity</th><th className="px-3 py-2">Cross-citations</th></tr>

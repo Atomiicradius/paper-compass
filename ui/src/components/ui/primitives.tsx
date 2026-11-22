@@ -106,7 +106,7 @@ export function Tip({ content, children, side = "top" }: { content: React.ReactN
 export const Tabs = TabsPrimitive.Root;
 
 export const TabsList = React.forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>>(({ className, ...props }, ref) => (
-  <TabsPrimitive.List ref={ref} className={cn("flex gap-1 overflow-x-auto rounded-xl border border-border bg-background p-1 scroll-thin", className)} {...props} />
+  <TabsPrimitive.List ref={ref} data-lenis-prevent className={cn("flex gap-1 overflow-x-auto rounded-xl border border-border bg-background p-1 scroll-thin", className)} {...props} />
 ));
 TabsList.displayName = "TabsList";
 
