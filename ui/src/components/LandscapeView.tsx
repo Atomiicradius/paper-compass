@@ -6,6 +6,7 @@ import { KIND_COLORS } from "@/lib/colors";
 import { useAsync, type AsyncState } from "@/lib/hooks";
 import { Badge, Button, ErrorNote, IdBadge, Mono, Skeleton, Slider, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/primitives";
 import { Reveal } from "@/components/Reveal";
+import { PageHeader } from "@/components/PageHeader";
 
 export function YearBars({ perYear }: { perYear: Record<string, number> }) {
   const years = Object.keys(perYear).map(Number).sort((a, b) => a - b);
@@ -48,7 +49,7 @@ function TrendList({ items, empty }: { items: TrendItem[]; empty: string }) {
   );
 }
 
-export function LandscapeView({ state, onOpenGraph, toolbar }: { state: AsyncState<Landscape>; onOpenGraph: (id: string) => void; toolbar?: ReactNode }) {
+export function LandscapeView({ state, onOpenGraph, filterButton, filterChips }: { state: AsyncState<Landscape>; onOpenGraph: (id: string) => void; filterButton?: ReactNode; filterChips?: ReactNode }) {
   const clusters = useAsync((s) => api.clusters(s), []);
   const [kind, setKind] = useState<"method" | "task" | "dataset">("method");
   const trends = useAsync((s) => api.trends(kind, s), [kind]);
@@ -62,11 +63,13 @@ export function LandscapeView({ state, onOpenGraph, toolbar }: { state: AsyncSta
 
   return (
     <section aria-label="Landscape" className="space-y-8">
-      <Reveal as="header" self trigger="mount">
-        <h2 className="display-heading mb-1">Landscape</h2>
-        <p className="text-sm text-muted">How the analyzed corpus is spread over time, clusters and research elements. Counts are papers in this corpus, not the whole literature.</p>
-      </Reveal>
-      {toolbar}
+      <PageHeader
+        title="Landscape"
+        description="How the analyzed corpus is spread over time, clusters and research elements. Counts are papers in this corpus, not the whole literature."
+        actions={filterButton}
+      >
+        {filterChips}
+      </PageHeader>
 
       <Reveal as="section" self className="glass rounded-2xl p-4">
         <h3 className="mb-2 mono-label">Papers per year <Mono className="ml-2 text-foreground normal-case">{total.toLocaleString()} with a year</Mono></h3>

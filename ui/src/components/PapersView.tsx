@@ -16,10 +16,7 @@ export function PapersView({
   if (!submitted) {
     return (
       <div className="grid min-h-64 place-items-center rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted">
-        <div>
-          <p className="text-base font-medium text-foreground">Search the analyzed corpus</p>
-          <p className="mt-1">Describe a research idea in the search box above and press Search. Method, task and dataset filters narrow the results.</p>
-        </div>
+        <p>Describe a research idea in the search box above and press Search. Method, task and dataset filters narrow the results.</p>
       </div>
     );
   }
@@ -37,8 +34,7 @@ export function PapersView({
   const res = state.data;
   return (
     <section aria-label="Paper search results" className="space-y-4">
-      <Reveal as="header" self trigger="mount" className="space-y-1">
-        <h2 className="display-heading mb-1">Papers</h2>
+      <Reveal as="header" self trigger="mount" className="space-y-2">
         <p className="text-sm text-muted">
           <b className="text-foreground">{res.results.length}</b> results for “{res.query}” · mode <Mono>{res.mode}</Mono> · score <Mono>{res.score_type}</Mono>
           {res.note ? <> · {res.note}</> : null}

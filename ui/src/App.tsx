@@ -18,7 +18,8 @@ import { CommandPalette } from "@/components/CommandPalette";
 import { useSpotlight } from "@/lib/spotlight";
 import type { FilterOptions, SearchForm } from "@/components/Sidebar";
 import { FiltersPanel } from "@/components/FiltersPanel";
-import { FilterToolbar } from "@/components/FilterToolbar";
+import { FilterButton, FilterChips } from "@/components/FilterToolbar";
+import { PageHeader } from "@/components/PageHeader";
 import { activeFilterChips, activeTotal, clearedFilters, removeFilterChip, type FilterChip } from "@/lib/filter-chips";
 import { CandidatesView } from "@/components/CandidatesView";
 import { EvidenceDrawer } from "@/components/EvidenceDrawer";
@@ -182,7 +183,8 @@ function AppShell() {
     setFilters(cleared.filters);
     setForm((f) => ({ ...f, years: cleared.years }));
   }, [yearBounds]);
-  const filterToolbar = <FilterToolbar count={filterCount} chips={chips} onOpen={() => setFiltersOpen(true)} onRemove={removeChip} onClearAll={clearAllFilters} />;
+  const filterButton = <FilterButton count={filterCount} onOpen={() => setFiltersOpen(true)} />;
+  const filterChips = <FilterChips chips={chips} count={filterCount} onRemove={removeChip} onClearAll={clearAllFilters} />;
 
   const openGraph = useCallback((id: string) => {
     setGraphId(normalizePaperId(id));
@@ -260,7 +262,7 @@ function AppShell() {
         <div className="relative flex min-h-0 flex-1">
           {/* the content: one centred column (the story and the graph use the full width) */}
           <main ref={registerScroller} className={cn("scroll-thin min-w-0 flex-1 overflow-y-auto", view === "story" ? "p-0" : "p-4 sm:p-6", view === "graph" && "flex flex-col")}>
-            <div className={cn("mx-auto w-full", view === "graph" ? "flex min-h-0 max-w-none flex-1 flex-col" : view === "story" ? "max-w-none" : "max-w-6xl")}>
+            <div className={cn("mx-auto w-full", view === "graph" ? "flex min-h-0 max-w-6xl flex-1 flex-col" : view === "story" ? "max-w-none" : "max-w-6xl")}>
               {view === "story" ? (
                 <Suspense fallback={<Skeleton className="m-6 min-h-[420px]" />}>
                   <StoryView onOpenExplorer={() => setView("candidates")} />
@@ -269,21 +271,22 @@ function AppShell() {
                 <CandidatesView
                   state={opps} filters={filters} selectedId={selectedId}
                   onOpen={(o) => setSelectedId(o.opportunity_id)} onClearFilters={() => setFilters(EMPTY_FILTERS)}
-                  toolbar={<div className="mb-4">{filterToolbar}</div>}
+                  filterButton={filterButton} filterChips={filterChips}
                 />
               ) : view === "papers" ? (
                 <div className="space-y-6">
-                  <PapersSearchBar form={form} onForm={setForm} onSearch={runSearch} searching={search.loading && submitted != null}>
-                    {filterToolbar}
-                  </PapersSearchBar>
+                  <PageHeader title="Papers" description="Search the analyzed corpus" actions={filterButton}>
+                    {filterChips}
+                  </PageHeader>
+                  <PapersSearchBar form={form} onForm={setForm} onSearch={runSearch} searching={search.loading && submitted != null} />
                   <PapersView state={search} submitted={submitted != null} notes={submitted?.notes ?? []} onOpenPaper={setPaperId} />
                 </div>
               ) : view === "graph" ? (
                 <Suspense fallback={<Skeleton className="min-h-[420px] flex-1" />}>
-                  <GraphView paperId={graphId} onPaperId={setGraphId} bridgeIds={bridgeIds} theme={theme} onOpenPaper={setPaperId} toolbar={filterToolbar} />
+                  <GraphView paperId={graphId} onPaperId={setGraphId} bridgeIds={bridgeIds} theme={theme} onOpenPaper={setPaperId} filterButton={filterButton} filterChips={filterChips} />
                 </Suspense>
               ) : (
-                <LandscapeView state={landscape} onOpenGraph={openGraph} toolbar={filterToolbar} />
+                <LandscapeView state={landscape} onOpenGraph={openGraph} filterButton={filterButton} filterChips={filterChips} />
               )}
             </div>
           </main>

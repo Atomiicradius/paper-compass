@@ -8,16 +8,18 @@ import {
 } from "@/lib/opportunities";
 import { Button, ErrorNote, Skeleton, Slider, Tip } from "@/components/ui/primitives";
 import { Reveal } from "@/components/Reveal";
+import { PageHeader } from "@/components/PageHeader";
 import { CandidateCard } from "@/components/CandidateCard";
 
 const PAGE_SIZE = 6;
 
 export function CandidatesView({
-  state, filters, selectedId, onOpen, onClearFilters, toolbar,
+  state, filters, selectedId, onOpen, onClearFilters, filterButton, filterChips,
 }: {
   state: AsyncState<{ items: Opportunity[]; total: number }>;
-  /** shown under the title (the Filters button and the active filter chips) */
-  toolbar?: ReactNode;
+  /** the Filters button (it joins the actions on the right of the header) and the active filter chips (under the title) */
+  filterButton?: ReactNode;
+  filterChips?: ReactNode;
   filters: CandidateFilters;
   selectedId: number | null;
   onOpen: (o: Opportunity) => void;
@@ -56,28 +58,32 @@ export function CandidatesView({
 
   return (
     <section aria-label="Candidate opportunities" className="space-y-4">
-      <Reveal as="header" self trigger="mount" className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="display-heading mb-1">Candidate <span className="accent-word">opportunities</span></h2>
-          <p className="text-sm text-muted">
+      <PageHeader
+        title={<>Candidate <span className="accent-word">opportunities</span></>}
+        description={
+          <>
             Potentially underexplored research-element combinations, ranked for human review.
             {state.data ? <> Showing <b className="text-foreground">{ranked.length}</b> of {state.data.total}.</> : null}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {activeFilterCount(filters) > 0 ? (
-            <Button variant="outline" size="sm" onClick={onClearFilters}>
-              <RotateCcw className="size-3.5" /> Clear filters
-            </Button>
-          ) : null}
-          <Tip content="Re-rank with your own weights. View only: the stored score and weights version do not change.">
-            <Button variant={isDefault ? "outline" : "default"} size="sm" onClick={() => setShowWeights((s) => !s)} aria-expanded={showWeights}>
-              <SlidersHorizontal className="size-3.5" /> What-if weights
-            </Button>
-          </Tip>
-        </div>
-      </Reveal>
-      {toolbar}
+          </>
+        }
+        actions={
+          <>
+            {filterButton}
+            {activeFilterCount(filters) > 0 ? (
+              <Button variant="outline" size="sm" onClick={onClearFilters}>
+                <RotateCcw className="size-3.5" /> Clear filters
+              </Button>
+            ) : null}
+            <Tip content="Re-rank with your own weights. View only: the stored score and weights version do not change.">
+              <Button variant={isDefault ? "outline" : "default"} size="sm" onClick={() => setShowWeights((s) => !s)} aria-expanded={showWeights}>
+                <SlidersHorizontal className="size-3.5" /> What-if weights
+              </Button>
+            </Tip>
+          </>
+        }
+      >
+        {filterChips}
+      </PageHeader>
 
       {showWeights ? (
         <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="glass overflow-hidden rounded-2xl">
