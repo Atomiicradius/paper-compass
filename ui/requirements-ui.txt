@@ -1,0 +1,6 @@
+# Pinned UI dependencies (Streamlit, O4). Install on top of requirements-person3.txt; Python 3.12.
+streamlit==1.67.0
+pandas==3.1.1
+altair==6.3.0
+httpx==0.28.1
+pyarrow==26.0.1
