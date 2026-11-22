@@ -46,7 +46,7 @@ def annotate_abstracts():
     papers = sample_papers()
     
     # Save sampled abstracts for review
-    with open(OUT_SAMPLES, "w", encoding="utf-8") as f:
+    with open(OUT_SAMPLES, "w", encoding="utf-8", newline="\n") as f:
         json.dump([
             {"paper_id": p["paper_id"], "title": p["title"], "abstract": p.get("abstract")}
             for p in papers
@@ -223,10 +223,10 @@ def annotate_abstracts():
             entity_counts[k]["agree"] += len(common)
 
         diffs = {
-            "task": list(set(a_tasks) ^ set(b_tasks)),
-            "setting": list(set(a_settings) ^ set(b_settings)),
-            "dataset": list(set(a_datasets) ^ set(b_datasets)),
-            "method": list(set(a_methods) ^ set(b_methods)),
+            "task": sorted(set(a_tasks) ^ set(b_tasks)),
+            "setting": sorted(set(a_settings) ^ set(b_settings)),
+            "dataset": sorted(set(a_datasets) ^ set(b_datasets)),
+            "method": sorted(set(a_methods) ^ set(b_methods)),
         }
         if any(diffs.values()):
             disagreements.append({
@@ -260,7 +260,7 @@ def annotate_abstracts():
         cons_task = a_tasks[0] if a_tasks else (b_tasks[0] if b_tasks else None)
         cons_setting = a_settings[0] if a_settings else (b_settings[0] if b_settings else None)
         cons_dataset = a_datasets[0] if a_datasets else (b_datasets[0] if b_datasets else None)
-        cons_methods = list(set(a_methods) | set(b_methods))
+        cons_methods = sorted(set(a_methods) | set(b_methods))   # sorted: a set's order changes from run to run
 
         if cons_methods:
             for m in cons_methods:
@@ -281,21 +281,21 @@ def annotate_abstracts():
             })
 
     # Save Annotator A
-    with open(OUT_ANNOTATOR_A, "w", encoding="utf-8") as f:
+    with open(OUT_ANNOTATOR_A, "w", encoding="utf-8", newline="\n") as f:
         for r in records_a:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
     # Save Annotator B
-    with open(OUT_ANNOTATOR_B, "w", encoding="utf-8") as f:
+    with open(OUT_ANNOTATOR_B, "w", encoding="utf-8", newline="\n") as f:
         for r in records_b:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
     # Save Disagreements
-    with open(OUT_DISAGREEMENTS, "w", encoding="utf-8") as f:
+    with open(OUT_DISAGREEMENTS, "w", encoding="utf-8", newline="\n") as f:
         json.dump(disagreements, f, indent=2, ensure_ascii=False)
 
     # Save Consensus Ground Truth
-    with open(OUT_CONSENSUS, "w", encoding="utf-8") as f:
+    with open(OUT_CONSENSUS, "w", encoding="utf-8", newline="\n") as f:
         for r in consensus_records:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
 

@@ -1,10 +1,10 @@
-{"paper_id": "W7166873783", "method": "Low-Rank Adaptation", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
 {"paper_id": "W7166873783", "method": "Fine-tuning", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
+{"paper_id": "W7166873783", "method": "Low-Rank Adaptation", "dataset": null, "task": "Machine Translation", "setting": "Low-resource"}
 {"paper_id": "W4391876619", "method": null, "dataset": null, "task": "Language Modeling", "setting": null}
 {"paper_id": "W3086007799", "method": "Masked Language Modeling", "dataset": null, "task": "Machine Translation", "setting": null}
 {"paper_id": "W2139190150", "method": null, "dataset": null, "task": null, "setting": null}
-{"paper_id": "W4385681674", "method": "Fine-tuning", "dataset": null, "task": null, "setting": "Unsupervised"}
 {"paper_id": "W4385681674", "method": "Contrastive Learning", "dataset": null, "task": null, "setting": "Unsupervised"}
+{"paper_id": "W4385681674", "method": "Fine-tuning", "dataset": null, "task": null, "setting": "Unsupervised"}
 {"paper_id": "W4226352076", "method": "Fine-tuning", "dataset": null, "task": "Language Modeling", "setting": "Zero-shot"}
 {"paper_id": "W4235073904", "method": null, "dataset": null, "task": null, "setting": null}
 {"paper_id": "W2981851019", "method": null, "dataset": null, "task": "Language Modeling", "setting": "Supervised"}
@@ -15,8 +15,8 @@
 {"paper_id": "W4385572845", "method": null, "dataset": null, "task": null, "setting": null}
 {"paper_id": "W4283705032", "method": null, "dataset": null, "task": "Language Modeling", "setting": null}
 {"paper_id": "W4353007481", "method": null, "dataset": null, "task": "Language Modeling", "setting": "Zero-shot"}
-{"paper_id": "W2794557536", "method": "Transfer Learning", "dataset": null, "task": null, "setting": "Supervised"}
 {"paper_id": "W2794557536", "method": "Sentence Embeddings", "dataset": null, "task": null, "setting": "Supervised"}
+{"paper_id": "W2794557536", "method": "Transfer Learning", "dataset": null, "task": null, "setting": "Supervised"}
 {"paper_id": "W2153222072", "method": null, "dataset": null, "task": null, "setting": null}
 {"paper_id": "W4401587065", "method": null, "dataset": null, "task": "Machine Translation", "setting": "Unsupervised"}
 {"paper_id": "W3034850762", "method": null, "dataset": null, "task": null, "setting": null}
