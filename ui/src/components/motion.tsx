@@ -76,7 +76,13 @@ export function SlideOver({
               forceMount
               // remember what had focus when the panel opened (this runs just before Radix moves focus into it) and give
               // it back on close; Radix's own restore does not survive the exit animation
-              onOpenAutoFocus={() => { returnFocusTo.current = document.activeElement as HTMLElement | null; }}
+              onOpenAutoFocus={(e) => {
+                returnFocusTo.current = document.activeElement as HTMLElement | null;
+                // focus the panel itself, not its first button: that is the Close button, whose tooltip opens on focus and would
+                // take the first Escape, so closing with Esc needed two presses
+                e.preventDefault();
+                (e.target as HTMLElement | null)?.focus?.({ preventScroll: true });
+              }}
               onCloseAutoFocus={(e) => {
                 e.preventDefault();
                 const el = returnFocusTo.current;
@@ -85,7 +91,8 @@ export function SlideOver({
             >
               <motion.div
                 data-lenis-prevent
-                className={cn("glass fixed inset-y-0 right-0 z-50 flex flex-col rounded-none border-y-0 border-r-0 bg-card/90", widthClass)}
+                tabIndex={-1}
+                className={cn("glass fixed inset-y-0 right-0 z-50 flex flex-col rounded-none border-y-0 border-r-0 bg-card/90 outline-none", widthClass)}
                 initial={{ x: "100%" }}
                 animate={{ x: 0 }}
                 exit={{ x: "100%" }}

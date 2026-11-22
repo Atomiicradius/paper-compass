@@ -18,7 +18,7 @@ export function PapersView({
       <div className="grid min-h-64 place-items-center rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted">
         <div>
           <p className="text-base font-medium text-foreground">Search the analyzed corpus</p>
-          <p className="mt-1">Describe a research idea in the left pane and press Search. Method, task and dataset filters narrow the results.</p>
+          <p className="mt-1">Describe a research idea in the search box above and press Search. Method, task and dataset filters narrow the results.</p>
         </div>
       </div>
     );

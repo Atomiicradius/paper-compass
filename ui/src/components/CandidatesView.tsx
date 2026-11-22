@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { motion } from "motion/react";
 import { ChevronLeft, ChevronRight, RotateCcw, SlidersHorizontal } from "lucide-react";
 import type { Opportunity } from "@/api/types";
@@ -13,9 +13,11 @@ import { CandidateCard } from "@/components/CandidateCard";
 const PAGE_SIZE = 6;
 
 export function CandidatesView({
-  state, filters, selectedId, onOpen, onClearFilters,
+  state, filters, selectedId, onOpen, onClearFilters, toolbar,
 }: {
   state: AsyncState<{ items: Opportunity[]; total: number }>;
+  /** shown under the title (the Filters button and the active filter chips) */
+  toolbar?: ReactNode;
   filters: CandidateFilters;
   selectedId: number | null;
   onOpen: (o: Opportunity) => void;
@@ -75,6 +77,7 @@ export function CandidatesView({
           </Tip>
         </div>
       </Reveal>
+      {toolbar}
 
       {showWeights ? (
         <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="glass overflow-hidden rounded-2xl">

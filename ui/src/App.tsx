@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
-import { Compass, Moon, PanelLeft, Search as SearchIcon, Sun, TriangleAlert } from "lucide-react";
+import { Compass, Moon, Search as SearchIcon, Sun, TriangleAlert } from "lucide-react";
 import { api } from "@/api/client";
 import type { Opportunity } from "@/api/types";
 import { buildSearchRequest, type BuiltSearch } from "@/lib/search";
@@ -16,7 +16,10 @@ import { Reveal } from "@/components/Reveal";
 import { Ambient } from "@/components/Ambient";
 import { CommandPalette } from "@/components/CommandPalette";
 import { useSpotlight } from "@/lib/spotlight";
-import { Sidebar, type FilterOptions, type SearchForm } from "@/components/Sidebar";
+import type { FilterOptions, SearchForm } from "@/components/Sidebar";
+import { FiltersPanel } from "@/components/FiltersPanel";
+import { FilterToolbar } from "@/components/FilterToolbar";
+import { activeFilterChips, activeTotal, clearedFilters, removeFilterChip, type FilterChip } from "@/lib/filter-chips";
 import { CandidatesView } from "@/components/CandidatesView";
 import { EvidenceDrawer } from "@/components/EvidenceDrawer";
 import { PaperDrawer, PapersView } from "@/components/PapersView";
@@ -58,7 +61,7 @@ function AppShell() {
   // the address bar remembers the view, the open drawer and the graph paper (see lib/route.ts)
   const [initialRoute] = useState(() => parseRoute(window.location.hash));
   const [view, setView] = useState<View>(initialRoute.view);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const reduced = usePrefersReducedMotion();
 
@@ -148,7 +151,6 @@ function AppShell() {
     setForm(next);
     setSubmitted(buildSearchRequest(next, filters, yearBounds));
     setView("papers");
-    setSidebarOpen(false);
   }, [form, filters, yearBounds]);
   const runSearch = useCallback(() => searchFor(form.query), [searchFor, form.query]);
 
@@ -163,6 +165,24 @@ function AppShell() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  // the active filters: a button with their number, one removable chip for each, and "Clear all" (shown under each screen's title)
+  const chips = useMemo(() => activeFilterChips(filters, form.years, yearBounds), [filters, form.years, yearBounds]);
+  const filterCount = activeTotal(filters, form.years, yearBounds);
+  const removeChip = useCallback(
+    (chip: FilterChip) => {
+      const next = removeFilterChip(chip, filters, form.years, yearBounds);
+      setFilters(next.filters);
+      setForm((f) => ({ ...f, years: next.years }));
+    },
+    [filters, form.years, yearBounds],
+  );
+  const clearAllFilters = useCallback(() => {
+    const cleared = clearedFilters(yearBounds);
+    setFilters(cleared.filters);
+    setForm((f) => ({ ...f, years: cleared.years }));
+  }, [yearBounds]);
+  const filterToolbar = <FilterToolbar count={filterCount} chips={chips} onOpen={() => setFiltersOpen(true)} onRemove={removeChip} onClearAll={clearAllFilters} />;
 
   const openGraph = useCallback((id: string) => {
     setGraphId(normalizePaperId(id));
@@ -179,9 +199,6 @@ function AppShell() {
       <Ambient />
       <div className="relative z-10 flex h-full flex-col">
         <Reveal as="header" self trigger="mount" y={-10} className="glass sticky top-0 z-20 flex h-14 shrink-0 items-center gap-3 rounded-none border-0 border-b px-4 backdrop-blur-xl">
-          <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Toggle search and filters" onClick={() => setSidebarOpen((o) => !o)}>
-            <PanelLeft className="size-5" />
-          </Button>
           <h1 className="flex shrink-0 items-center gap-2 font-display text-2xl leading-none tracking-tight whitespace-nowrap">
             <Compass className="size-5 text-primary" aria-hidden />
             <span className="sr-only sm:not-sr-only">Paper Compass</span>
@@ -241,19 +258,9 @@ function AppShell() {
         ) : null}
 
         <div className="relative flex min-h-0 flex-1">
-          {/* left pane: search and discovery. On small screens it overlays the content. */}
-          <div className={cn("absolute inset-y-0 left-0 z-30 w-80 max-w-[85vw] lg:static lg:z-auto lg:w-80 lg:shrink-0", view === "story" ? "hidden" : sidebarOpen ? "flex" : "hidden lg:flex")}>
-            <Sidebar
-              className="w-full"
-              form={form} onForm={setForm} onSearch={runSearch} searching={search.loading && submitted != null}
-              filters={filters} onFilters={setFilters} options={options} yearBounds={yearBounds}
-            />
-          </div>
-          {sidebarOpen ? <button aria-label="Close filters" className="fixed inset-0 z-20 bg-black/40 lg:hidden" onClick={() => setSidebarOpen(false)} /> : null}
-
-          {/* center pane */}
+          {/* the content: one centred column (the story and the graph use the full width) */}
           <main ref={registerScroller} className={cn("scroll-thin min-w-0 flex-1 overflow-y-auto", view === "story" ? "p-0" : "p-4 sm:p-6", view === "graph" && "flex flex-col")}>
-            <div className={cn("mx-auto w-full", view === "graph" ? "flex min-h-0 max-w-none flex-1 flex-col" : view === "story" ? "max-w-none" : "max-w-4xl")}>
+            <div className={cn("mx-auto w-full", view === "graph" ? "flex min-h-0 max-w-none flex-1 flex-col" : view === "story" ? "max-w-none" : "max-w-6xl")}>
               {view === "story" ? (
                 <Suspense fallback={<Skeleton className="m-6 min-h-[420px]" />}>
                   <StoryView onOpenExplorer={() => setView("candidates")} />
@@ -262,18 +269,21 @@ function AppShell() {
                 <CandidatesView
                   state={opps} filters={filters} selectedId={selectedId}
                   onOpen={(o) => setSelectedId(o.opportunity_id)} onClearFilters={() => setFilters(EMPTY_FILTERS)}
+                  toolbar={<div className="mb-4">{filterToolbar}</div>}
                 />
               ) : view === "papers" ? (
                 <div className="space-y-6">
-                  <PapersSearchBar form={form} onForm={setForm} onSearch={runSearch} searching={search.loading && submitted != null} />
+                  <PapersSearchBar form={form} onForm={setForm} onSearch={runSearch} searching={search.loading && submitted != null}>
+                    {filterToolbar}
+                  </PapersSearchBar>
                   <PapersView state={search} submitted={submitted != null} notes={submitted?.notes ?? []} onOpenPaper={setPaperId} />
                 </div>
               ) : view === "graph" ? (
                 <Suspense fallback={<Skeleton className="min-h-[420px] flex-1" />}>
-                  <GraphView paperId={graphId} onPaperId={setGraphId} bridgeIds={bridgeIds} theme={theme} onOpenPaper={setPaperId} />
+                  <GraphView paperId={graphId} onPaperId={setGraphId} bridgeIds={bridgeIds} theme={theme} onOpenPaper={setPaperId} toolbar={filterToolbar} />
                 </Suspense>
               ) : (
-                <LandscapeView state={landscape} onOpenGraph={openGraph} />
+                <LandscapeView state={landscape} onOpenGraph={openGraph} toolbar={filterToolbar} />
               )}
             </div>
           </main>
@@ -284,6 +294,7 @@ function AppShell() {
         </footer>
       </div>
 
+      <FiltersPanel open={filtersOpen} onClose={() => setFiltersOpen(false)} form={form} onForm={setForm} filters={filters} onFilters={setFilters} options={options} yearBounds={yearBounds} />
       <CommandPalette
         open={paletteOpen}
         onOpenChange={setPaletteOpen}

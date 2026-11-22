@@ -9,7 +9,7 @@ import { makeExplanation, makeOpportunities, makeOpportunity } from "@/test/fixt
 import { TooltipProvider } from "@/components/ui/primitives";
 import { CandidateCard } from "@/components/CandidateCard";
 import { CandidatesView } from "@/components/CandidatesView";
-import { Sidebar } from "@/components/Sidebar";
+import { FiltersPanel } from "@/components/FiltersPanel";
 
 vi.mock("@/api/client", async (orig) => {
   const actual = await orig<typeof import("@/api/client")>();
@@ -52,16 +52,16 @@ describe("accessibility (axe-core structural rules)", () => {
     expect(await violations(container)).toEqual([]);
   });
 
-  it("the sidebar (search, selects, checkboxes, three sliders, switch) passes", async () => {
+  it("the filters panel (checkboxes, three sliders, switch; it replaced the sidebar) passes", async () => {
     const user = userEvent.setup();
     function Host() {
       const [form, setForm] = useState<SearchFormState>({ query: "", mode: "auto", collapse: true, years: [1951, 2026] });
-      return <Sidebar form={form} onForm={setForm} onSearch={() => {}} searching={false} filters={EMPTY_FILTERS} onFilters={() => {}}
+      return <FiltersPanel open onClose={() => {}} form={form} onForm={setForm} filters={EMPTY_FILTERS} onFilters={() => {}}
         options={{ methods: ["Back-translation", "Transformer"], tasks: ["Machine Translation"], datasets: ["FLORES-200"], settings: [] }} yearBounds={[1951, 2026]} />;
     }
-    const { container } = wrap(<Host />);
+    wrap(<Host />);
     for (const name of [/Tasks/, /Datasets/, /Settings/, /Search options/]) await user.click(screen.getByRole("button", { name }));
-    expect(await violations(container)).toEqual([]);
+    expect(await violations(document.body)).toEqual([]);
   });
 
   it("the evidence drawer is a dialog with a title and description, not an <aside>, and passes", async () => {
