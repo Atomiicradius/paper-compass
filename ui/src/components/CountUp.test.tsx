@@ -1,14 +1,21 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { gsap, ScrollTrigger } from "@/lib/gsap";
-import { setReducedMotion } from "@/test/motion";
+import { placeElements, setReducedMotion } from "@/test/motion";
 import { CountUp } from "@/components/CountUp";
 
 type TriggerConfig = { onEnter: () => void };
 
 describe("CountUp", () => {
   let restore = () => {};
-  afterEach(() => restore());
+  let unplace = () => {};
+  beforeEach(() => {
+    unplace = placeElements(5000); // below the fold: the count waits for the number to scroll into view
+  });
+  afterEach(() => {
+    restore();
+    unplace();
+  });
 
   it("has the final value in the DOM text from the first render, and as its label", () => {
     render(<CountUp value={73.7} decimals={1} />);
@@ -42,6 +49,14 @@ describe("CountUp", () => {
     (captured!.onComplete as () => void)();
     expect(el.textContent).toBe("73.7");                        // exact final text
     expect(captured).toMatchObject({ v: 73.7 });
+  });
+
+  it("starts counting at once when the number is already in view", () => {
+    unplace();
+    unplace = placeElements(100);
+    render(<CountUp value={73.7} decimals={1} />);
+    expect(gsap.to).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("73.7")).toBeInTheDocument(); // the test mock finishes the tween: the final text remains
   });
 
   it("applies a custom format to the final value and to every step", () => {

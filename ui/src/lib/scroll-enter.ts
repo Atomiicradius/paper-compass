@@ -9,12 +9,26 @@ export interface EnterOptions {
   start?: string;
 }
 
+/** How far down the scroller's viewport an element's top must be to count as "in view" (the same 92% as the default start). */
+const IN_VIEW_RATIO = 0.92;
+
+/**
+ * Is the element already in view, or already scrolled past? ScrollTrigger cannot tell for content near the top of the
+ * page: with `clamp()` its start is 0 there, and it does not fire when the scroll position equals the start exactly,
+ * so such content would stay hidden until the first scroll. This geometric check covers that case.
+ */
+function alreadyInView(el: Element, scroller: HTMLElement | null): boolean {
+  const r = el.getBoundingClientRect();
+  const box = scroller ? scroller.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
+  return r.top < box.top + (box.bottom - box.top) * IN_VIEW_RATIO;
+}
+
 /**
  * Call `fire` once, when `el` scrolls into view (or at once with trigger "mount"). Returns a cleanup that kills the
  * ScrollTrigger and makes sure `fire` can no longer run.
  *
  * Content is never left hidden: the trigger also fires when the element is already past its start point
- * (`onLeave`, and a check of `progress` right after creation), so only content still below the fold waits.
+ * (`onLeave`, a check of `progress`, and the geometric check above), so only content still below the fold waits.
  */
 export function onceInView(el: Element, { trigger = "scroll", scroller = null, start = "clamp(top 92%)" }: EnterOptions, fire: () => void): () => void {
   let done = false;
@@ -38,7 +52,7 @@ export function onceInView(el: Element, { trigger = "scroll", scroller = null, s
     onEnterBack: run,
     onLeave: run,
   });
-  if (st && (st.progress ?? 0) > 0) run();
+  if ((st && (st.progress ?? 0) > 0) || alreadyInView(el, scroller)) run();
   return () => {
     done = true;
     st?.kill?.();

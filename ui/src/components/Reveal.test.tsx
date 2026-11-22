@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { gsap, ScrollTrigger } from "@/lib/gsap";
-import { setReducedMotion } from "@/test/motion";
+import { placeElements, setReducedMotion } from "@/test/motion";
 import { Reveal } from "@/components/Reveal";
 import { SmoothScrollProvider, useRegisterScroller } from "@/components/SmoothScroll";
 
@@ -10,7 +10,14 @@ const triggerConfig = () => vi.mocked(ScrollTrigger.create).mock.calls.at(-1)![0
 
 describe("Reveal", () => {
   let restore = () => {};
-  afterEach(() => restore());
+  let unplace = () => {};
+  beforeEach(() => {
+    unplace = placeElements(5000); // below the fold: nothing is in view until a scroll
+  });
+  afterEach(() => {
+    restore();
+    unplace();
+  });
 
   it("hides the children only through GSAP and shows them with one staggered tween when it scrolls into view", () => {
     render(<Reveal data-testid="r"><p>first</p><p>second</p></Reveal>);
@@ -42,6 +49,15 @@ describe("Reveal", () => {
 
     cfg.onEnter();
     cfg.onLeave(); // firing again (or leaving past the end) does not start a second tween
+    expect(gsap.to).toHaveBeenCalledTimes(1);
+  });
+
+  it("reveals content that is already in view at once, even though ScrollTrigger would not fire for it", () => {
+    // regression: near the top of the page the clamped start is 0 and ScrollTrigger does not fire at scroll 0
+    unplace();
+    unplace = placeElements(100);
+    render(<Reveal><p>top of the page</p></Reveal>);
+    expect(gsap.set).toHaveBeenCalledTimes(1);
     expect(gsap.to).toHaveBeenCalledTimes(1);
   });
 
