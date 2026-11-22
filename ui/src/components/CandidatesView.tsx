@@ -122,7 +122,7 @@ export function CandidatesView({
         />
       ) : state.loading && !state.data ? (
         <div className="space-y-4" aria-busy="true" aria-label="Loading candidates">
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]" data-testid="candidates-skeleton">
+          <div className="grid gap-6 lg:grid-cols-[minmax(380px,460px)_minmax(0,1fr)]" data-testid="candidates-skeleton">
             <div className="glass space-y-2 rounded-2xl p-2">{[0, 1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-12" />)}</div>
             <div className="glass space-y-4 rounded-3xl p-6"><Skeleton className="h-16" /><Skeleton className="h-36" /><Skeleton className="h-20" /></div>
           </div>
@@ -137,7 +137,7 @@ export function CandidatesView({
           <button className="cursor-pointer text-primary underline" onClick={onClearFilters}>Clear filters</button>
         </div>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-start">
+        <div className="grid gap-6 lg:grid-cols-[minmax(380px,460px)_minmax(0,1fr)] lg:h-[calc(100dvh-15.5rem)] lg:min-h-[30rem]" data-testid="candidates-grid">
           <Reveal
             key={listKey}
             role="listbox"
@@ -146,14 +146,14 @@ export function CandidatesView({
             tabIndex={0}
             data-lenis-prevent
             onKeyDown={onKeyDown}
-            className="scroll-thin glass max-h-[26rem] space-y-1 overflow-y-auto rounded-2xl p-2 outline-none lg:max-h-[calc(100vh-15rem)]"
+            className="scroll-thin glass max-h-[26rem] space-y-1 overflow-x-hidden overflow-y-auto rounded-2xl p-2 outline-none lg:h-full lg:max-h-none"
           >
             {ranked.map(({ o, rank, score }) => (
               <CandidateRow key={o.opportunity_id} opportunity={o} rank={rank} score={score} selected={o.opportunity_id === currentId} onSelect={onSelect} />
             ))}
           </Reveal>
           {current ? (
-            <div className="lg:sticky lg:top-4">
+            <div className="lg:sticky lg:top-4 lg:h-full lg:min-h-0">
               <CandidateDetail
                 key={current.o.opportunity_id}
                 opportunity={current.o}

@@ -25,7 +25,7 @@ export function CandidateRow({
       )}
     >
       <span className="w-6 shrink-0 text-right font-mono text-xs text-muted">{String(rank).padStart(2, "0")}</span>
-      <span className="min-w-0 flex-1 truncate font-display text-lg leading-tight">
+      <span className="line-clamp-2 min-w-0 flex-1 font-display text-lg leading-tight break-words">
         {kinds.map((k, i) => (
           <span key={k}>
             {i > 0 ? <span className="mx-1.5 text-muted">×</span> : null}

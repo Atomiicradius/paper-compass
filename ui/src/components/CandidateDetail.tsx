@@ -51,7 +51,7 @@ export function CandidateDetail({
   const pos = trackPositions(o.observed_count, o.expected_count);
   const low = isLowConfidence(o.confidence);
   return (
-    <section aria-label="Selected candidate" data-testid="candidate-detail" className="glass space-y-6 rounded-3xl p-6">
+    <section aria-label="Selected candidate" data-testid="candidate-detail" data-lenis-prevent className="scroll-thin glass space-y-6 overflow-x-hidden rounded-3xl p-6 lg:h-full lg:overflow-y-auto">
       <p className="mono-label">#{rank} · opportunity {o.opportunity_id}</p>
 
       <div className="flex flex-wrap items-center gap-y-3">

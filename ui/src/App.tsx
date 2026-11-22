@@ -285,7 +285,7 @@ function AppShell() {
         <div className="relative flex min-h-0 flex-1">
           {/* the content: one centred column (the story and the graph use the full width) */}
           <main ref={registerScroller} className={cn("scroll-thin min-w-0 flex-1 overflow-y-auto", view === "story" ? "p-0" : "p-4 sm:p-6", view === "graph" && "flex flex-col")}>
-            <div key={view} className={cn("screen-enter mx-auto w-full", view === "graph" ? "flex min-h-0 max-w-6xl flex-1 flex-col" : view === "story" ? "max-w-none" : "max-w-6xl")}>
+            <div key={view} className={cn("screen-enter mx-auto w-full", view === "graph" ? "flex min-h-0 max-w-6xl flex-1 flex-col" : view === "story" ? "max-w-none" : view === "candidates" ? "max-w-[1500px]" : "max-w-6xl")}>
               {view === "story" ? (
                 <Suspense fallback={<Skeleton className="m-6 min-h-[420px]" />}>
                   <StoryView onOpenExplorer={() => setView("candidates")} />

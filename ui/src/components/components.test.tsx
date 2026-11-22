@@ -177,6 +177,32 @@ describe("CandidatesView", () => {
     expect(screen.queryByRole("button", { name: "Next page" })).toBeNull();
   });
 
+  it("is a grid with a 380 to 460 px list column and a detail column with the rest, as tall as the viewport below the header", () => {
+    wrap(<Harness items={makeOpportunities()} />);
+    const grid = screen.getByTestId("candidates-grid");
+    expect(grid.className).toContain("lg:grid-cols-[minmax(380px,460px)_minmax(0,1fr)]");
+    expect(grid.className).toMatch(/lg:h-\[calc\(100dvh-/);
+    const detail = screen.getByTestId("candidate-detail");
+    expect(detail.parentElement?.className).toMatch(/lg:sticky/);
+    expect(detail.parentElement?.className).toMatch(/lg:h-full/);
+    expect(detail).toHaveAttribute("data-lenis-prevent");
+  });
+
+  it("the list scrolls on its own (vertical, excluded from smooth scroll) and has no horizontal overflow; pair names wrap to two lines instead of truncating", () => {
+    wrap(<Harness items={makeOpportunities()} />);
+    const list = screen.getByRole("listbox", { name: "Ranked candidates" });
+    expect(list).toHaveAttribute("data-lenis-prevent");
+    expect(list.className).toMatch(/overflow-y-auto/);
+    expect(list.className).toMatch(/overflow-x-hidden/);
+    expect(list.className).toMatch(/lg:h-full/);
+    for (const row of rows()) {
+      const name = row.querySelector(".font-display") as HTMLElement;
+      expect(name.className).toMatch(/line-clamp-2/);
+      expect(name.className).not.toMatch(/truncate/);
+      expect(name.className).toMatch(/min-w-0/); // a long name can never push the row wider than the list
+    }
+  });
+
   it("selects a row with a click and shows its detail without opening the evidence", async () => {
     const user = userEvent.setup();
     const onEvidence = vi.fn();

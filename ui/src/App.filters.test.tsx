@@ -165,12 +165,18 @@ describe("App: the filters panel replaces the sidebar", () => {
     expect(screen.queryByText(/left pane/)).not.toBeInTheDocument();
   });
 
-  it("the content is a wide centred column", async () => {
+  it("the content is a wide centred column: Candidates up to 1500 px (the title is inside the same column), the other screens 6xl", async () => {
     window.history.replaceState(null, "", "#/candidates");
-    render(<App />);
+    const first = render(<App />);
     const title = await screen.findByRole("heading", { level: 2, name: "Candidate opportunities" });
     const column = title.closest(".mx-auto");
-    expect(column?.className).toContain("max-w-6xl");
+    expect(column?.className).toContain("max-w-[1500px]");
+    expect(column).toContainElement(await screen.findByTestId("candidates-grid")); // list and detail share the title's column
+    first.unmount();
+    window.history.replaceState(null, "", "#/landscape");
+    render(<App />);
+    const other = await screen.findByRole("heading", { level: 2, name: "Landscape" });
+    expect(other.closest(".mx-auto")?.className).toContain("max-w-6xl");
   });
 });
 
