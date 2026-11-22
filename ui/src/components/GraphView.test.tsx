@@ -75,6 +75,7 @@ async function show(opts: { reduced: boolean }) {
     </TooltipProvider>,
   );
   await waitFor(() => expect(fg.props).not.toBeNull());
+  if (!opts.reduced) await waitFor(() => expect(gsap.timeline).toHaveBeenCalled()); // the entrance is started by an effect, a moment after the first render
   return { restore, ...view };
 }
 

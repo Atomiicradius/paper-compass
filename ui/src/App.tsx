@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 import { Button, Mono, Skeleton, Tip, TooltipProvider } from "@/components/ui/primitives";
 import { SmoothScrollProvider, useRegisterScroller, useScroller } from "@/components/SmoothScroll";
 import { Reveal } from "@/components/Reveal";
+import { Ambient } from "@/components/Ambient";
+import { useSpotlight } from "@/lib/spotlight";
 import { Sidebar, type FilterOptions, type SearchForm } from "@/components/Sidebar";
 import { CandidatesView } from "@/components/CandidatesView";
 import { EvidenceDrawer } from "@/components/EvidenceDrawer";
@@ -47,6 +49,7 @@ function CorpusStats({ papers, years, cutoff, className }: { papers: number; yea
 function AppShell() {
   const registerScroller = useRegisterScroller();
   const scroller = useScroller();
+  useSpotlight(); // the pointer-following highlight of the glass cards: one listener for all of them
   const [theme, toggleTheme] = useTheme();
   // the address bar remembers the view, the open drawer and the graph paper (see lib/route.ts)
   const [initialRoute] = useState(() => parseRoute(window.location.hash));
@@ -151,7 +154,8 @@ function AppShell() {
 
   return (
     <TooltipProvider delayDuration={150} skipDelayDuration={300}>
-      <div className="flex h-full flex-col">
+      <Ambient />
+      <div className="relative z-10 flex h-full flex-col">
         <Reveal as="header" self trigger="mount" y={-10} className="glass relative z-20 flex h-14 shrink-0 items-center gap-3 rounded-none border-0 border-b px-4">
           <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Toggle search and filters" onClick={() => setSidebarOpen((o) => !o)}>
             <PanelLeft className="size-5" />

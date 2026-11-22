@@ -114,6 +114,7 @@ describe("GraphView: performance and cleanup", () => {
     restoreMotion = setReducedMotion(false);
     mount();
     await waitFor(() => expect(fg.props).not.toBeNull());
+    await waitFor(() => expect(gsap.timeline).toHaveBeenCalled()); // started by an effect after the first render
     type Handle = { pause: ReturnType<typeof vi.fn>; resume: ReturnType<typeof vi.fn> };
     // the graph's own tweens: the entrance timeline, and the two endless loops (the clock and the rings; other components also tween)
     const loops = vi.mocked(gsap.to).mock.calls.map((c, i) => ({ vars: c[1] as Record<string, unknown>, h: vi.mocked(gsap.to).mock.results[i]!.value as Handle })).filter((x) => "time" in x.vars || "ring" in x.vars);
@@ -135,6 +136,7 @@ describe("GraphView: performance and cleanup", () => {
     const remove = vi.spyOn(document, "removeEventListener");
     const r = mount();
     await waitFor(() => expect(fg.props).not.toBeNull());
+    await waitFor(() => expect(gsap.timeline).toHaveBeenCalled());
     const ctxs = vi.mocked(gsap.context).mock.results.map((x) => x.value as { revert: ReturnType<typeof vi.fn> });
     expect(ctxs.length).toBeGreaterThan(0);
     r.unmount();
