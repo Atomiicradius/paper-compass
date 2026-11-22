@@ -284,3 +284,17 @@
   letter-spacing: 0.02em;
   box-shadow: 0 8px 24px -10px rgba(0, 0, 0, 0.8);
 }
+
+/* skeleton shimmer: a soft highlight sweeps across a placeholder; still when the visitor prefers reduced motion */
+@keyframes shimmer-sweep {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+.shimmer {
+  background-image: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--foreground) 9%, transparent) 50%, transparent 70%);
+  background-size: 200% 100%;
+  animation: shimmer-sweep 1.8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .shimmer { animation: none; background-image: none; }
+}

@@ -27,11 +27,18 @@ export function PapersView({
     return (
       <div className="space-y-3" aria-busy="true" aria-label="Searching">
         <p className="text-sm text-muted">Searching… the first vector search loads the SPECTER2 model and can take a few minutes.</p>
-        {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24" />)}
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="glass flex gap-4 rounded-2xl p-4" data-testid="paper-skeleton">
+            <Skeleton className="h-12 w-12 shrink-0" />
+            <div className="flex-1 space-y-2"><Skeleton className="h-4 w-3/4" /><Skeleton className="h-3 w-1/3" /><Skeleton className="h-5 w-1/2" /></div>
+          </div>
+        ))}
       </div>
     );
   }
   const res = state.data;
+  // the meter shows each score against the best score of this result list (display only; the number is unchanged)
+  const best = Math.max(...res.results.map((h) => h.score), 0);
   return (
     <section aria-label="Paper search results" className="space-y-4">
       <Reveal as="header" self trigger="mount" className="space-y-2">
@@ -47,42 +54,51 @@ export function PapersView({
         </div>
       ) : (
         <Reveal as="ul" key={res.query + res.results.length} className="space-y-3 p-0">
-          {res.results.map((h) => <HitCard key={h.paper_id} hit={h} onOpen={onOpenPaper} />)}
+          {res.results.map((h, i) => <HitCard key={h.paper_id} hit={h} rank={i + 1} best={best} onOpen={onOpenPaper} />)}
         </Reveal>
       )}
     </section>
   );
 }
 
-function HitCard({ hit: h, onOpen }: { hit: SearchHit; onOpen: (id: string) => void }) {
+function HitCard({ hit: h, rank, best, onOpen }: { hit: SearchHit; rank: number; best: number; onOpen: (id: string) => void }) {
+  const fraction = best > 0 ? Math.min(1, Math.max(0, h.score / best)) : 0;
   return (
-    <li className="defer-paint list-none">
+    <li className="defer-paint list-none" data-testid="paper-card">
       <button
         type="button"
         onClick={() => onOpen(h.paper_id)}
-        className="glass block w-full cursor-pointer rounded-2xl p-4 text-left transition-[translate,border-color] duration-300 hover:-translate-y-0.5 hover:border-primary/60"
+        className="glass group flex w-full cursor-pointer items-start gap-4 rounded-2xl p-4 text-left transition-[translate,border-color] duration-300 hover:-translate-y-0.5 hover:border-primary/60"
       >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h3 className="text-base leading-snug font-semibold">{h.title}</h3>
-            <p className="mt-0.5 text-xs text-muted">{h.year ?? "n.d."} · {h.venue ?? "venue unknown"}</p>
-          </div>
-          <div className="shrink-0 text-right">
-            <div className="mono-figure text-2xl">{h.vector_rank !== undefined ? h.score.toFixed(4) : h.score.toFixed(3)}</div>
-            <div className="mono-label mt-1 text-[10px]">score</div>
-          </div>
+        <div className="w-14 shrink-0 text-center">
+          <div className="font-display text-5xl leading-none text-foreground/80" data-testid="paper-rank">{rank}</div>
         </div>
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          {h.methods.map((m) => <TagBadge key={"m" + m} kind="method">{m}</TagBadge>)}
-          {h.tasks.map((m) => <TagBadge key={"t" + m} kind="task">{m}</TagBadge>)}
-          {h.datasets.map((m) => <TagBadge key={"d" + m} kind="dataset">{m}</TagBadge>)}
-          {h.vector_rank !== undefined || h.keyword_rank !== undefined ? (
-            <>
-              <Badge className="border-border bg-hover font-mono" title="Rank in the vector (SPECTER2) list">vector {h.vector_rank != null ? "#" + h.vector_rank : "–"}</Badge>
-              <Badge className="border-border bg-hover font-mono" title="Rank in the keyword list">keyword {h.keyword_rank != null ? "#" + h.keyword_rank : "–"}</Badge>
-            </>
-          ) : null}
-          <IdBadge id={h.paper_id} className="ml-auto" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="text-base leading-snug font-semibold">{h.title}</h3>
+              <p className="mt-0.5 text-xs text-muted">{h.year ?? "n.d."} · {h.venue ?? "venue unknown"}</p>
+            </div>
+            <div className="w-24 shrink-0 text-right">
+              <div className="mono-figure text-lg">{h.vector_rank !== undefined ? h.score.toFixed(4) : h.score.toFixed(3)}</div>
+              <div className="mt-1 h-1 overflow-hidden rounded-full bg-hover" role="meter" aria-label="Score relative to the best result" aria-valuemin={0} aria-valuemax={1} aria-valuenow={Number(fraction.toFixed(3))} data-testid="paper-meter">
+                <div className="h-full rounded-full bg-gradient-to-r from-primary to-[#38BDF8]" style={{ width: `${fraction * 100}%` }} />
+              </div>
+              <div className="mono-label mt-1 text-[10px]">score</div>
+            </div>
+          </div>
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+            {h.methods.map((m) => <TagBadge key={"m" + m} kind="method">{m}</TagBadge>)}
+            {h.tasks.map((m) => <TagBadge key={"t" + m} kind="task">{m}</TagBadge>)}
+            {h.datasets.map((m) => <TagBadge key={"d" + m} kind="dataset">{m}</TagBadge>)}
+            {h.vector_rank !== undefined || h.keyword_rank !== undefined ? (
+              <>
+                <Badge className="border-border bg-hover font-mono" title="Rank in the vector (SPECTER2) list">vector {h.vector_rank != null ? "#" + h.vector_rank : "–"}</Badge>
+                <Badge className="border-border bg-hover font-mono" title="Rank in the keyword list">keyword {h.keyword_rank != null ? "#" + h.keyword_rank : "–"}</Badge>
+              </>
+            ) : null}
+            <IdBadge id={h.paper_id} className="ml-auto" />
+          </div>
         </div>
       </button>
     </li>

@@ -352,6 +352,22 @@ describe("PapersView and search modes", () => {
     expect(plain.queryByText(/^keyword (#\d+|–)$/)).toBeNull();
   });
 
+  it("shows a large rank number and a score meter relative to the best result, with the score number unchanged", async () => {
+    const { PapersView } = await import("@/components/PapersView");
+    wrap(<PapersView state={result("vector", [hit("W1", { score: 0.8 }), hit("W2", { score: 0.4 })])} submitted notes={[]} onOpenPaper={() => {}} />);
+    expect(screen.getAllByTestId("paper-rank").map((e) => e.textContent)).toEqual(["1", "2"]);
+    const meters = screen.getAllByTestId("paper-meter");
+    expect(meters.map((m) => m.getAttribute("aria-valuenow"))).toEqual(["1", "0.5"]);
+    expect(screen.getByText("0.800")).toBeInTheDocument();
+  });
+
+  it("shows shimmer placeholder cards while searching", async () => {
+    const { PapersView } = await import("@/components/PapersView");
+    wrap(<PapersView state={{ data: null, error: null, loading: true, reload: () => {} }} submitted notes={[]} onOpenPaper={() => {}} />);
+    expect(screen.getAllByTestId("paper-skeleton")).toHaveLength(4);
+    expect(screen.getByLabelText("Searching")).toHaveAttribute("aria-busy", "true");
+  });
+
   it("shows the API's note (e.g. why keyword search found nothing) and the UI's own notes", async () => {
     const { PapersView } = await import("@/components/PapersView");
     wrap(<PapersView state={result("keyword", [], "no paper contains every word of the query; try fewer words, or the vector or hybrid mode")} submitted notes={["Hybrid search applies only the year range, so your method filters were not used."]} onOpenPaper={() => {}} />);

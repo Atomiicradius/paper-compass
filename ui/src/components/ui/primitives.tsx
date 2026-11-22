@@ -183,7 +183,7 @@ export function Switch({ className, ...props }: React.ComponentPropsWithoutRef<t
 /* ----------------------------------------------------------------------------- misc */
 
 export function Skeleton({ className }: { className?: string }) {
-  return <div className={cn("animate-pulse rounded-lg bg-hover", className)} aria-hidden />;
+  return <div className={cn("shimmer rounded-lg bg-hover", className)} aria-hidden />;
 }
 
 export function ErrorNote({ title = "Something went wrong", message, action }: { title?: string; message: string; action?: React.ReactNode }) {
