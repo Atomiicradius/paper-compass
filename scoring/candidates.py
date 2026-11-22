@@ -33,13 +33,17 @@ def generate_candidates(
     min_support: int,
     min_expected: float = 1.0,
     k: float = 5.0,
+    min_sparsity: float = 0.0,
     neighborhood_a: Collection[int] | None = None,
     neighborhood_b: Collection[int] | None = None,
 ) -> list[Candidate]:
     """Pairs whose elements each have support >= min_support and observed < expected.
 
     Pairs with expected < min_expected are dropped: they are rare for structural
-    reasons, so a low observed count says nothing. Result is sorted by lift
+    reasons, so a low observed count says nothing. Pairs with smoothed sparsity
+    below min_sparsity are dropped too: they are used together almost as often
+    as expected (e.g. 78 observed vs 78.8 expected), so they are not
+    potentially underexplored. Result is sorted by lift
     (most underrepresented first), ties broken by IDs for a stable order.
     """
     if counts.n_total <= 0:
@@ -58,6 +62,9 @@ def generate_candidates(
             obs = counts.observed.get((a, b), 0)
             if exp < min_expected or obs >= exp:
                 continue
+            sp = sparsity(obs, exp)
+            if sp < min_sparsity:
+                continue
             out.append(
                 Candidate(
                     pair_type=counts.pair_type,
@@ -68,7 +75,7 @@ def generate_candidates(
                     n_total=counts.n_total,
                     observed=obs,
                     expected=exp,
-                    sparsity=sparsity(obs, exp),
+                    sparsity=sp,
                     confidence=confidence(exp, k),
                 )
             )

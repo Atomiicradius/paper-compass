@@ -16,7 +16,24 @@ Neo4j projection of PostgreSQL, plus landscape analysis (clusters, bridges, tren
 ```bash
 python -m graph.sync     --pg-dsn $PG --neo4j-uri bolt://localhost:7687 --neo4j-password ...
 python -m graph.verify   --pg-dsn $PG --neo4j-uri bolt://localhost:7687 --neo4j-password ...
-python -m graph.clusters --pg-dsn $PG --embedding-model <model name>
+python -m graph.clusters --pg-dsn $PG --embedding-model <model name> --pca-dims 20 --min-cluster-size 15 --min-samples 5
 ```
+
+Clustering settings for pc_pilot (O8, 2026-11-22). HDBSCAN directly on the 768-dim SPECTER2 vectors found only
+2-5 clusters with 46-80% of papers as noise, so the unit vectors are first reduced to 20 PCA dimensions
+(`random_state=0`). Grid on pc_pilot (noise %, mean cosine silhouette of clustered papers):
+
+| setting | clusters | noise | silhouette | largest cluster |
+|---|---:|---:|---:|---:|
+| 768-dim, mcs 15 (old default) | 2 | 55.4% | 0.41 | 42.7% |
+| PCA 50, mcs 15, ms 5 | 11 | 58.2% | 0.26 | 16.7% |
+| **PCA 20, mcs 15, ms 5 (chosen)** | **7** | **44.2%** | **0.24** | **21.0%** |
+| PCA 10, mcs 10, ms 5 | 7 | 41.2% | 0.23 | 21.2% |
+
+Chosen for the lowest noise without a giant cluster. The corpus is mostly about one subject (MT), so a lot of
+noise is expected. The defaults of `cluster_embeddings` are unchanged (no PCA).
+
+pc_pilot sync (2026-11-22): 12,864 nodes and 34,796 relationships; all 26 label/type counts match PostgreSQL,
+and a second run leaves the counts unchanged.
 
 The sync's sweep step deletes graph nodes that are no longer in PostgreSQL. Point it only at the project's Neo4j, never at a shared instance holding other data.

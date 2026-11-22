@@ -5,7 +5,13 @@ FastAPI backend for the endpoints in `context/data-and-contracts.md` section 5.
 ```bash
 PC_API_MOCK=1 uvicorn api.main:app --reload                 # clearly marked mock data, no database
 PC_PG_DSN=postgresql://... PC_NEO4J_URI=bolt://... PC_NEO4J_PASSWORD=... uvicorn api.main:app
+uvicorn api.main:app                                        # no settings: reads db/.env, database pc_pilot (PC_PG_DBNAME)
+powershell -File api/run-api.ps1 [-Port 8000] [-Db pc_pilot]
 ```
+
+Without a database setting and without `db/.env`, every endpoint answers 503 "API is not configured".
+Vector search needs `torch`, `transformers` and `adapters` in the same Python environment as uvicorn; without them
+`mode=vector` is 503 and `auto` falls back to keyword search.
 
 | Endpoint | Status |
 |---|---|
@@ -22,7 +28,10 @@ PC_PG_DSN=postgresql://... PC_NEO4J_URI=bolt://... PC_NEO4J_PASSWORD=... uvicorn
 
 `POST /search` body: `{"query": "...", "top_k": 10, "year_min": 2020}` (the contract fields), plus optional
 `year_max`, `venues`, `methods`, `datasets`, `tasks` (names or aliases), `match` (`same_experiment` or `any`,
-see `db/README.md`) and `mode`:
+see `db/README.md`), `collapse_same_title` (default false; hides extra records of one title, because the pilot
+corpus has duplicate OpenAlex records) and `mode`. Bad input is a 422, never a 500: a blank or NUL-containing
+query, a NUL in a filter, `year_min > year_max`, a query over 5,000 characters. Paper IDs in the path may not
+contain NUL and are limited to 200 characters.
 
 - `auto` (default): vector search if a query encoder is available and the stored paper embeddings come from
   the same model; otherwise keyword search, with the reason in `note`.

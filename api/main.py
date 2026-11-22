@@ -20,10 +20,10 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
-from fastapi import Depends, FastAPI, HTTPException, Query
-from pydantic import BaseModel, Field
+from fastapi import Depends, FastAPI, HTTPException, Path as PathParam, Query
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from api import schemas
 from api.query_encoder import QueryEncoder, get_query_encoder
@@ -36,6 +36,52 @@ DISCLAIMER = (
 
 app = FastAPI(title="paper-compass API", version="0.1.0")
 
+# OpenAlex ids look like W1234567890. PostgreSQL cannot store NUL characters, so one in a path or a
+# search term would otherwise surface as a 500; reject it (and absurd lengths) with a 422 instead.
+PaperId = Annotated[str, PathParam(min_length=1, max_length=200, pattern=r"^[^\x00]+$")]
+
+
+class NotConfigured(RuntimeError):
+    """The server was started without a database (PC_PG_DSN) or PC_API_MOCK=1."""
+
+
+@app.exception_handler(NotConfigured)
+def _not_configured(request, exc):
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse(status_code=503, content={"detail": str(exc)})
+
+
+DB_ENV_FILE = Path(__file__).resolve().parent.parent / "db" / ".env"
+
+
+def _settings_from_env_file(path: Path = DB_ENV_FILE) -> dict[str, str]:
+    """PC_* settings built from db/.env (the compose credentials), or {} if the file is missing.
+
+    Used only when PC_PG_DSN is not set, so `uvicorn api.main:app` works without exporting anything.
+    The database is PC_PG_DBNAME (default pc_pilot, the pilot corpus), not POSTGRES_DB.
+    """
+    from urllib.parse import quote
+
+    if not path.is_file():
+        return {}
+    vals: dict[str, str] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            k, v = line.split("=", 1)
+            vals[k.strip()] = v.strip().strip("'\"")
+    if not (vals.get("POSTGRES_USER") and vals.get("POSTGRES_PASSWORD")):
+        return {}
+    db = os.environ.get("PC_PG_DBNAME", "pc_pilot")
+    out = {"PC_PG_DSN": f"postgresql://{quote(vals['POSTGRES_USER'])}:{quote(vals['POSTGRES_PASSWORD'])}"
+                        f"@{vals.get('POSTGRES_HOST', '127.0.0.1')}:{vals.get('POSTGRES_PORT', '5432')}/{db}"}
+    if vals.get("NEO4J_PASSWORD"):
+        out["PC_NEO4J_URI"] = f"bolt://127.0.0.1:{vals.get('NEO4J_BOLT_PORT', '7687')}"
+        out["PC_NEO4J_USER"] = vals.get("NEO4J_USER", "neo4j")
+        out["PC_NEO4J_PASSWORD"] = vals["NEO4J_PASSWORD"]
+    return out
+
 
 @lru_cache(maxsize=1)
 def get_repo() -> Repository:
@@ -45,7 +91,12 @@ def get_repo() -> Repository:
         return MockRepository()
     dsn = os.environ.get("PC_PG_DSN")
     if not dsn:
-        raise RuntimeError("set PC_PG_DSN, or PC_API_MOCK=1 for mock data")
+        for k, v in _settings_from_env_file().items():
+            os.environ.setdefault(k, v)
+        dsn = os.environ.get("PC_PG_DSN")
+    if not dsn:
+        raise NotConfigured("API is not configured: set PC_PG_DSN (and PC_NEO4J_URI / PC_NEO4J_PASSWORD) "
+                            "before starting uvicorn, or PC_API_MOCK=1 for mock data. See api/README.md")
     driver = None
     if os.environ.get("PC_NEO4J_URI"):
         from neo4j import GraphDatabase
@@ -90,7 +141,7 @@ def get_opportunity(opportunity_id: int, repo: Repository = Depends(get_repo)):
 
 
 @app.get("/papers/{paper_id}", response_model=schemas.Paper)
-def get_paper(paper_id: str, repo: Repository = Depends(get_repo)):
+def get_paper(paper_id: PaperId, repo: Repository = Depends(get_repo)):
     paper = repo.get_paper(paper_id)
     if paper is None:
         raise HTTPException(404, "paper not found")
@@ -98,11 +149,16 @@ def get_paper(paper_id: str, repo: Repository = Depends(get_repo)):
 
 
 @app.get("/papers/{paper_id}/graph", response_model=schemas.PaperGraph)
-def get_paper_graph(paper_id: str, limit: int = Query(200, ge=1, le=1000), repo: Repository = Depends(get_repo)):
+def get_paper_graph(paper_id: PaperId, limit: int = Query(200, ge=1, le=1000), repo: Repository = Depends(get_repo)):
+    from neo4j.exceptions import DriverError, Neo4jError
+
     try:
         graph = repo.paper_graph(paper_id, limit)
     except RuntimeError as e:
         raise HTTPException(503, str(e))
+    except (Neo4jError, DriverError) as e:
+        # e.g. wrong credentials or Neo4j not running: say so instead of a bare 500
+        raise HTTPException(503, f"Neo4j unavailable: {e.__class__.__name__}: {e}")
     if graph is None:
         raise HTTPException(404, "paper not found in graph")
     return graph
@@ -140,7 +196,7 @@ def get_landscape(repo: Repository = Depends(get_repo)):
 
 class SearchRequest(BaseModel):
     # contract fields
-    query: str = Field(min_length=1)
+    query: str = Field(min_length=1, max_length=5000)
     top_k: int = Field(10, ge=1, le=100)
     year_min: int | None = None
     # optional extras, passed through to db.retrieval.search (provisional, O10)
@@ -150,8 +206,33 @@ class SearchRequest(BaseModel):
     datasets: list[str] | None = None
     tasks: list[str] | None = None
     match: Literal["same_experiment", "any"] = "same_experiment"
+    # hide extra records of one title (the pilot corpus has duplicate OpenAlex records); off = Person 2's default
+    collapse_same_title: bool = False
     # auto: vector search when a query encoder and matching paper embeddings exist, else keyword search
     mode: Literal["auto", "vector", "keyword"] = "auto"
+
+    @field_validator("query")
+    @classmethod
+    def _query_not_blank(cls, v: str) -> str:
+        if "\x00" in v:
+            raise ValueError("must not contain NUL characters")
+        v = v.strip()
+        if not v:
+            raise ValueError("must not be blank")
+        return v
+
+    @field_validator("venues", "methods", "datasets", "tasks")
+    @classmethod
+    def _no_nul_in_filters(cls, v):
+        if v and any("\x00" in x for x in v):
+            raise ValueError("must not contain NUL characters")
+        return v
+
+    @model_validator(mode="after")
+    def _year_range(self):
+        if self.year_min is not None and self.year_max is not None and self.year_min > self.year_max:
+            raise ValueError("year_min must not be greater than year_max")
+        return self
 
 
 @app.post("/search", response_model=schemas.SearchResponse)
@@ -184,7 +265,7 @@ def search(body: SearchRequest, repo: Repository = Depends(get_repo),
 
 
 @app.get("/papers/{paper_id}/related", response_model=schemas.RelatedResponse)
-def related(paper_id: str, top_k: int = Query(10, ge=1, le=100), year_min: int | None = None,
+def related(paper_id: PaperId, top_k: int = Query(10, ge=1, le=100), year_min: int | None = None,
             year_max: int | None = None, repo: Repository = Depends(get_repo)):
     try:
         out = repo.related(paper_id, top_k, {"year_min": year_min, "year_max": year_max})

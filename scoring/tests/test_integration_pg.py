@@ -124,3 +124,37 @@ def test_pipeline_stores_opportunities_with_evidence(conn):
         # rag.nearest: exact papers (P1 uses both) first, then close ones by embedding similarity
         "nearest_existing": ["MOCK-P1", "MOCK-P2", "MOCK-P4"],
     }
+
+
+def _n_opps(conn):
+    return conn.execute("SELECT COUNT(*) FROM opportunity").fetchone()[0]
+
+
+def test_replace_swaps_old_rows_for_new_ones_and_is_repeatable(conn):
+    from scoring.pipeline import run
+
+    first = run(conn, "method_dataset", min_support=1, k=5.0, cutoff_year=None, replace=True)
+    second = run(conn, "method_dataset", min_support=1, k=5.0, cutoff_year=None, replace=True)
+    assert len(first) == len(second) == 1
+    assert _n_opps(conn) == 1                    # not duplicated
+    assert conn.execute("SELECT COUNT(*) FROM opportunity_evidence WHERE opportunity_id <> ALL(%s)", (second,)).fetchone()[0] == 0
+
+
+def test_replace_that_finds_nothing_keeps_the_old_rows(conn):
+    from scoring.pipeline import run
+
+    run(conn, "method_dataset", min_support=1, k=5.0, cutoff_year=None, replace=True)
+    before = _n_opps(conn)
+    assert before == 1
+    ids = run(conn, "method_dataset", min_support=1000, k=5.0, cutoff_year=None, replace=True)   # matches nothing
+    assert ids == []
+    assert _n_opps(conn) == before               # a typo'd threshold must not wipe the table
+
+
+def test_replace_only_touches_its_own_pair_type(conn):
+    from scoring.pipeline import run
+
+    run(conn, "method_dataset", min_support=1, k=5.0, cutoff_year=None)
+    n = _n_opps(conn)
+    run(conn, "method_task", min_support=1, k=5.0, cutoff_year=None, replace=True)
+    assert conn.execute("SELECT COUNT(*) FROM opportunity WHERE method_id IS NOT NULL AND dataset_id IS NOT NULL").fetchone()[0] == n

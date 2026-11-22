@@ -60,6 +60,19 @@ def test_cluster_embeddings_separates_blobs():
     assert len(cents) == 2
 
 
+def test_cluster_embeddings_with_pca_separates_blobs_and_is_deterministic():
+    rng = np.random.default_rng(1)
+    centers = np.eye(10)
+    blobs = [rng.normal(centers[i], 0.01, size=(20, 10)) for i in range(3)]
+    x = np.vstack(blobs)
+    labels = cluster_embeddings(x, min_cluster_size=5, min_samples=3, pca_dims=4)
+    for i in range(3):
+        assert len(set(labels[20 * i:20 * (i + 1)])) == 1
+    assert len({labels[0], labels[20], labels[40]}) == 3
+    again = cluster_embeddings(x, min_cluster_size=5, min_samples=3, pca_dims=4)
+    assert (labels == again).all()
+
+
 def test_summarize():
     out = summarize(
         ["MOCK-1", "MOCK-2", "MOCK-3"], [0, 0, NOISE],
