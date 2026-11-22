@@ -37,7 +37,7 @@ Implemented in [`ingest/deduplicate.py`](deduplicate.py):
 ## 3. Corpus Direction Decision (Item 3)
 
 - **Finding:** 461 of 1,975 papers (23.3%) specifically focus on low-resource MT. Retrieval queries in `db/retrieval-diagnosis.md` for "speech translation" (3 papers) and "quality estimation" (7 papers) suffered from retrieval starvation.
-- **Team Decision:** Retain low-resource MT as the primary anchor domain, while enriching targeted streams for evaluation topics (`speech translation`, `quality estimation`) to ensure the retrieval benchmark and discovery pipeline have non-empty result sets.
+- **Decision (decision 39):** Retain low-resource MT as the primary anchor domain. Enriching the corpus for `speech translation` and `quality estimation`, so that the retrieval benchmark and discovery pipeline have non-empty result sets, is **proposed and not done yet**: the corpus in this folder has no paper that was not in the earlier 2,000-paper corpus (0 added, 25 duplicates dropped). The OpenAlex queries to add have still to be chosen.
 
 ---
 
