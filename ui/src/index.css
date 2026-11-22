@@ -1,0 +1,104 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* "Archival Daylight" (light) is the :root default; "Obsidian Observatory" (dark) is .dark */
+:root {
+  --background: #f8fafc;
+  --card: #ffffff;
+  --border: #e2e8f0;
+  --hover: #f1f5f9;
+  --foreground: #0f172a;
+  --muted-foreground: #475569;
+  --primary: #0f4c81;
+  --primary-foreground: #ffffff;
+  --teal: #0d9488;
+  --warning: #d97706;
+  --warning-soft: rgba(217, 119, 6, 0.1);
+  --cite: #6d28d9;
+  --cite-soft: rgba(109, 40, 217, 0.1);
+  --ring: #0f4c81;
+  /* text shades of the semantic palette: same hues, dark enough for 4.5:1 on white and on their 12% tints */
+  --tag-text-method: #1d4ed8;
+  --tag-text-task: #047857;
+  --tag-text-dataset: #9a3412;
+  --tag-text-setting: #6d28d9;
+  --tag-text-bridge: #be185d;
+  --score-strong: #0f766e;
+  --score-moderate: #b45309;
+  --score-weak: #475569;
+  --warning-text: #92400e;
+}
+
+.dark {
+  --background: #090d16;
+  --card: #111827;
+  --border: #1f2937;
+  --hover: #1e293b;
+  --foreground: #e5e7eb;
+  --muted-foreground: #9ca3af;
+  --primary: #38bdf8;
+  --primary-foreground: #04121f;
+  --teal: #2dd4bf;
+  --warning: #f97316;
+  --warning-soft: rgba(249, 115, 22, 0.12);
+  --cite: #a78bfa;
+  --cite-soft: rgba(167, 139, 250, 0.14);
+  --ring: #38bdf8;
+  --tag-text-method: #60a5fa;
+  --tag-text-task: #34d399;
+  --tag-text-dataset: #fb923c;
+  --tag-text-setting: #a78bfa;
+  --tag-text-bridge: #f472b6;
+  --score-strong: #2dd4bf;
+  --score-moderate: #fbbf24;
+  --score-weak: #94a3b8;
+  --warning-text: #fb923c;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-card: var(--card);
+  --color-border: var(--border);
+  --color-hover: var(--hover);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-teal: var(--teal);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-text: var(--warning-text);
+  --color-cite: var(--cite);
+  --color-cite-soft: var(--cite-soft);
+  /* semantic tags: the same hex in both themes */
+  --color-method: #3b82f6;
+  --color-task: #10b981;
+  --color-dataset: #f97316;
+  --color-setting: #8b5cf6;
+  --color-bridge: #ec4899;
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+@layer base {
+  * { border-color: var(--border); }
+  html, body, #root { height: 100%; }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  ::selection { background: color-mix(in srgb, var(--primary) 30%, transparent); }
+}
+
+@layer utilities {
+  .scroll-thin { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+  .defer-paint { content-visibility: auto; contain-intrinsic-size: auto 220px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
