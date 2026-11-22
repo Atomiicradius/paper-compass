@@ -137,7 +137,7 @@ export function CandidatesView({
           <button className="cursor-pointer text-primary underline" onClick={onClearFilters}>Clear filters</button>
         </div>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-[minmax(380px,460px)_minmax(0,1fr)] lg:h-[calc(100dvh-15.5rem)] lg:min-h-[30rem]" data-testid="candidates-grid">
+        <div className="grid gap-6 lg:grid-cols-[minmax(380px,460px)_minmax(0,1fr)] lg:h-[calc(100dvh-14.5rem)] lg:min-h-[30rem]" data-testid="candidates-grid">
           <Reveal
             key={listKey}
             role="listbox"
