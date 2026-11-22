@@ -128,6 +128,8 @@
     -webkit-font-smoothing: antialiased;
   }
   :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  /* controls that switch the outline off for their own look still get the same ring from the keyboard */
+  [class*="outline-none"]:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
   ::selection { background: color-mix(in srgb, var(--primary) 30%, transparent); }
 }
 
@@ -297,4 +299,14 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .shimmer { animation: none; background-image: none; }
+}
+
+/* changing screen: the new screen fades in and rises a few pixels (nothing moves with reduced motion) */
+@keyframes screen-enter {
+  from { opacity: 0; translate: 0 12px; }
+  to { opacity: 1; translate: 0 0; }
+}
+.screen-enter { animation: screen-enter 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .screen-enter { animation: none; }
 }

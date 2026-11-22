@@ -187,7 +187,7 @@ export function GraphView({
           {note ? <p role="note" className="rounded-lg border border-border bg-hover px-3 py-1.5 text-xs text-muted">{note}</p> : null}
 
           <div ref={setBox} data-lenis-prevent data-theme={theme} style={GLASS_BACKGROUND} className="glass relative min-h-[420px] flex-1 overflow-hidden rounded-2xl" data-testid="graph-canvas">
-            {graph.loading && !view ? <Skeleton className="absolute inset-0 rounded-none" /> : null}
+            {graph.loading && !view ? <Skeleton className="absolute inset-0 rounded-none" data-testid="graph-skeleton" /> : null}
             {view && size.width > 0 ? (
               <ForceGraph2D
                 ref={fgRef}

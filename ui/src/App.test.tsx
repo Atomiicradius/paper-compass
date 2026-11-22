@@ -48,6 +48,19 @@ describe("App: the story is the landing view", () => {
     await waitFor(() => expect(window.location.hash).toBe("#/candidates"));
   });
 
+  it("a new screen enters with a fade-and-rise: each screen is a fresh element with the screen-enter class", async () => {
+    const user = userEvent.setup();
+    window.history.replaceState(null, "", "#/candidates");
+    render(<App />);
+    const heading = await screen.findByRole("heading", { level: 2, name: "Candidate opportunities" });
+    const column = heading.closest(".screen-enter");
+    expect(column).not.toBeNull();
+    await user.click(nav().getByRole("button", { name: "Landscape" }));
+    const next = (await screen.findByRole("heading", { level: 2, name: /Landscape/ })).closest(".screen-enter");
+    expect(next).not.toBeNull();
+    expect(next).not.toBe(column);
+  });
+
   it("#/story opens the story and #/candidates opens the explorer directly", async () => {
     window.history.replaceState(null, "", "#/story");
     const first = render(<App />);

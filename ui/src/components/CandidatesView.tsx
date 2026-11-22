@@ -122,7 +122,10 @@ export function CandidatesView({
         />
       ) : state.loading && !state.data ? (
         <div className="space-y-4" aria-busy="true" aria-label="Loading candidates">
-          {[0, 1, 2].map((i) => <Skeleton key={i} className="h-48" />)}
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]" data-testid="candidates-skeleton">
+            <div className="glass space-y-2 rounded-2xl p-2">{[0, 1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-12" />)}</div>
+            <div className="glass space-y-4 rounded-3xl p-6"><Skeleton className="h-16" /><Skeleton className="h-36" /><Skeleton className="h-20" /></div>
+          </div>
         </div>
       ) : state.data && state.data.items.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted">
@@ -143,7 +146,7 @@ export function CandidatesView({
             tabIndex={0}
             data-lenis-prevent
             onKeyDown={onKeyDown}
-            className="scroll-thin glass max-h-[26rem] space-y-1 overflow-y-auto rounded-2xl p-2 outline-none focus-visible:ring-2 focus-visible:ring-primary lg:max-h-[calc(100vh-15rem)]"
+            className="scroll-thin glass max-h-[26rem] space-y-1 overflow-y-auto rounded-2xl p-2 outline-none lg:max-h-[calc(100vh-15rem)]"
           >
             {ranked.map(({ o, rank, score }) => (
               <CandidateRow key={o.opportunity_id} opportunity={o} rank={rank} score={score} selected={o.opportunity_id === currentId} onSelect={onSelect} />

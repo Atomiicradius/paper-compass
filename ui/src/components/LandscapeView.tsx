@@ -79,7 +79,7 @@ export function LandscapeView({ state, onOpenGraph, filterButton, filterChips }:
   const shown = useMemo(() => (trends.data ?? []).filter((t) => t.total >= minPapers), [trends.data, minPapers]);
 
   if (state.error) return <ErrorNote title="Could not load the landscape" message={state.error.message.replace(/^\d+: /, "")} action={<Button variant="outline" size="sm" onClick={state.reload}>Try again</Button>} />;
-  if (!state.data) return <div className="space-y-3" aria-busy="true"><Skeleton className="h-48" /><Skeleton className="h-64" /></div>;
+  if (!state.data) return <div className="space-y-6" aria-busy="true" aria-label="Loading landscape" data-testid="landscape-skeleton"><Skeleton className="h-48" /><Skeleton className="h-64" /><Skeleton className="h-40" /></div>;
   const land = state.data;
   const maxSize = Math.max(1, ...(clusters.data?.clusters ?? []).map((c) => c.size));
   const total = Object.values(land.papers_per_year).reduce((a, b) => a + b, 0);
