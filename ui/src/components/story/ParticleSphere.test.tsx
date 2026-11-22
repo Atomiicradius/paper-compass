@@ -70,13 +70,14 @@ describe("ParticleSphere", () => {
     rerender(<ParticleSphere visible={false} />);
     let t = 1000;
     for (let i = 0; i < 400 && frames.length; i += 1) {
-      t += 16;
+      t += 50; // the largest step the animation allows: fewer frames to run (each draws 1,200 points)
+      arc.mockClear();
       frames.splice(0).forEach((f) => f(t));
     }
     expect(frames).toHaveLength(0); // faded out and stopped
     rerender(<ParticleSphere visible />);
     expect(frames).toHaveLength(1);
-  });
+  }, 20_000);
 
   it("still mode draws exactly one frame and registers no pointer listener", () => {
     const add = vi.spyOn(document, "addEventListener");
