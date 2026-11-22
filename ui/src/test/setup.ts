@@ -33,7 +33,7 @@ vi.mock("gsap", () => {
     // gsap.context(fn, scope): runs fn and returns an object whose revert() undoes everything fn created
     context: vi.fn((fn?: () => void) => {
       fn?.();
-      return { revert: vi.fn(), kill: vi.fn(), add: vi.fn() };
+      return { revert: vi.fn(), kill: vi.fn(), add: vi.fn((f?: () => void) => f?.()) };
     }),
     set: vi.fn(),
     // a count-up style tween (a plain object with an onComplete callback) finishes at once, so its final text is in the DOM
@@ -46,6 +46,7 @@ vi.mock("gsap", () => {
       return { kill: vi.fn() };
     }),
     from: vi.fn(() => ({ kill: vi.fn() })),
+    fromTo: vi.fn(() => ({ kill: vi.fn() })),
     killTweensOf: vi.fn(),
     ticker: { add: vi.fn(), remove: vi.fn(), lagSmoothing: vi.fn() },
   };
