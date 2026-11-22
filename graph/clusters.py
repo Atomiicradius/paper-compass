@@ -20,9 +20,14 @@ import numpy as np
 NOISE = -1
 
 
-def cluster_embeddings(vectors: np.ndarray, min_cluster_size: int = 15, min_samples: int | None = None) -> np.ndarray:
+def cluster_embeddings(vectors: np.ndarray, min_cluster_size: int = 15, min_samples: int | None = None,
+                       pca_dims: int | None = None, selection: str = "eom") -> np.ndarray:
     """HDBSCAN on L2-normalized vectors (Euclidean distance on unit vectors orders like cosine).
 
+    pca_dims: optionally project the unit vectors to this many principal components
+    (fixed random_state) and re-normalize before clustering. Density estimates in 768
+    dimensions are weak; on pc_pilot, 768-dim HDBSCAN found 2 clusters with 46-55%
+    noise, PCA to 20 dimensions found 7 (see graph/README.md).
     Returns one label per row; NOISE (-1) for points in no cluster.
     """
     from sklearn.cluster import HDBSCAN
@@ -32,8 +37,15 @@ def cluster_embeddings(vectors: np.ndarray, min_cluster_size: int = 15, min_samp
     norms = np.linalg.norm(vectors, axis=1, keepdims=True)
     if np.any(norms == 0):
         raise ValueError("zero-length embedding")
-    unit = vectors / norms
-    return HDBSCAN(min_cluster_size=min_cluster_size, min_samples=min_samples, copy=True).fit_predict(unit)
+    x = vectors / norms
+    if pca_dims is not None and pca_dims < x.shape[1] and pca_dims < len(x):
+        from sklearn.decomposition import PCA
+
+        x = PCA(n_components=pca_dims, random_state=0).fit_transform(x)
+        n = np.linalg.norm(x, axis=1, keepdims=True)
+        x = x / np.where(n == 0, 1, n)
+    return HDBSCAN(min_cluster_size=min_cluster_size, min_samples=min_samples,
+                   cluster_selection_method=selection, copy=True).fit_predict(x)
 
 
 def centroids(vectors: np.ndarray, labels: Sequence[int]) -> dict[int, np.ndarray]:
@@ -110,12 +122,15 @@ def main() -> None:
     ap.add_argument("--pg-dsn", required=True)
     ap.add_argument("--out", default=str(Path(__file__).parent / "out" / "clusters.json"))
     ap.add_argument("--min-cluster-size", type=int, default=15)
+    ap.add_argument("--min-samples", type=int, default=None)
+    ap.add_argument("--pca-dims", type=int, default=None, help="reduce to this many PCA dimensions first")
+    ap.add_argument("--selection", choices=("eom", "leaf"), default="eom", help="HDBSCAN cluster_selection_method")
     ap.add_argument("--embedding-model", default=None)
     args = ap.parse_args()
 
     with psycopg.connect(args.pg_dsn) as pg:
         ids, vecs = load_embeddings(pg, args.embedding_model)
-        labels = cluster_embeddings(vecs, args.min_cluster_size)
+        labels = cluster_embeddings(vecs, args.min_cluster_size, args.min_samples, args.pca_dims, args.selection)
         years, elements = load_paper_context(pg)
     summaries = summarize(ids, labels, years, elements)
     cents = centroids(vecs, labels) if len(ids) else {}
@@ -124,6 +139,9 @@ def main() -> None:
     result = {
         "method": "hdbscan",
         "min_cluster_size": args.min_cluster_size,
+        "min_samples": args.min_samples,
+        "pca_dims": args.pca_dims,
+        "selection": args.selection,
         "embedding_model": args.embedding_model,
         "n_papers": len(ids),
         "n_noise": int(np.sum(labels == NOISE)),

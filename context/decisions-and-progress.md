@@ -51,6 +51,10 @@ Edit only your own section under "Progress" to avoid merge conflicts. Decisions 
 | 28 | 2026-11-11 | Rule-generated reference set (preliminary; not human-labeled) from 100 papers sampled with seed=42, replacing the earlier first-100 reference set | Made by `extraction/create_reference_set_v2.py` with a conservative and an inclusive rule set, no human labeling; 86 of 100 sampled papers had identical labels under both rule sets (not an inter-annotator agreement); 79 rows from 60 papers, 40 sampled papers produced no row; method labels share the extractor's vocabulary and regex style, so method precision/recall (100%) is circular and not an accuracy measurement | Locked |
 | 29 | 2026-11-11 | Strict case-sensitive uppercase boundaries (`\b[A-Z]{2,3}\b`) for short acronyms | Eliminates false lowercase dictionary word matches (e.g. POS, MT, SMT) | Locked |
 | 30 | 2026-11-11 | Prioritize Method × Task and Method × Setting combination discovery | Empirically verified dataset sparsity in paper abstracts (only 3.8% name explicit datasets); the `method × setting` views it relies on are awaiting Person 2 and Person 3 review | Proposed |
+| 31 | 2026-11-22 | UI stack (O4): Streamlit, in `ui/`, calling the FastAPI backend over HTTP only (never the databases) | Same language as the rest of the code, Person 2's demo already used it; all six screens built and checked on pc_pilot (`ui/README.md`) | Decided by Person 3 (UI-stack task); team to confirm |
+| 32 | 2026-11-22 | Scoring on pc_pilot (O6): keep `v1-three-signal` weights; `min_support` 5; new `min_sparsity` 0.3; `k` 5; no semantic filter | Temporal holdout over cutoffs 2020-2023: v1 beats random and sparsity-only under both hit definitions; the grid "best" flips between definitions and rests on 1-10 hits per cutoff; see `scoring/tuning-pc_pilot.md` | Locked for pc_pilot; revisit on a larger corpus |
+| 33 | 2026-11-22 | Clustering (O8): HDBSCAN after PCA to 20 dimensions, `min_cluster_size` 15, `min_samples` 5 | 768-dim HDBSCAN gave 2 clusters and 46-55% noise on pc_pilot; this gives 7 clusters and 44% noise (`graph/README.md`) | Locked for pc_pilot |
+| 34 | 2026-11-22 | API shapes (O10) written out from runs on pc_pilot in `api/api-shapes-o10.md`, with 3 questions | Needs Persons 1 and 2 to confirm before copying into `data-and-contracts.md` | Proposed |
 
 ## Progress
 
@@ -109,4 +113,12 @@ Update after each task: what's done, what's next, blockers.
   - `POST /opportunities/{id}/explain` returns `{opportunity_id, evidence, summary, citation_check, disclaimer}` from `build_evidence`, `summarize_evidence` and `verify_citations` (shape provisional under O10). 422 if the opportunity is not exactly one method/dataset/task pair. `/rag/query` stays 501 until O5 (LLM client).
   - An integration test checks that the stored observed/expected equal `build_evidence(...)["corpus"]` on the same data.
   - Tests: 425 passed, 10 skipped (dotenv-only tests) across api, graph, scoring, rag and db/tests on Python 3.12, against the compose Postgres and Neo4j.
+- Update (2026-11-22): first run on the real pilot data (`pc_pilot` dump of 2026-11-21: 1,999 papers, 1,055 experiments, 1,999 embeddings).
+  - Neo4j synced from pc_pilot: 12,864 nodes, 34,796 relationships; all 26 counts match PostgreSQL; a second run is unchanged.
+  - Scoring (O6, decision 32): `scoring/tune.py` (temporal holdout over a weight grid, two hit definitions) and `scoring/tuning-pc_pilot.md`. 13 Method × Task opportunities stored with 252 evidence rows; #1 checked against raw SQL. New `min_sparsity` in candidates and `--replace` in the pipeline (re-runs no longer duplicate rows).
+  - Clusters (O8, decision 33): PCA option in `graph/clusters.py`; 7 clusters on pc_pilot.
+  - API (O10, decision 34): every endpoint checked on pc_pilot, shapes and 3 questions in `api/api-shapes-o10.md`. A Neo4j error on `/papers/{id}/graph` is now a 503 with a reason instead of a 500.
+  - UI (O4, decision 31): Streamlit, six screens, in `ui/`; vector search with SPECTER2 works and its top 3 equal the pilot report's.
+  - Tests: 357 passed and 5 skipped (Neo4j sync tests and dotenv-only tests, skipped so the test sweep would not wipe the pc_pilot graph) in api, graph, scoring and rag against a scratch database `pc_test`; plus 10 UI tests.
+  - For Person 1: (a) the corpus Method × Task universe is 399 papers, 338 of them Machine Translation, so most expected counts are driven by MT; (b) "Masked Language Model Scoring" (W3024308166) is not tagged with Masked Language Modeling though its abstract says "masked language models (MLMs)"; plural forms may be missing from the aliases.
 - Blockers: none. Pinned deps are in `requirements-person3.txt`.

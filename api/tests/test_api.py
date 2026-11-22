@@ -121,7 +121,8 @@ def test_search_auto_uses_vector_when_encoder_exists(use):
     assert set(body["results"][0]) == {"paper_id", "title", "year", "venue", "score", "methods", "datasets", "tasks"}
     # filters reach the search layer unchanged
     assert repo.calls == [("vector", {"year_min": 2020, "year_max": None, "venues": None, "methods": ["KD"],
-                                      "datasets": None, "tasks": None, "match": "same_experiment"})]
+                                      "datasets": None, "tasks": None, "match": "same_experiment",
+                                      "collapse_same_title": False})]
 
 
 def test_search_auto_falls_back_to_keyword_without_encoder(use):
@@ -223,3 +224,107 @@ def test_explain_falls_back_when_the_llm_cites_an_unknown_paper(client, no_llm_k
     body = client.post("/opportunities/1/explain").json()
     assert body["summary_source"] == "template" and body["summary_fallback_reason"] == "citation check"
     assert "NOT-IN-THE-EVIDENCE" not in body["summary"] and body["citation_check"]["ok"] is True
+
+
+def test_graph_neo4j_error_is_503(monkeypatch):
+    from neo4j.exceptions import AuthError
+
+    class BrokenGraph(MockRepository):
+        def paper_graph(self, paper_id, limit):
+            raise AuthError("Unsupported authentication token")
+
+    monkeypatch.setenv("PC_API_MOCK", "1")
+    app.dependency_overrides[get_repo] = lambda: BrokenGraph()
+    try:
+        r = TestClient(app).get("/papers/MOCK-W1/graph")
+    finally:
+        app.dependency_overrides.clear()
+    assert r.status_code == 503
+    assert "Neo4j" in r.json()["detail"]
+
+
+def test_missing_configuration_is_503_with_reason(monkeypatch):
+    monkeypatch.delenv("PC_PG_DSN", raising=False)
+    monkeypatch.delenv("PC_API_MOCK", raising=False)
+    monkeypatch.setattr("api.main._settings_from_env_file", lambda *a, **k: {})   # no db/.env fallback
+    get_repo.cache_clear()
+    try:
+        r = TestClient(app).get("/opportunities")
+    finally:
+        get_repo.cache_clear()
+    assert r.status_code == 503
+    assert "PC_PG_DSN" in r.json()["detail"]
+
+
+def test_dsn_falls_back_to_db_env_file(tmp_path, monkeypatch):
+    from api.main import _settings_from_env_file
+
+    env = tmp_path / ".env"
+    env.write_text("POSTGRES_USER=u\nPOSTGRES_PASSWORD=p w\nPOSTGRES_PORT=55432\nNEO4J_USER=neo4j\nNEO4J_PASSWORD=n\n")
+    monkeypatch.delenv("PC_PG_DBNAME", raising=False)
+    s = _settings_from_env_file(env)
+    assert s["PC_PG_DSN"] == "postgresql://u:p%20w@127.0.0.1:55432/pc_pilot"
+    assert s["PC_NEO4J_URI"] == "bolt://127.0.0.1:7687" and s["PC_NEO4J_PASSWORD"] == "n"
+    monkeypatch.setenv("PC_PG_DBNAME", "other")
+    assert _settings_from_env_file(env)["PC_PG_DSN"].endswith("/other")
+
+
+def test_env_file_missing_gives_nothing(tmp_path):
+    from api.main import _settings_from_env_file
+
+    assert _settings_from_env_file(tmp_path / "nope.env") == {}
+
+
+# --- hostile / malformed input must give 4xx, never 500 ---------------------------------
+
+@pytest.mark.parametrize("path", [
+    "/papers/W%00x", "/papers/W%00x/graph", "/papers/W%00x/related",
+])
+def test_nul_in_paper_id_is_rejected(client, path):
+    assert client.get(path).status_code == 422
+
+
+def test_overlong_paper_id_is_rejected(client):
+    assert client.get("/papers/" + "A" * 500).status_code == 422
+
+
+@pytest.mark.parametrize("body", [
+    {"query": "a\u0000b"},
+    {"query": "   "},
+    {"query": "\t\n"},
+    {"query": "x", "venues": ["a\u0000b"]},
+    {"query": "x", "methods": ["a\u0000b"]},
+    {"query": "x", "datasets": ["a\u0000b"]},
+    {"query": "x", "tasks": ["a\u0000b"]},
+    {"query": "x", "year_min": 2025, "year_max": 2020},
+    {"query": "x" * 5001},
+])
+def test_bad_search_bodies_are_422(client, body):
+    assert client.post("/search", json={**body, "mode": "keyword"}).status_code == 422
+
+
+def test_good_search_bodies_still_work(client):
+    r = client.post("/search", json={"query": "  back-translation ", "year_min": 2020, "year_max": 2020, "mode": "keyword"})
+    assert r.status_code == 200
+    assert client.post("/search", json={"query": "机器翻译 ñ é", "mode": "keyword"}).status_code == 200
+
+
+def test_collapse_same_title_is_passed_through_to_the_repository(monkeypatch):
+    seen = {}
+
+    class Spy(MockRepository):
+        def keyword_search(self, text, top_k, filters):
+            seen.update(filters)
+            return {"model": None, "results": []}
+
+    monkeypatch.setenv("PC_API_MOCK", "1")
+    app.dependency_overrides[get_repo] = lambda: Spy()
+    try:
+        c = TestClient(app)
+        assert c.post("/search", json={"query": "x", "mode": "keyword"}).status_code == 200
+        assert seen["collapse_same_title"] is False                      # default unchanged
+        assert c.post("/search", json={"query": "x", "mode": "keyword", "collapse_same_title": True}).status_code == 200
+        assert seen["collapse_same_title"] is True
+        assert c.post("/search", json={"query": "x", "collapse_same_title": "maybe"}).status_code == 422
+    finally:
+        app.dependency_overrides.clear()

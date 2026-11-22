@@ -11,16 +11,19 @@ Candidate generation and scoring for potentially underexplored research-element 
 | `score.py` | `Score = 100 * Σ w_i s_i`; weight sets `v1-three-signal` (default) and `v2-five-signal` |
 | `sensitivity.py` | Shifts each weight by ±delta and reports top-k overlap |
 | `holdout.py` | Temporal holdout metrics (P@k, AP) against random, sparsity-only and semantic-only baselines |
-| `pipeline.py` | End to end against PostgreSQL; writes `opportunity` and `opportunity_evidence` in one transaction |
+| `pipeline.py` | End to end against PostgreSQL; writes `opportunity` and `opportunity_evidence` in one transaction (`--replace` first deletes that pair type's earlier rows in the same transaction) |
+| `tune.py` | O6 tuning: weight grid × min_support × cutoffs on the temporal holdout, vs the baselines (read only) |
 
 ```bash
-python -m scoring.pipeline --dsn $PG --pair-type method_task --min-support 10
+# settings chosen on pc_pilot, see tuning-pc_pilot.md
+python -m scoring.pipeline --dsn $PG --pair-type method_task --min-support 5 --min-sparsity 0.3 --k 5 --replace
+python -m scoring.tune --dsn $PG --cutoffs 2020 2021 2022 2023 --min-supports 3 5 8 10 [--min-sparsity 0.3] [--new-only]
 ```
 
 Fixed choices (recorded in `context/decisions-and-progress.md`):
 - Sparsity = `1 - (observed + 1) / (expected + 1)`, clipped to [0, 1].
 - Confidence = `min(1, expected / k)`, k = 5 by default. Pairs with expected < 1 are dropped.
 
-Still open (O6): weights, `min_support`, `k`, and the semantic filter threshold. All of them are parameters, so nothing is hard-coded.
+O6 on pc_pilot (2026-11-22, `tuning-pc_pilot.md`): keep `v1-three-signal` weights; `min_support` 5; new `min_sparsity` 0.3 (drops pairs used together almost as often as expected); `k` 5; no semantic filter. Revisit when the corpus grows. All of them are parameters, so nothing is hard-coded.
 
 Tests: `python -m pytest`. The integration tests need `PC_TEST_PG_DSN` (and `PC_TEST_NEO4J_URI` / `PC_TEST_NEO4J_PASSWORD` for the sync tests). They build the schema from the SQL in `context/data-and-contracts.md` and check the materialized views against raw counts.

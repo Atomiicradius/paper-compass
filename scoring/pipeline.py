@@ -26,10 +26,25 @@ from scoring.ranking import (
     rank,
     temporal_activity,
 )
-from scoring.score import DEFAULT_WEIGHTS_VERSION
+from scoring.score import DEFAULT_WEIGHTS_VERSION, WEIGHTS
 from scoring.signals import cosine_similarity, recent_share, trend_slope
 
 EVIDENCE_LIMIT = 5
+
+
+def check_weights_version(weights_version: str) -> None:
+    """Fail early with a readable message if the weight set cannot be used yet.
+
+    Weight sets that include signals the pipeline does not compute (graph_bridge_strength,
+    method_compatibility; stretch goals) would otherwise fail deep inside scoring.
+    """
+    if weights_version not in WEIGHTS:
+        raise ValueError(f"unknown weights version {weights_version!r}; choose one of {sorted(WEIGHTS)}")
+    implemented = {"sparsity", "semantic_compatibility", "temporal_activity"}
+    missing = sorted(set(WEIGHTS[weights_version]) - implemented)
+    if missing:
+        raise ValueError(f"weights version {weights_version!r} needs signals that are not implemented yet: "
+                         f"{', '.join(missing)}")
 
 
 def corpus_cutoff(conn) -> int:
@@ -148,16 +163,37 @@ def store(conn, scored: Sequence[ScoredCandidate], cutoff_year: int, evidence_by
 
 
 def run(conn, pair_type: str, min_support: int, k: float, cutoff_year: int | None,
-        weights_version: str = DEFAULT_WEIGHTS_VERSION, top_n: int = 50) -> list[int]:
+        weights_version: str = DEFAULT_WEIGHTS_VERSION, top_n: int = 50,
+        min_sparsity: float = 0.0, replace: bool = False) -> list[int]:
+    """Score and store. replace=True first deletes this pair type's earlier opportunities
+    (and their evidence) in the same transaction, so a re-run does not duplicate them. If the new run
+    finds nothing to store, the old rows are kept: a mistyped threshold must not empty the table."""
+    check_weights_version(weights_version)
     cutoff = cutoff_year if cutoff_year is not None else corpus_cutoff(conn)
     counts = fetch_pair_counts(conn, pair_type, cutoff_year)
-    candidates = generate_candidates(counts, min_support=min_support, k=k)
+    candidates = generate_candidates(counts, min_support=min_support, k=k, min_sparsity=min_sparsity)
     semantic, temporal = compute_inputs(conn, candidates, cutoff)
     usable = [c for c in candidates if candidate_key(c) in semantic and candidate_key(c) in temporal]
     scored = rank(usable, semantic, temporal, weights_version)[:top_n]
     ev = {s.key: evidence(conn, s.candidate, cutoff) for s in scored}
+    if not scored:
+        return []
     with conn.transaction():
+        if replace:
+            delete_pair_type(conn, pair_type)
         return store(conn, scored, cutoff, ev)
+
+
+def delete_pair_type(conn, pair_type: str) -> int:
+    """Delete stored opportunities of exactly this pair type (both columns set, the third NULL)."""
+    col_a, col_b = PAIR_TYPES[pair_type]
+    others = sorted({c for cols in PAIR_TYPES.values() for c in cols} - {col_a, col_b})
+    null_others = "".join(f" AND {c} IS NULL" for c in others)
+    with conn.cursor() as cur:
+        cur.execute(f"DELETE FROM opportunity_evidence WHERE opportunity_id IN (SELECT opportunity_id FROM opportunity"
+                    f" WHERE {col_a} IS NOT NULL AND {col_b} IS NOT NULL{null_others})")
+        cur.execute(f"DELETE FROM opportunity WHERE {col_a} IS NOT NULL AND {col_b} IS NOT NULL{null_others}")
+        return cur.rowcount
 
 
 def main() -> None:
@@ -169,12 +205,25 @@ def main() -> None:
     ap.add_argument("--min-support", type=int, default=10)
     ap.add_argument("--k", type=float, default=5.0, help="confidence constant")
     ap.add_argument("--cutoff-year", type=int, default=None)
-    ap.add_argument("--weights-version", default=DEFAULT_WEIGHTS_VERSION)
+    ap.add_argument("--weights-version", default=DEFAULT_WEIGHTS_VERSION, choices=sorted(WEIGHTS))
     ap.add_argument("--top-n", type=int, default=50)
+    ap.add_argument("--min-sparsity", type=float, default=0.0,
+                    help="drop pairs whose smoothed sparsity is below this (O6)")
+    ap.add_argument("--replace", action="store_true",
+                    help="delete earlier opportunities of this pair type in the same transaction")
     args = ap.parse_args()
+    try:
+        check_weights_version(args.weights_version)
+    except ValueError as e:
+        ap.error(str(e))
     with psycopg.connect(args.dsn) as conn:
-        ids = run(conn, args.pair_type, args.min_support, args.k, args.cutoff_year, args.weights_version, args.top_n)
-    print(f"stored {len(ids)} opportunities")
+        ids = run(conn, args.pair_type, args.min_support, args.k, args.cutoff_year, args.weights_version, args.top_n,
+                  args.min_sparsity, args.replace)
+    if ids:
+        print(f"stored {len(ids)} opportunities")
+    else:
+        print("stored 0 opportunities: no candidate passed the thresholds"
+              + ("; existing rows were left unchanged" if args.replace else ""))
 
 
 if __name__ == "__main__":

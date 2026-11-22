@@ -46,3 +46,25 @@ def test_neighborhood_restriction():
 
 def test_empty_universe():
     assert generate_candidates(PairCounts("method_task", 0), min_support=1) == []
+
+
+def test_min_sparsity_filter():
+    # sparsity: (1,10) = 1 - 4/11 = 0.636..., (2,11) = 1 - 1/4 = 0.75
+    keys = [(c.a_id, c.b_id) for c in generate_candidates(counts(), min_support=5, min_sparsity=0.7)]
+    assert keys == [(2, 11)]
+    keys = [(c.a_id, c.b_id) for c in generate_candidates(counts(), min_support=5, min_sparsity=7 / 11)]
+    assert keys == [(2, 11), (1, 10)]          # threshold is inclusive
+
+
+def test_min_sparsity_default_keeps_everything():
+    assert generate_candidates(counts(), min_support=5) == generate_candidates(counts(), min_support=5, min_sparsity=0.0)
+
+
+def test_unavailable_weights_version_is_reported_clearly():
+    from scoring.pipeline import check_weights_version
+
+    check_weights_version("v1-three-signal")                       # fine
+    with pytest.raises(ValueError, match="graph_bridge_strength"):
+        check_weights_version("v2-five-signal")                    # signals not implemented yet
+    with pytest.raises(ValueError, match="unknown weights version"):
+        check_weights_version("nope")
