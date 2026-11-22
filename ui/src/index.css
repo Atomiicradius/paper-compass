@@ -40,6 +40,10 @@
   --hair-c: rgba(15, 76, 129, 0.24);
   --spot-color: rgba(15, 76, 129, 0.07);
   /* the dot field behind the app (r, g, b): dark dots on the light page, and the accent they turn into near the pointer */
+  /* one accent family for the scores: the gradient of the score rings and bars, and the tick of the expected count */
+  --ring-a: #0f4c81;
+  --ring-b: #0ea5e9;
+  --tick: #64748b;
   --dot-rgb: 15, 23, 42;
   --dot-hot-rgb: 15, 76, 129;
 }
@@ -77,6 +81,9 @@
   --hair-b: rgba(255, 255, 255, 0.05);
   --hair-c: rgba(56, 189, 248, 0.26);
   --spot-color: rgba(56, 189, 248, 0.09);
+  --ring-a: #0ea5e9;
+  --ring-b: #7dd3fc;
+  --tick: #cbd5e1;
   --dot-rgb: 148, 163, 184;
   --dot-hot-rgb: 56, 189, 248;
 }

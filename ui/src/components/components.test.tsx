@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { useState } from "react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
@@ -89,6 +90,48 @@ describe("CandidateDetail", () => {
     expect(ringFill(50)).toBeCloseTo(0.5);
     expect(ringFill(150)).toBe(1);
     expect(ringFill(-5)).toBe(0);
+  });
+});
+
+describe("one accent family on the Candidates colours", () => {
+  const rings = (low = false) => {
+    wrap(<><CandidateRow opportunity={makeOpportunity(1)} rank={1} score={30} selected={false} onSelect={() => {}} />
+      <CandidateRow opportunity={makeOpportunity(2)} rank={2} score={55} selected={false} onSelect={() => {}} />
+      <CandidateRow opportunity={makeOpportunity(3)} rank={3} score={90} selected={false} onSelect={() => {}} />
+      <CandidateDetail opportunity={makeOpportunity(4, low ? { confidence: 0.2 } : {})} rank={4} score={72} scoreLabel="" onOpenEvidence={() => {}} /></>);
+    return [...document.querySelectorAll("[data-fill]")];
+  };
+
+  it("every score ring (list and detail) uses the sky gradient stroke whatever the score; the arc length is the value", () => {
+    const all = rings();
+    expect(all).toHaveLength(4);
+    all.forEach((r) => expect(r).not.toHaveAttribute("data-strength")); // the teal / orange / grey tiers are gone
+    expect(all.map((r) => r.getAttribute("data-fill"))).toEqual(["0.300", "0.550", "0.900", "0.720"]);
+    for (const stop of document.querySelectorAll("linearGradient stop")) expect((stop as SVGStopElement).style.stopColor).toMatch(/^var\(--ring-[ab]\)$/);
+    expect(document.body.innerHTML).not.toMatch(/#F59E0B|#F97316|#14B8A6|#94A3B8/i);
+  });
+
+  it("the observed-versus-expected visual has a neutral track, a sky observed dot and a slate expected tick, and no orange or gradient", () => {
+    wrap(<CandidateDetail opportunity={makeOpportunity(14)} rank={1} score={70} scoreLabel="" onOpenEvidence={() => {}} />);
+    const track = screen.getByTestId("observed-expected-track");
+    expect(screen.getByTestId("observed-dot").className).toMatch(/bg-primary/);
+    expect(screen.getByTestId("expected-marker").className).toMatch(/bg-\[var\(--tick\)\]/);
+    expect(track.innerHTML).not.toMatch(/F59E0B|gradient|orange|amber/i);
+  });
+
+  it("the three signal bars share the accent gradient, and orange is only for the low-confidence state", () => {
+    wrap(<CandidateDetail opportunity={makeOpportunity(14, { confidence: 0.2 })} rank={1} score={70} scoreLabel="" onOpenEvidence={() => {}} />);
+    const detail = screen.getByTestId("candidate-detail");
+    const fills = [...detail.querySelectorAll("[role=meter] > div")] as HTMLElement[];
+    expect(fills).toHaveLength(3);
+    fills.forEach((f) => expect(f.style.background).toContain("var(--ring-a)"));
+    const orange = [...detail.querySelectorAll("[class*=warning]")];
+    expect(orange.map((e) => e.textContent)).toEqual(["Confidence: 0.20", "Low confidence"]);
+  });
+
+  it("defines the accent tokens in both themes", () => {
+    const css = readFileSync("src/index.css", "utf-8");
+    for (const v of ["--ring-a", "--ring-b", "--tick"]) expect(css.split(v + ":").length - 1).toBe(2);
   });
 });
 

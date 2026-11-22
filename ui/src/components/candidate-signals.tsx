@@ -3,11 +3,12 @@ import { formatNumber } from "@/lib/utils";
 import type { SignalKey } from "@/lib/opportunities";
 import { Mono } from "@/components/ui/primitives";
 
-/** The colour of each signal's bar. */
+/** The colour of each signal's bar: all three use the accent gradient (the label tells them apart). */
+const ACCENT_BAR = "linear-gradient(90deg, var(--ring-a), var(--ring-b))";
 export const SIGNAL_COLORS: Record<SignalKey, string> = {
-  sparsity: "#F59E0B",
-  semantic_compatibility: "#38BDF8",
-  temporal_activity: "#A78BFA",
+  sparsity: ACCENT_BAR,
+  semantic_compatibility: ACCENT_BAR,
+  temporal_activity: ACCENT_BAR,
 };
 
 /** The tooltip that explains how a signal is computed (unchanged from the candidate card). */

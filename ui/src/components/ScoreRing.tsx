@@ -1,13 +1,5 @@
 import { useEffect, useId, useState, type ReactNode } from "react";
-import { scoreStrength, type Strength } from "@/lib/colors";
 import { usePrefersReducedMotion } from "@/lib/reduced-motion";
-
-/** The two ends of a ring's gradient, by how strong the signal is (the colours of the score badge, with a neighbour). */
-const GRADIENTS: Record<Strength, [string, string]> = {
-  strong: ["#14B8A6", "#38BDF8"],
-  moderate: ["#F59E0B", "#F97316"],
-  weak: ["#94A3B8", "#64748B"],
-};
 
 const R = 44;
 const CIRCUMFERENCE = 2 * Math.PI * R;
@@ -18,8 +10,8 @@ export function ringFill(score: number): number {
 }
 
 /**
- * A score ring: a track and an arc with a gradient stroke, filled in proportion to a score out of 100, coloured by how strong
- * the signal is (teal, amber, grey as on the score badge). The arc draws itself when it appears (not with reduced motion). What
+ * A score ring: a track and an arc with the accent (sky) gradient stroke, filled in proportion to a score out of 100: the length
+ * of the arc is the value, the colour is always the same. The arc draws itself when it appears (not with reduced motion). What
  * goes in the middle is up to the caller.
  */
 export function ScoreRing({
@@ -36,16 +28,14 @@ export function ScoreRing({
     const raf = requestAnimationFrame(() => setDrawn(true)); // start empty, then fill: the CSS transition draws the arc
     return () => cancelAnimationFrame(raf);
   }, [reduced]);
-  const tone = scoreStrength(score);
-  const [from, to] = GRADIENTS[tone.strength];
   const fill = ringFill(score);
   return (
-    <div className={className} style={{ width: size, height: size, position: "relative" }} data-testid={testId} data-strength={tone.strength} data-fill={fill.toFixed(3)}>
-      <svg viewBox="0 0 100 100" width={size} height={size} aria-hidden style={{ transform: "rotate(-90deg)", overflow: "visible", filter: `drop-shadow(0 0 ${Math.max(2, size / 22)}px ${from}66)` }}>
+    <div className={className} style={{ width: size, height: size, position: "relative" }} data-testid={testId} data-fill={fill.toFixed(3)}>
+      <svg viewBox="0 0 100 100" width={size} height={size} aria-hidden style={{ transform: "rotate(-90deg)", overflow: "visible", filter: `drop-shadow(0 0 ${Math.max(2, size / 22)}px color-mix(in srgb, var(--ring-b) 40%, transparent))` }}>
         <defs>
           <linearGradient id={`ring-${uid}`} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor={from} />
-            <stop offset="100%" stopColor={to} />
+            <stop offset="0%" style={{ stopColor: "var(--ring-a)" }} />
+            <stop offset="100%" style={{ stopColor: "var(--ring-b)" }} />
           </linearGradient>
         </defs>
         <circle cx="50" cy="50" r={R} fill="none" stroke="currentColor" strokeOpacity="0.12" strokeWidth={strokeWidth} />

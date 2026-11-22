@@ -80,13 +80,8 @@ export function CandidateDetail({
           <div>
             <div className="relative h-8" role="img" aria-label={`Observed ${o.observed_count}, expected ${formatNumber(o.expected_count, 1)} (on one scale)`} data-testid="observed-expected-track">
               <div className="absolute top-1/2 right-0 left-0 h-2 -translate-y-1/2 rounded-full bg-hover" />
-              {/* the gap between what was observed and what was expected */}
-              <div
-                className="absolute top-1/2 h-2 -translate-y-1/2 rounded-full bg-gradient-to-r from-primary/60 to-[#F59E0B]/60"
-                style={{ left: `${Math.min(pos.observed, pos.expected) * 100}%`, width: `${Math.abs(pos.expected - pos.observed) * 100}%` }}
-              />
-              <div className="absolute top-1/2 h-6 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#F59E0B]" style={{ left: `${pos.expected * 100}%` }} data-testid="expected-marker" />
-              <div className="absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-primary shadow-[0_0_10px_var(--primary)]" style={{ left: `${pos.observed * 100}%` }} data-testid="observed-dot" />
+              <div className="absolute top-1/2 h-6 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--tick)]" style={{ left: `${pos.expected * 100}%` }} data-testid="expected-marker" />
+              <div className="absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-primary shadow-[0_0_10px_color-mix(in_srgb,var(--primary)_60%,transparent)]" style={{ left: `${pos.observed * 100}%` }} data-testid="observed-dot" />
             </div>
             <div className="mt-1.5 flex flex-wrap items-center gap-2">
               <Badge className="border-border bg-hover font-mono">Observed Count: {o.observed_count}</Badge>
