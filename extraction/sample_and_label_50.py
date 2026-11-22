@@ -1,11 +1,19 @@
-"""Generate dual-annotator hand-labeled benchmark for 50 abstracts (Item 4).
+"""Build a RULE-BASED check set for 50 abstracts (Item 4).
 
-Samples 50 abstracts from the deduplicated corpus (seed=2026).
-Simulates two independent human annotators adhering strictly to vocabulary.jsonl:
-- Annotator A: Conservative pass (identifies core evaluated methods, explicit tasks, named datasets, and explicit settings).
-- Annotator B: Contextual pass (captures all experimental baselines, secondary settings, and contextual mentions).
-Computes inter-annotator agreement and Cohen's Kappa.
-Adjudicates disagreements to build the consensus gold benchmark.
+No person labeled anything here. Every label comes from regular expressions in this file.
+
+Samples 50 abstracts from the deduplicated corpus (seed=2026) and labels them with two rule passes that use only
+canonical names from vocabulary.jsonl:
+- Rule pass A ("conservative"): keeps a match only when the title or a nearby cue word supports it.
+- Rule pass B ("inclusive"): keeps every match anywhere in the title or abstract.
+The two passes are then compared (how often they give the same labels) and combined into one file, the rule-based
+check set. The combination takes pass A's first task, setting and dataset (pass B's if A has none) and the union of
+the methods of both passes.
+
+What this file is NOT: it is not independent ground truth and not a measure of extractor accuracy. The patterns are
+written in the same style, from the same vocabulary, as extraction/extract.py, so agreement with the extractor says
+little about how often the extractor is right on real abstracts. The overlap between pass A and pass B is not an
+inter-annotator agreement, and no kappa is computed. A real accuracy check needs labels written by people.
 """
 
 import json
@@ -17,10 +25,10 @@ from pathlib import Path
 PAPERS_PATH = Path("ingest/data/papers_pilot.jsonl")
 VOCAB_PATH = Path("ingest/data/vocabulary.jsonl")
 OUT_SAMPLES = Path("extraction/data/sampled_abstracts_50.json")
-OUT_ANNOTATOR_A = Path("extraction/data/benchmark_annotator_a.jsonl")
-OUT_ANNOTATOR_B = Path("extraction/data/benchmark_annotator_b.jsonl")
-OUT_DISAGREEMENTS = Path("extraction/data/benchmark_disagreements.json")
-OUT_CONSENSUS = Path("extraction/data/hand_labeled_benchmark_50.jsonl")
+OUT_PASS_A = Path("extraction/data/rule_pass_conservative.jsonl")
+OUT_PASS_B = Path("extraction/data/rule_pass_inclusive.jsonl")
+OUT_DIFFERENCES = Path("extraction/data/rule_pass_differences.json")
+OUT_CHECK_SET = Path("extraction/data/rule_based_check_set_50.jsonl")
 
 
 def load_vocab():
@@ -41,11 +49,11 @@ def sample_papers(seed=2026, count=50):
     return sampled
 
 
-def annotate_abstracts():
+def label_with_rules():
     vocab = load_vocab()
     papers = sample_papers()
     
-    # Save sampled abstracts for review
+    # Save the sampled abstracts so the rule-based labels can be read next to the text
     with open(OUT_SAMPLES, "w", encoding="utf-8", newline="\n") as f:
         json.dump([
             {"paper_id": p["paper_id"], "title": p["title"], "abstract": p.get("abstract")}
@@ -140,8 +148,8 @@ def annotate_abstracts():
 
     records_a = []
     records_b = []
-    disagreements = []
-    consensus_records = []
+    differences = []
+    check_set_records = []
 
     # Per-entity comparison counters
     entity_counts = {"method": {"a": 0, "b": 0, "agree": 0},
@@ -155,8 +163,8 @@ def annotate_abstracts():
         abstract = p["abstract"] or ""
         full_text = f"{title}. {abstract}"
 
-        # Annotator A: Conservative (requires prominent mention in title or explicit statement)
-        # Annotator B: Contextual (accepts background mentions and secondary experimental setups)
+        # Rule pass A (conservative): a match counts only with a cue in the title or a nearby cue word
+        # Rule pass B (inclusive): every match in the title or abstract counts
         
         # 1. Tasks
         a_tasks = []
@@ -165,7 +173,7 @@ def annotate_abstracts():
             for pat in pats:
                 if re.search(pat, full_text, re.IGNORECASE):
                     b_tasks.append(canon)
-                    # A requires in title or with active verbs
+                    # pass A requires the title or a cue verb
                     if re.search(pat, title, re.IGNORECASE) or re.search(rf"\b(?:propose|evaluate|investigate|for)\b.*{pat}", full_text, re.IGNORECASE):
                         a_tasks.append(canon)
                     break
@@ -212,7 +220,7 @@ def annotate_abstracts():
         a_methods = list(dict.fromkeys(a_methods))
         b_methods = list(dict.fromkeys(b_methods))
 
-        # Check agreements
+        # Count how often the two rule passes give the same labels
         for k, la, lb in [("task", a_tasks, b_tasks),
                           ("setting", a_settings, b_settings),
                           ("dataset", a_datasets, b_datasets),
@@ -229,13 +237,13 @@ def annotate_abstracts():
             "method": sorted(set(a_methods) ^ set(b_methods)),
         }
         if any(diffs.values()):
-            disagreements.append({
+            differences.append({
                 "paper_id": pid,
                 "title": title,
                 "diffs": {k: v for k, v in diffs.items() if v}
             })
 
-        # Save Annotator A records
+        # Save rule pass A records
         for m in (a_methods if a_methods else [None]):
             records_a.append({
                 "paper_id": pid,
@@ -245,7 +253,7 @@ def annotate_abstracts():
                 "setting": a_settings[0] if a_settings else None
             })
 
-        # Save Annotator B records
+        # Save rule pass B records
         for m in (b_methods if b_methods else [None]):
             records_b.append({
                 "paper_id": pid,
@@ -255,8 +263,8 @@ def annotate_abstracts():
                 "setting": b_settings[0] if b_settings else None
             })
 
-        # Consensus Adjudication:
-        # Task: primary task agreed or verified from title/abstract context
+        # Combine the two passes (a rule, not a person's decision): pass A's first task/setting/dataset,
+        # pass B's if A has none; methods are the union of both passes
         cons_task = a_tasks[0] if a_tasks else (b_tasks[0] if b_tasks else None)
         cons_setting = a_settings[0] if a_settings else (b_settings[0] if b_settings else None)
         cons_dataset = a_datasets[0] if a_datasets else (b_datasets[0] if b_datasets else None)
@@ -264,7 +272,7 @@ def annotate_abstracts():
 
         if cons_methods:
             for m in cons_methods:
-                consensus_records.append({
+                check_set_records.append({
                     "paper_id": pid,
                     "method": m,
                     "dataset": cons_dataset,
@@ -272,7 +280,7 @@ def annotate_abstracts():
                     "setting": cons_setting
                 })
         else:
-            consensus_records.append({
+            check_set_records.append({
                 "paper_id": pid,
                 "method": None,
                 "dataset": cons_dataset,
@@ -280,38 +288,39 @@ def annotate_abstracts():
                 "setting": cons_setting
             })
 
-    # Save Annotator A
-    with open(OUT_ANNOTATOR_A, "w", encoding="utf-8", newline="\n") as f:
+    # Save rule pass A
+    with open(OUT_PASS_A, "w", encoding="utf-8", newline="\n") as f:
         for r in records_a:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
-    # Save Annotator B
-    with open(OUT_ANNOTATOR_B, "w", encoding="utf-8", newline="\n") as f:
+    # Save rule pass B
+    with open(OUT_PASS_B, "w", encoding="utf-8", newline="\n") as f:
         for r in records_b:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
-    # Save Disagreements
-    with open(OUT_DISAGREEMENTS, "w", encoding="utf-8", newline="\n") as f:
-        json.dump(disagreements, f, indent=2, ensure_ascii=False)
+    # Save the papers where the two passes differ
+    with open(OUT_DIFFERENCES, "w", encoding="utf-8", newline="\n") as f:
+        json.dump(differences, f, indent=2, ensure_ascii=False)
 
-    # Save Consensus Ground Truth
-    with open(OUT_CONSENSUS, "w", encoding="utf-8", newline="\n") as f:
-        for r in consensus_records:
+    # Save the combined rule-based check set (not ground truth)
+    with open(OUT_CHECK_SET, "w", encoding="utf-8", newline="\n") as f:
+        for r in check_set_records:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
-    print(f"\n--- INTER-ANNOTATOR AGREEMENT SUMMARY (50 ABSTRACTS) ---")
-    print(f"Total papers with disagreements: {len(disagreements)} / {len(papers)}")
-    print(f"Raw paper-level consensus agreement rate: {(len(papers) - len(disagreements)) / len(papers) * 100:.1f}%")
+    print("\n--- OVERLAP OF THE TWO RULE PASSES (50 ABSTRACTS) ---")
+    print("Both passes are regular expressions. This is NOT an inter-annotator agreement: no person labeled anything.")
+    print(f"Papers where the two passes gave different labels: {len(differences)} / {len(papers)}")
+    print(f"Papers where both passes gave the same labels: {(len(papers) - len(differences)) / len(papers) * 100:.1f}%")
     for k, v in entity_counts.items():
         total_mentions = max(v["a"], v["b"])
-        agree_pct = (v["agree"] / total_mentions * 100) if total_mentions else 100.0
-        print(f"  {k:8}: AnnA={v['a']:2}, AnnB={v['b']:2}, Agreed={v['agree']:2} -> Agreement: {agree_pct:5.1f}%")
-        
-    print(f"\nSaved Annotator A to: {OUT_ANNOTATOR_A}")
-    print(f"Saved Annotator B to: {OUT_ANNOTATOR_B}")
-    print(f"Saved Disagreement Log to: {OUT_DISAGREEMENTS}")
-    print(f"Saved Consensus Benchmark to: {OUT_CONSENSUS}")
+        same_pct = (v["agree"] / total_mentions * 100) if total_mentions else 100.0
+        print(f"  {k:8}: passA={v['a']:2}, passB={v['b']:2}, same={v['agree']:2} -> same labels: {same_pct:5.1f}%")
+
+    print(f"\nSaved rule pass A to: {OUT_PASS_A}")
+    print(f"Saved rule pass B to: {OUT_PASS_B}")
+    print(f"Saved the papers where the passes differ to: {OUT_DIFFERENCES}")
+    print(f"Saved the rule-based check set to: {OUT_CHECK_SET}")
 
 
 if __name__ == "__main__":
-    annotate_abstracts()
+    label_with_rules()

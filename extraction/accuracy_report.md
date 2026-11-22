@@ -19,12 +19,12 @@ This report documents the resolution of all feedback items from the Person 1 rev
    - Remapped **179 citation references** across the corpus pointing from dropped IDs to kept IDs.
    - Audit trail saved to [`ingest/data/deduplication_log.json`](../ingest/data/deduplication_log.json).
 
-2. **Real Hand-Labeled Benchmark (Item 4):**
+2. **Rule-based check set (Item 4). No person labeled these abstracts:**
    - Sampled 50 abstracts from the deduplicated corpus (`seed=2026`).
-   - Annotated by two independent passes (Annotator A: conservative contribution focus; Annotator B: contextual experimental focus) using strictly canonical names from `vocabulary.jsonl`.
-   - Measured **88.0% raw paper-level consensus agreement** (6 disagreements logged in `extraction/data/benchmark_disagreements.json`).
-   - Adjudicated consensus gold benchmark created in [`extraction/data/hand_labeled_benchmark_50.jsonl`](data/hand_labeled_benchmark_50.jsonl).
-   - Extractor evaluated against genuine human labels: Method Recall: 100.0%, Task Precision: 90.9%, Setting Precision: 75.0%, Dataset Recall: 100.0%.
+   - Labeled them with two rule passes, both regular expressions in [`extraction/sample_and_label_50.py`](sample_and_label_50.py) that use only canonical names from `vocabulary.jsonl` (pass A "conservative": needs a cue in the title or nearby; pass B "inclusive": keeps every match).
+   - The two passes gave the same labels for 44 of 50 papers (**88.0%**; the 6 papers that differ are in `extraction/data/rule_pass_differences.json`). This is the overlap of two rule sets, **not an inter-annotator agreement**.
+   - The combined labels are in [`extraction/data/rule_based_check_set_50.jsonl`](data/rule_based_check_set_50.jsonl). **This is not independent ground truth**: the rules are written in the same style, from the same vocabulary, as the extractor, so the figures in section 3 compare two rule-based systems and are not accuracy measurements.
+   - Still to do: a check set whose labels are written by people (for example 50 to 100 abstracts, two people, disagreements settled by discussion). Until then the report has **no measured extraction accuracy**; the coverage figures in section 2 remain valid.
 
 3. **Dataset Coverage Improvement (Item 5):**
    - Identified that previous sentence-only extraction missed 70%+ of dataset mentions because authors state methods in early sentences and evaluate on datasets in later sentences.
@@ -59,32 +59,42 @@ Even with improved abstract-level inheritance:
 
 ---
 
-## 3. Real Hand-Labeled Accuracy Evaluation (50 Abstracts — Item 4)
+## 3. Comparison with the Rule-Based Check Set (50 Abstracts, Item 4)
 
-Conducted against the adjudicated consensus gold benchmark ([`extraction/data/hand_labeled_benchmark_50.jsonl`](data/hand_labeled_benchmark_50.jsonl)):
+**Read this first:** the check set was made by regular expressions, not by people, and it is not independent ground truth (see below). These figures show how closely the extractor and a second set of rules agree. They do not say how often the extractor is right on real abstracts.
+
+Compared against [`extraction/data/rule_based_check_set_50.jsonl`](data/rule_based_check_set_50.jsonl) (53 rows from 50 papers) with `python extraction/evaluate.py --labels extraction/data/rule_based_check_set_50.jsonl`:
 
 | Entity Type | Precision | Recall | F1 Score | True Positives (TP) | False Positives (FP) | False Negatives (FN) |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Method** | **63.6%** | **100.0%** | **77.8%** | 14 | 8 | 0 |
-| **Task** | **90.9%** | **43.5%** | **58.8%** | 10 | 1 | 13 |
-| **Setting** | **75.0%** | **47.4%** | **58.1%** | 9 | 3 | 10 |
-| **Dataset** | **50.0%** | **100.0%** | **66.7%** | 1 | 1 | 0 |
+| **Method** | 63.6% | 100.0% | 77.8% | 14 | 8 | 0 |
+| **Task** | 90.9% | 43.5% | 58.8% | 10 | 1 | 13 |
+| **Setting** | 75.0% | 47.4% | 58.1% | 9 | 3 | 10 |
+| **Dataset** | 50.0% | 100.0% | 66.7% | 1 | 1 | 0 |
 
-### Dual-Annotator Methodology:
-- 50 abstracts sampled with fixed seed (`seed=2026`).
-- **Annotator A (Conservative):** Labeled explicit contributions and primary problem statements.
-- **Annotator B (Contextual):** Labeled secondary baselines and broader experimental contexts.
-- **Inter-Annotator Agreement:**
+The dataset row rests on a single true positive and a single false positive; it says nothing.
+
+### How the check set was made
+- 50 abstracts sampled with a fixed seed (`seed=2026`).
+- **Rule pass A ("conservative"):** keeps a match only when the title or a nearby cue word supports it.
+- **Rule pass B ("inclusive"):** keeps every match in the title or abstract.
+- The combined file takes pass A's first task, setting and dataset (pass B's when A has none) and the union of the methods of both passes. This is a rule, not a person's decision.
+- **Overlap of the two passes (not an agreement between people):**
   - Method: 100.0% (14/14)
   - Setting: 94.3% (33/35)
   - Task: 84.4% (27/32)
-  - Overall paper-level consensus agreement: **88.0%** (44/50 papers agreed completely).
-- Disagreements analyzed and logged in [`extraction/data/benchmark_disagreements.json`](data/benchmark_disagreements.json).
+  - Papers with identical labels from both passes: **88.0%** (44/50).
+- The 6 papers where the passes differ are listed in [`extraction/data/rule_pass_differences.json`](data/rule_pass_differences.json).
 
-### Error Analysis on Genuine Ground Truth:
-1. **Method (Recall 100%, Precision 63.6%):** The extractor captures all evaluated methods (zero misses). The false positives represent baseline methods mentioned in abstract background sentences rather than the author's primary proposed novelty.
-2. **Task (Precision 90.9%):** High precision demonstrates that when a task is assigned, it almost always correctly reflects the domain. Lower recall occurs because some abstracts discuss generic model architectures without explicitly repeating the task keyword in the same sentence.
-3. **Setting (Precision 75.0%):** Strong precision on core settings (`Low-resource`, `Multilingual`). Misses occur when authors describe data constraints descriptively (e.g. "scarce parallel pairs") without using exact canonical vocabulary tokens.
+### Why this is not independent ground truth
+1. The patterns in `sample_and_label_50.py` and in `extract.py` come from the same vocabulary and have the same style, so they tend to make the same mistakes. The method recall of 100% is therefore expected and is not a result.
+2. The check set can only contain labels that a regular expression can find. It cannot show what the extractor misses or gets wrong in a way a regex also would.
+3. No kappa or other chance-corrected agreement is computed, because there are no two human labelers.
+
+### Reading the differences (not verified against human labels)
+1. **Method (precision 63.6%):** the 8 extra methods are probably methods that an abstract mentions as background or as a baseline, which pass A drops. This has not been checked by reading the abstracts.
+2. **Task (recall 43.5%):** probably because some abstracts describe a task without repeating the exact keyword in the same sentence. Not checked.
+3. **Setting (recall 47.4%):** probably because settings are described in words that are not canonical vocabulary terms (for example "scarce parallel pairs"). Not checked.
 
 ---
 
