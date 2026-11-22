@@ -73,6 +73,8 @@ function AppShell() {
   const [submitted, setSubmitted] = useState<BuiltSearch | null>(null);
 
   const [selectedId, setSelectedId] = useState<number | null>(initialRoute.opp);
+  // the evidence drawer is opened by the "Evidence & explanation" button, not by selecting a row
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [paperId, setPaperId] = useState<string | null>(initialRoute.paper);
   const [graphId, setGraphId] = useState(initialRoute.graph);
 
@@ -86,8 +88,8 @@ function AppShell() {
   }, []);
 
   const selected: Opportunity | null = useMemo(
-    () => (selectedId === null ? null : (opps.data?.items.find((o) => o.opportunity_id === selectedId) ?? null)),
-    [selectedId, opps.data],
+    () => (!drawerOpen || selectedId === null ? null : (opps.data?.items.find((o) => o.opportunity_id === selectedId) ?? null)),
+    [drawerOpen, selectedId, opps.data],
   );
 
   // keep the hash in step with the state (a new history entry per change, so Back closes a drawer) and the state in
@@ -191,6 +193,7 @@ function AppShell() {
   const openGraph = useCallback((id: string) => {
     setGraphId(normalizePaperId(id));
     setSelectedId(null);
+    setDrawerOpen(false);
     setPaperId(null);
     setView("graph");
   }, []);
@@ -287,7 +290,7 @@ function AppShell() {
               ) : view === "candidates" ? (
                 <CandidatesView
                   state={opps} filters={filters} selectedId={selectedId}
-                  onOpen={(o) => setSelectedId(o.opportunity_id)} onClearFilters={() => setFilters(EMPTY_FILTERS)}
+                  onSelect={(o) => setSelectedId(o.opportunity_id)} onOpenEvidence={(o) => { setSelectedId(o.opportunity_id); setDrawerOpen(true); }} onClearFilters={() => setFilters(EMPTY_FILTERS)}
                   filterButton={filterButton} filterChips={filterChips}
                 />
               ) : view === "papers" ? (
@@ -325,7 +328,7 @@ function AppShell() {
       />
 
       {/* right pane: slide-over details */}
-      <EvidenceDrawer opportunity={selected} onClose={() => setSelectedId(null)} onOpenGraph={openGraph} />
+      <EvidenceDrawer opportunity={selected} onClose={() => setDrawerOpen(false)} onOpenGraph={openGraph} />
       <PaperDrawer paperId={paperId} onClose={() => setPaperId(null)} onOpenPaper={setPaperId} onOpenGraph={openGraph} />
     </TooltipProvider>
   );

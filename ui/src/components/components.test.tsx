@@ -7,7 +7,9 @@ import type { Opportunity } from "@/api/types";
 import { EMPTY_FILTERS, type CandidateFilters } from "@/lib/opportunities";
 import { makeExplanation, makeOpportunities, makeOpportunity } from "@/test/fixtures";
 import { TooltipProvider } from "@/components/ui/primitives";
-import { CandidateCard } from "@/components/CandidateCard";
+import { CandidateDetail, trackPositions, isLowConfidence } from "@/components/CandidateDetail";
+import { CandidateRow } from "@/components/CandidateRow";
+import { ringFill } from "@/components/ScoreRing";
 import { CandidatesView } from "@/components/CandidatesView";
 import type { SearchForm } from "@/components/Sidebar";
 import { FiltersPanel } from "@/components/FiltersPanel";
@@ -26,93 +28,160 @@ function state(items: Opportunity[]): AsyncState<{ items: Opportunity[]; total: 
   return { data: { items, total: items.length }, error: null, loading: false, reload: () => {} };
 }
 
-describe("CandidateCard", () => {
-  it("shows the combination, score badge, count badges and the three signal meters", () => {
+describe("CandidateDetail", () => {
+  it("shows the combination, score ring, count badges, confidence and the three signal meters", () => {
     const o = makeOpportunity(14);
-    wrap(<CandidateCard opportunity={o} rank={1} selected={false} onOpen={() => {}} score={73.73} scoreLabel="Stored score." />);
-    const card = screen.getByTestId("candidate-card");
+    wrap(<CandidateDetail opportunity={o} rank={1} score={73.73} scoreLabel="Stored score." onOpenEvidence={() => {}} />);
+    const card = screen.getByTestId("candidate-detail");
     expect(within(card).getByText("Masked Language Modeling")).toBeInTheDocument();
     expect(within(card).getByText("Machine Translation")).toBeInTheDocument();
     expect(within(card).getByText("Observed Count: 1")).toBeInTheDocument();
     expect(within(card).getByText("Expected: 11.9")).toBeInTheDocument();
     expect(within(card).getByText("Confidence: 1.00")).toBeInTheDocument();
+    expect(within(card).queryByText("Low confidence")).toBeNull();
     const meters = within(card).getAllByRole("meter");
     expect(meters.map((m) => m.getAttribute("aria-label"))).toEqual(["Sparsity", "Semantic", "Temporal"]);
     expect(Number(meters[0]?.getAttribute("aria-valuenow"))).toBeCloseTo(0.84447473);
     expect(within(card).getByText("Score")).toBeInTheDocument();
+    expect(within(card).getByTestId("score-badge")).toHaveTextContent("74");
+    expect(within(card).getByTestId("observed-expected-track")).toBeInTheDocument();
   });
 
-  it("opens with a click and with Enter / Space", async () => {
+  it("opens the evidence only with the Evidence & explanation button", async () => {
     const user = userEvent.setup();
-    const onOpen = vi.fn();
+    const onOpenEvidence = vi.fn();
     const o = makeOpportunity(14);
-    wrap(<CandidateCard opportunity={o} rank={1} selected={false} onOpen={onOpen} score={70} scoreLabel="" />);
-    const card = screen.getByRole("button", { name: /Open evidence for Masked Language Modeling × Machine Translation/ });
-    await user.click(card);
-    card.focus();
-    await user.keyboard("{Enter}");
-    await user.keyboard(" ");
-    expect(onOpen).toHaveBeenCalledTimes(3);
-    expect(onOpen).toHaveBeenCalledWith(o);
+    wrap(<CandidateDetail opportunity={o} rank={1} score={70} scoreLabel="" onOpenEvidence={onOpenEvidence} />);
+    await user.click(screen.getByRole("button", { name: /Evidence & explanation/ }));
+    expect(onOpenEvidence).toHaveBeenCalledWith(o);
   });
 
-  it("flags a low confidence", () => {
-    wrap(<CandidateCard opportunity={makeOpportunity(1, { confidence: 0.32 })} rank={2} selected onOpen={() => {}} score={40} scoreLabel="" />);
+  it("flags a low confidence in the warning colour and with the words Low confidence", () => {
+    wrap(<CandidateDetail opportunity={makeOpportunity(1, { confidence: 0.32 })} rank={2} score={40} scoreLabel="" onOpenEvidence={() => {}} />);
     expect(screen.getByText("Confidence: 0.32").className).toMatch(/warning/);
-    expect(screen.getByRole("button", { pressed: true })).toBeInTheDocument();
+    expect(screen.getByText("Low confidence")).toBeInTheDocument();
   });
 
   it("shows n/a when a signal is not implemented instead of inventing a value", () => {
     const o = makeOpportunity(1, { signals: { sparsity: null, semantic_compatibility: 0.5, temporal_activity: 0.5, graph_bridge_strength: null, method_compatibility: null } });
-    wrap(<CandidateCard opportunity={o} rank={1} selected={false} onOpen={() => {}} score={50} scoreLabel="" />);
+    wrap(<CandidateDetail opportunity={o} rank={1} score={50} scoreLabel="" onOpenEvidence={() => {}} />);
     expect(screen.getByTestId("meter-sparsity")).toHaveTextContent("n/a");
+  });
+
+  it("puts the expected marker and the observed dot on one shared scale", () => {
+    const o = makeOpportunity(14);
+    const p = trackPositions(o.observed_count, o.expected_count);
+    expect(p.expected).toBeGreaterThan(p.observed);
+    expect(p.expected).toBeLessThanOrEqual(1);
+    expect(trackPositions(0, 0)).toEqual({ observed: 0, expected: 0 });
+    wrap(<CandidateDetail opportunity={o} rank={1} score={70} scoreLabel="" onOpenEvidence={() => {}} />);
+    expect(parseFloat(screen.getByTestId("expected-marker").style.left)).toBeCloseTo(p.expected * 100);
+    expect(parseFloat(screen.getByTestId("observed-dot").style.left)).toBeCloseTo(p.observed * 100);
+  });
+
+  it("uses the existing confidence rule: below 0.5 or missing is low", () => {
+    expect(isLowConfidence(0.49)).toBe(true);
+    expect(isLowConfidence(null)).toBe(true);
+    expect(isLowConfidence(0.5)).toBe(false);
+  });
+
+  it("fills the ring in proportion to the score, clamped to 0..1", () => {
+    expect(ringFill(50)).toBeCloseTo(0.5);
+    expect(ringFill(150)).toBe(1);
+    expect(ringFill(-5)).toBe(0);
+  });
+});
+
+describe("CandidateRow", () => {
+  it("shows the rank, both elements and a mini ring, and selects with a click", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    const o = makeOpportunity(14);
+    wrap(<CandidateRow opportunity={o} rank={1} score={73.73} selected={false} onSelect={onSelect} />);
+    const row = screen.getByRole("option");
+    expect(row).toHaveTextContent("01");
+    expect(row).toHaveTextContent("Masked Language Modeling");
+    expect(row).toHaveTextContent("Machine Translation");
+    expect(within(row).getByTestId("score-ring-mini")).toHaveTextContent("74");
+    expect(row).toHaveAttribute("aria-selected", "false");
+    await user.click(row);
+    expect(onSelect).toHaveBeenCalledWith(o);
   });
 });
 
 describe("CandidatesView", () => {
-  function Harness({ items, initial = EMPTY_FILTERS }: { items: Opportunity[]; initial?: CandidateFilters }) {
+  function Harness({ items, initial = EMPTY_FILTERS, onEvidence = () => {} }: { items: Opportunity[]; initial?: CandidateFilters; onEvidence?: (o: Opportunity) => void }) {
     const [filters, setFilters] = useState(initial);
+    const [selectedId, setSelectedId] = useState<number | null>(null);
     return (
       <>
         <button onClick={() => setFilters({ ...EMPTY_FILTERS, methods: ["Back-translation"] })}>apply method filter</button>
         <button onClick={() => setFilters(EMPTY_FILTERS)}>reset filters</button>
-        <CandidatesView state={state(items)} filters={filters} selectedId={null} onOpen={() => {}} onClearFilters={() => setFilters(EMPTY_FILTERS)} />
+        <CandidatesView state={state(items)} filters={filters} selectedId={selectedId} onSelect={(o) => setSelectedId(o.opportunity_id)} onOpenEvidence={onEvidence} onClearFilters={() => setFilters(EMPTY_FILTERS)} />
       </>
     );
   }
 
-  it("shows 6 per page, 13 candidates over 3 pages, ranked by stored score", async () => {
-    const user = userEvent.setup();
+  const rows = () => screen.getAllByTestId("candidate-row");
+
+  it("lists all 13 candidates ranked by stored score, with the one ranked first selected and shown in the detail", () => {
     wrap(<Harness items={makeOpportunities()} />);
-    expect(screen.getAllByTestId("candidate-card")).toHaveLength(6);
-    expect(screen.getByText("Page 1 / 3")).toBeInTheDocument();
+    expect(rows()).toHaveLength(13);
     expect(screen.getByText(/Showing/).textContent).toMatch(/13 of 13/);
-    await user.click(screen.getByRole("button", { name: "Next page" }));
-    expect(screen.getByText("Page 2 / 3")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Next page" }));
-    expect(screen.getAllByTestId("candidate-card")).toHaveLength(1);
-    expect(screen.getByRole("button", { name: "Next page" })).toBeDisabled();
+    expect(rows()[0]).toHaveAttribute("aria-selected", "true");
+    expect(rows().filter((r) => r.getAttribute("aria-selected") === "true")).toHaveLength(1);
+    expect(screen.getByTestId("candidate-detail")).toHaveTextContent("#1 · opportunity");
+    expect(screen.queryByRole("button", { name: "Next page" })).toBeNull();
   });
 
-  it("goes back to page 1 when the filters change (regression: it stayed on page 3)", async () => {
+  it("selects a row with a click and shows its detail without opening the evidence", async () => {
+    const user = userEvent.setup();
+    const onEvidence = vi.fn();
+    wrap(<Harness items={makeOpportunities()} onEvidence={onEvidence} />);
+    await user.click(rows()[1]!);
+    expect(rows()[1]).toHaveAttribute("aria-selected", "true");
+    expect(rows()[0]).toHaveAttribute("aria-selected", "false");
+    expect(screen.getByTestId("candidate-detail")).toHaveTextContent("#2 · opportunity");
+    expect(onEvidence).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: /Evidence & explanation/ }));
+    expect(onEvidence).toHaveBeenCalledTimes(1);
+  });
+
+  it("moves the selection with Up / Down / Home / End while the list has the focus, and stops at the ends", async () => {
     const user = userEvent.setup();
     wrap(<Harness items={makeOpportunities()} />);
-    await user.click(screen.getByRole("button", { name: "Next page" }));
-    await user.click(screen.getByRole("button", { name: "Next page" }));
-    expect(screen.getByText("Page 3 / 3")).toBeInTheDocument();
+    screen.getByRole("listbox", { name: "Ranked candidates" }).focus();
+    await user.keyboard("{ArrowDown}{ArrowDown}");
+    expect(rows()[2]).toHaveAttribute("aria-selected", "true");
+    await user.keyboard("{ArrowUp}");
+    expect(rows()[1]).toHaveAttribute("aria-selected", "true");
+    await user.keyboard("{End}");
+    expect(rows()[12]).toHaveAttribute("aria-selected", "true");
+    await user.keyboard("{ArrowDown}");
+    expect(rows()[12]).toHaveAttribute("aria-selected", "true");
+    await user.keyboard("{Home}{ArrowUp}");
+    expect(rows()[0]).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("listbox")).toHaveAttribute("aria-activedescendant", rows()[0]!.id);
+  });
+
+  it("falls back to the first row when the selected one is filtered out", async () => {
+    const user = userEvent.setup();
+    wrap(<Harness items={makeOpportunities()} />);
+    await user.click(rows()[3]!);
     await user.click(screen.getByText("apply method filter"));
+    expect(rows()[0]).toHaveAttribute("aria-selected", "true");
     await user.click(screen.getByText("reset filters"));
-    expect(screen.getByText("Page 1 / 3")).toBeInTheDocument();
-    expect(screen.getAllByTestId("candidate-card")).toHaveLength(6);
+    expect(rows()).toHaveLength(13);
   });
 
   it("filters candidates and shows an empty state with a way out", async () => {
     const user = userEvent.setup();
     wrap(<Harness items={makeOpportunities()} />);
     await user.click(screen.getByText("apply method filter"));
-    const cards = screen.getAllByTestId("candidate-card");
+    const cards = rows();
     expect(cards.length).toBeGreaterThan(0);
-    cards.forEach((c) => expect(within(c).getByText("Back-translation")).toBeInTheDocument());
+    expect(cards.length).toBeLessThan(13);
+    expect(screen.getByTestId("candidate-detail")).toBeInTheDocument();
     const noMatch = wrap(<Harness items={makeOpportunities()} initial={{ ...EMPTY_FILTERS, tasks: ["No such task"] }} />);
     expect(noMatch.getAllByText(/No candidate matches these filters/).length).toBeGreaterThan(0);
   });
@@ -124,7 +193,7 @@ describe("CandidatesView", () => {
       makeOpportunity(2, { score: 80, signals: { sparsity: 0, semantic_compatibility: 1, temporal_activity: 0, graph_bridge_strength: null, method_compatibility: null } }),
     ];
     wrap(<Harness items={items} />);
-    const order = () => screen.getAllByTestId("candidate-card").map((c) => within(c).getByRole("button").getAttribute("aria-label"));
+    const order = () => rows().map((r) => r.textContent ?? "");
     expect(order()[0]).toMatch(/Masked/);
     await user.click(screen.getByRole("button", { name: /What-if weights/ }));
     const sliders = screen.getAllByRole("slider");
@@ -136,21 +205,21 @@ describe("CandidatesView", () => {
       await user.keyboard(key);
     }
     await waitFor(() => expect(screen.getByRole("button", { name: /Reset to v1/ })).toBeEnabled());
-    await waitFor(() => expect(screen.getAllByTestId("score-badge")[0]).toHaveTextContent("100"));
+    await waitFor(() => expect(screen.getByTestId("score-badge")).toHaveTextContent("100"));
   });
 
   it("shows an error with a retry, a loading skeleton and the no-data message", async () => {
     const user = userEvent.setup();
     const reload = vi.fn();
-    const { unmount } = wrap(<CandidatesView state={{ data: null, error: new ApiError(0, "API not reachable"), loading: false, reload }} filters={EMPTY_FILTERS} selectedId={null} onOpen={() => {}} onClearFilters={() => {}} />);
+    const { unmount } = wrap(<CandidatesView state={{ data: null, error: new ApiError(0, "API not reachable"), loading: false, reload }} filters={EMPTY_FILTERS} selectedId={null} onSelect={() => {}} onClearFilters={() => {}} />);
     expect(screen.getByRole("alert")).toHaveTextContent("API not reachable");
     await user.click(screen.getByRole("button", { name: "Try again" }));
     expect(reload).toHaveBeenCalled();
     unmount();
-    const l = wrap(<CandidatesView state={{ data: null, error: null, loading: true, reload }} filters={EMPTY_FILTERS} selectedId={null} onOpen={() => {}} onClearFilters={() => {}} />);
+    const l = wrap(<CandidatesView state={{ data: null, error: null, loading: true, reload }} filters={EMPTY_FILTERS} selectedId={null} onSelect={() => {}} onClearFilters={() => {}} />);
     expect(l.getByLabelText("Loading candidates")).toBeInTheDocument();
     l.unmount();
-    wrap(<CandidatesView state={state([])} filters={EMPTY_FILTERS} selectedId={null} onOpen={() => {}} onClearFilters={() => {}} />);
+    wrap(<CandidatesView state={state([])} filters={EMPTY_FILTERS} selectedId={null} onSelect={() => {}} onClearFilters={() => {}} />);
     expect(screen.getByText(/No opportunities are stored yet/)).toBeInTheDocument();
   });
 });

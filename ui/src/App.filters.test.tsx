@@ -240,7 +240,7 @@ describe("App with reduced motion", () => {
     window.history.replaceState(null, "", "#/candidates");
     render(<App />);
     expect(screen.getByTestId("ambient")).toHaveAttribute("data-static");
-    expect(await screen.findAllByTestId("candidate-card")).toHaveLength(3); // the three candidates of the fixture
+    expect(await screen.findAllByTestId("candidate-row")).toHaveLength(3); // the three candidates of the fixture
     expect(nav().getByRole("button", { name: "Candidates" })).toHaveAttribute("aria-current", "page");
     await user.keyboard("{Control>}k{/Control}");
     expect(await screen.findByRole("dialog", { name: "Command palette" })).toBeInTheDocument();
