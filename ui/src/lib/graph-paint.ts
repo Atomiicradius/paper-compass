@@ -162,6 +162,8 @@ export interface PaintState {
   ring: number;
   /** false = reduced motion: no drift, no particles, no pulsing, no entrance */
   animate: boolean;
+  /** false on large graphs: the particles are left out to keep the frame rate up */
+  particles: boolean;
   centerId: string | null;
   selectedId: string | null;
   hoverId: string | null;
@@ -177,7 +179,7 @@ export interface PaintState {
 
 export function newPaintState(animate: boolean): PaintState {
   return {
-    reveal: animate ? 0 : 1, time: 0, ring: 0, animate, centerId: null, selectedId: null, hoverId: null,
+    reveal: animate ? 0 : 1, time: 0, ring: 0, animate, particles: true, centerId: null, selectedId: null, hoverId: null,
     highlight: null, dim: 0, labelAlpha: new Map(), distance: new Map(),
   };
 }
@@ -337,7 +339,7 @@ export function drawLink(ctx: CanvasRenderingContext2D, link: PaintLink, scale: 
   ctx.stroke();
 
   // particles flow along a citation, in its direction (source cites target); none when nothing may animate
-  if (st.animate && link.type === "CITES" && p > 0.98) {
+  if (st.animate && st.particles && link.type === "CITES" && p > 0.98) {
     ctx.globalCompositeOperation = "lighter";
     const size = Math.min(2.2, 1.7 / Math.sqrt(scale));
     for (const f of particlePositions(2, st.time)) {

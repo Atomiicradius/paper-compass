@@ -6,7 +6,7 @@ import { api } from "@/api/client";
 import type { GraphLabel } from "@/api/types";
 import { GRAPH_COLORS } from "@/lib/colors";
 import { buildViewGraph, graphNote, type ViewNode } from "@/lib/graph";
-import { drawLink, drawNode, nodeRadius, type PaintLink, type PaintNode } from "@/lib/graph-paint";
+import { capDevicePixelRatio, drawLink, drawNode, nodeRadius, type PaintLink, type PaintNode } from "@/lib/graph-paint";
 import { usePrefersReducedMotion } from "@/lib/reduced-motion";
 import { useAsync, useElementSize, type Theme } from "@/lib/hooks";
 import { nodePaperId, normalizePaperId } from "@/lib/ids";
@@ -28,6 +28,25 @@ const GLASS_BACKGROUND = {
 const LINK_ARROW_COLOR = "rgba(148, 163, 184, 0.55)";
 // links drawn with a gradient each (one gradient object per link per frame) only while there are not too many
 const GRADIENT_LINKS_MAX = 450;
+// above this many nodes the particles along citation links are left out (the links still draw)
+const LARGE_GRAPH = 400;
+
+/**
+ * The canvas is never sharper than 2 device pixels per css pixel. force-graph reads window.devicePixelRatio itself and has
+ * no option for it, so the property is capped while the graph is mounted. This runs before the canvas is created
+ * (children are created after the parent's render), and is undone when the graph unmounts.
+ */
+function useCappedPixelRatio() {
+  const restore = useRef<(() => void) | null>(null);
+  if (restore.current === null) restore.current = capDevicePixelRatio();
+  useEffect(() => {
+    if (restore.current === null) restore.current = capDevicePixelRatio(); // React re-runs effects after a simulated unmount in development
+    return () => {
+      restore.current?.();
+      restore.current = null;
+    };
+  }, []);
+}
 
 export function GraphView({
   paperId, onPaperId, bridgeIds, theme, onOpenPaper,
@@ -60,11 +79,12 @@ export function GraphView({
   const fgRef = useRef<ForceGraphMethods | undefined>(undefined);
   const fit = useCallback(() => fgRef.current?.zoomToFit(400, 40), []);
 
+  useCappedPixelRatio();
   const reduced = usePrefersReducedMotion();
   const centerId = useMemo(() => view?.nodes.find((n) => n.isCenter)?.id ?? null, [view]);
   // the entrance, the idle motion, hover highlighting, label fades and the camera glide (see useGraphMotion)
   const { paint, onRenderFramePre, onNodeHover, glideTo } = useGraphMotion({
-    view, dataKey: graph.data, centerId, selectedId: selected?.id ?? null, fgRef, boxRef, reduced,
+    view, dataKey: graph.data, centerId, selectedId: selected?.id ?? null, fgRef, boxRef, reduced, large: (view?.nodes.length ?? 0) > LARGE_GRAPH,
   });
 
   // spread the layout out so labels and nodes do not pile up

@@ -22,6 +22,8 @@ interface Options {
   boxRef: RefObject<HTMLElement | null>;
   /** prefers-reduced-motion: no entrance, no drift, no particles, no pulsing, no glide */
   reduced: boolean;
+  /** a large graph: the particles are left out */
+  large?: boolean;
 }
 
 /**
@@ -35,10 +37,12 @@ interface Options {
  * Every tween lives in one gsap context, which is reverted when the graph unmounts or a new graph arrives.
  * With reduced motion nothing is tweened: the values are set to their end state and jump when they change.
  */
-export function useGraphMotion({ view, dataKey, centerId, selectedId, fgRef, boxRef, reduced }: Options) {
+export function useGraphMotion({ view, dataKey, centerId, selectedId, fgRef, boxRef, reduced, large = false }: Options) {
   const paint = useRef(newPaintState(!reduced));
   const targets = useRef<Set<string>>(new Set());
   const lastFrame = useRef(0);
+  // the tweens that can be paused while the tab is hidden
+  const loops = useRef<Array<{ pause: () => unknown; resume: () => unknown }>>([]);
   const adjacency = useMemo(() => (view ? buildAdjacency(view.links) : new Map<string, Set<string>>()), [view]);
   const nodeIds = useMemo(() => view?.nodes.map((n) => n.id) ?? [], [view]);
   const redraw = useCallback(() => (fgRef.current as { refresh?: () => void } | undefined)?.refresh?.(), [fgRef]);
@@ -47,12 +51,13 @@ export function useGraphMotion({ view, dataKey, centerId, selectedId, fgRef, box
   useLayoutEffect(() => {
     const st = paint.current;
     st.animate = !reduced;
+    st.particles = !large;
     if (reduced) {
       st.reveal = 1;
       st.time = 0;
       st.ring = 0;
     }
-  }, [reduced]);
+  }, [reduced, large]);
 
   // who is the selected paper, who was clicked, and which nodes carry a label
   useEffect(() => {
@@ -79,12 +84,34 @@ export function useGraphMotion({ view, dataKey, centerId, selectedId, fgRef, box
     st.time = 0;
     st.ring = 0;
     const ctx = gsap.context(() => {
-      gsap.timeline().to(st, { reveal: 1, duration: REVEAL_SECONDS, ease: "power2.out" });
-      gsap.to(st, { time: 3600, duration: 3600, ease: "none" }); // the clock of the drift and the particles
-      gsap.to(st, { ring: 1, duration: 3.8, ease: "none", repeat: -1 }); // the slow rings around the selected paper
+      const entrance = gsap.timeline().to(st, { reveal: 1, duration: REVEAL_SECONDS, ease: "power2.out" });
+      const clock = gsap.to(st, { time: 3600, duration: 3600, ease: "none" }); // the clock of the drift and the particles
+      const rings = gsap.to(st, { ring: 1, duration: 3.8, ease: "none", repeat: -1 }); // the slow rings around the selected paper
+      loops.current = [entrance, clock, rings];
     });
-    return () => ctx.revert();
+    return () => {
+      loops.current = [];
+      ctx.revert();
+    };
   }, [dataKey, reduced, redraw]);
+
+  // nothing is drawn or tweened while the tab is hidden (the browser stops animation frames anyway; this also stops the
+  // layout simulation and the GSAP clock, so the time spent hidden does not jump the animation forward)
+  useEffect(() => {
+    const onVisibility = () => {
+      const fg = fgRef.current;
+      if (document.hidden) {
+        fg?.pauseAnimation();
+        loops.current.forEach((t) => t.pause());
+      } else {
+        fg?.resumeAnimation();
+        loops.current.forEach((t) => t.resume());
+        lastFrame.current = 0; // no big time step after the pause
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [fgRef]);
 
   // called before each frame is drawn
   const onRenderFramePre = useCallback(() => {
