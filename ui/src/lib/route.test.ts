@@ -5,6 +5,8 @@ describe("route <-> hash", () => {
   it("round-trips every combination of the four fields", () => {
     const routes: Route[] = [
       DEFAULT_ROUTE,
+      { view: "story", opp: null, paper: null, graph: "" },
+      { view: "candidates", opp: null, paper: null, graph: "" },
       { view: "candidates", opp: 14, paper: null, graph: "" },
       { view: "papers", opp: null, paper: "W3028876793", graph: "" },
       { view: "graph", opp: null, paper: null, graph: "W2626778328" },
@@ -14,16 +16,22 @@ describe("route <-> hash", () => {
     for (const r of routes) expect(parseRoute(formatRoute(r))).toEqual(r);
   });
 
-  it("the default route is the empty hash, and an empty or unknown hash is the default route", () => {
+  it("the default route is the story, written as the empty hash; an empty or unknown hash is the default route", () => {
+    expect(DEFAULT_ROUTE.view).toBe("story");
     expect(formatRoute(DEFAULT_ROUTE)).toBe("");
-    for (const h of ["", "#", "#/", "#/nonsense", "#/candidates", "#/CANDIDATES", "#/?opp=abc"]) {
-      expect(parseRoute(h).view).toBe("candidates");
+    for (const h of ["", "#", "#/", "#/nonsense", "#/story", "#/STORY", "#/CANDIDATES", "#/?opp=abc"]) {
+      expect(parseRoute(h).view).toBe("story");
     }
     expect(parseRoute("")).toEqual(DEFAULT_ROUTE);
   });
 
+  it("the explorer is a route of its own: #/candidates is Candidates, not the default", () => {
+    expect(formatRoute({ ...DEFAULT_ROUTE, view: "candidates" })).toBe("#/candidates");
+    expect(parseRoute("#/candidates").view).toBe("candidates");
+  });
+
   it("links to an opportunity and a paper", () => {
-    expect(formatRoute({ ...DEFAULT_ROUTE, opp: 14 })).toBe("#/candidates?opp=14");
+    expect(formatRoute({ ...DEFAULT_ROUTE, view: "candidates", opp: 14 })).toBe("#/candidates?opp=14");
     expect(parseRoute("#/candidates?opp=14")).toMatchObject({ view: "candidates", opp: 14 });
     expect(parseRoute("#/papers?paper=W3028876793")).toMatchObject({ view: "papers", paper: "W3028876793" });
   });
