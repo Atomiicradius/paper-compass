@@ -7,6 +7,7 @@ import { MODE_LABELS, type SearchFormState, type SearchMode } from "@/lib/search
 import { activeFilterCount, EMPTY_FILTERS, type CandidateFilters } from "@/lib/opportunities";
 import { cn } from "@/lib/utils";
 import { Badge, Button, Checkbox, Slider, Switch, Tip } from "@/components/ui/primitives";
+import { Reveal } from "@/components/Reveal";
 
 export interface FilterOptions {
   methods: string[];
@@ -29,7 +30,7 @@ function Section({ title, count, defaultOpen = true, children, hint }: { title: 
         aria-expanded={open}
         aria-controls={id}
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full cursor-pointer items-center justify-between text-left text-xs font-semibold tracking-wide text-muted uppercase hover:text-foreground"
+        className="mono-label flex w-full cursor-pointer items-center justify-between text-left hover:text-foreground"
       >
         <span className="flex items-center gap-2">
           {title}
@@ -96,13 +97,16 @@ export function Sidebar({
   const yearsActive = form.years[0] !== yearBounds[0] || form.years[1] !== yearBounds[1];
   const total = activeFilterCount(filters) + (yearsActive ? 1 : 0);
   return (
-    <aside aria-label="Search and filters" className={cn("flex min-h-0 flex-col border-r border-border bg-card", className)}>
-      <form
+    <aside aria-label="Search and filters" className={cn("glass flex min-h-0 flex-col rounded-none border-0 border-r", className)}>
+      <Reveal
+        as="form"
+        self
+        trigger="mount"
         className="space-y-3 border-b border-border p-4"
         role="search"
         onSubmit={(e) => { e.preventDefault(); onSearch(); }}
       >
-        <label htmlFor="q" className="text-xs font-semibold tracking-wide text-muted uppercase">Search the corpus</label>
+        <label htmlFor="q" className="mono-label">Search the corpus</label>
         <div className="relative">
           <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted" />
           <input
@@ -125,11 +129,11 @@ export function Sidebar({
           </select>
           <Button type="submit" className="shrink-0" disabled={searching || !form.query.trim()}>{searching ? "Searching…" : "Search"}</Button>
         </div>
-      </form>
+      </Reveal>
 
       <div data-lenis-prevent className="scroll-thin min-h-0 flex-1 overflow-y-auto px-4">
         <div className="flex items-center justify-between py-3">
-          <span className="text-xs font-semibold tracking-wide uppercase">Filters{total ? <span className="ml-1.5 font-mono text-primary">({total})</span> : null}</span>
+          <span className="mono-label text-foreground">Filters{total ? <span className="ml-1.5 font-mono text-primary">({total})</span> : null}</span>
           {total ? (
             <button
               className="cursor-pointer text-xs text-primary underline"

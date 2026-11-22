@@ -7,7 +7,7 @@ import {
   activeFilterCount, filterOpportunities, paginate, rerank, SIGNAL_KEYS, SIGNAL_LABELS, V1_WEIGHTS, type CandidateFilters, type SignalKey,
 } from "@/lib/opportunities";
 import { Button, ErrorNote, Skeleton, Slider, Tip } from "@/components/ui/primitives";
-import { stagger } from "@/components/motion";
+import { Reveal } from "@/components/Reveal";
 import { CandidateCard } from "@/components/CandidateCard";
 
 const PAGE_SIZE = 6;
@@ -54,9 +54,9 @@ export function CandidatesView({
 
   return (
     <section aria-label="Candidate opportunities" className="space-y-4">
-      <header className="flex flex-wrap items-end justify-between gap-3">
+      <Reveal as="header" self trigger="mount" className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">Candidate opportunities</h2>
+          <h2 className="display-heading mb-1">Candidate <span className="accent-word">opportunities</span></h2>
           <p className="text-sm text-muted">
             Potentially underexplored research-element combinations, ranked for human review.
             {state.data ? <> Showing <b className="text-foreground">{ranked.length}</b> of {state.data.total}.</> : null}
@@ -74,10 +74,10 @@ export function CandidatesView({
             </Button>
           </Tip>
         </div>
-      </header>
+      </Reveal>
 
       {showWeights ? (
-        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="overflow-hidden rounded-2xl border border-border bg-card">
+        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="glass overflow-hidden rounded-2xl">
           <div className="grid gap-4 p-4 sm:grid-cols-3">
             {SIGNAL_KEYS.map((k) => (
               <label key={k} className="block text-xs">
@@ -118,7 +118,7 @@ export function CandidatesView({
         </div>
       ) : (
         <>
-          <motion.div key={listKey} variants={stagger} initial="hidden" animate="show" className="space-y-4">
+          <Reveal key={listKey} className="space-y-4">
             {rows.map(({ o, rank, score }) => (
               <CandidateCard
                 key={o.opportunity_id}
@@ -130,7 +130,7 @@ export function CandidatesView({
                 onOpen={onOpen}
               />
             ))}
-          </motion.div>
+          </Reveal>
           {pages > 1 ? (
             <nav aria-label="Pagination" className="flex items-center justify-center gap-3 pt-2">
               <Button variant="outline" size="sm" disabled={cur <= 1} onClick={() => setPage(cur - 1)} aria-label="Previous page">

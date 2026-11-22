@@ -1,12 +1,11 @@
 import { useMemo, useState } from "react";
-import { motion } from "motion/react";
 import { Network } from "lucide-react";
 import { api } from "@/api/client";
 import type { Landscape, TrendItem } from "@/api/types";
 import { KIND_COLORS } from "@/lib/colors";
 import { useAsync, type AsyncState } from "@/lib/hooks";
 import { Badge, Button, ErrorNote, IdBadge, Mono, Skeleton, Slider, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/primitives";
-import { fadeUp, stagger } from "@/components/motion";
+import { Reveal } from "@/components/Reveal";
 
 function YearBars({ perYear }: { perYear: Record<string, number> }) {
   const years = Object.keys(perYear).map(Number).sort((a, b) => a - b);
@@ -62,25 +61,25 @@ export function LandscapeView({ state, onOpenGraph }: { state: AsyncState<Landsc
   const total = Object.values(land.papers_per_year).reduce((a, b) => a + b, 0);
 
   return (
-    <motion.section variants={stagger} initial="hidden" animate="show" aria-label="Landscape" className="space-y-8">
-      <motion.header variants={fadeUp}>
-        <h2 className="text-xl font-semibold tracking-tight">Landscape</h2>
+    <section aria-label="Landscape" className="space-y-8">
+      <Reveal as="header" self trigger="mount">
+        <h2 className="display-heading mb-1">Landscape</h2>
         <p className="text-sm text-muted">How the analyzed corpus is spread over time, clusters and research elements. Counts are papers in this corpus, not the whole literature.</p>
-      </motion.header>
+      </Reveal>
 
-      <motion.section variants={fadeUp} className="rounded-2xl border border-border bg-card p-4">
-        <h3 className="mb-2 text-sm font-semibold tracking-wide text-muted uppercase">Papers per year <Mono className="ml-2 text-foreground normal-case">{total.toLocaleString()} with a year</Mono></h3>
+      <Reveal as="section" self className="glass rounded-2xl p-4">
+        <h3 className="mb-2 mono-label">Papers per year <Mono className="ml-2 text-foreground normal-case">{total.toLocaleString()} with a year</Mono></h3>
         <YearBars perYear={land.papers_per_year} />
-      </motion.section>
+      </Reveal>
 
-      <motion.section variants={fadeUp} className="space-y-3">
-        <h3 className="text-sm font-semibold tracking-wide text-muted uppercase">Clusters</h3>
+      <Reveal as="section" self className="space-y-3">
+        <h3 className="mono-label">Clusters</h3>
         {clusters.error ? <ErrorNote title="Clusters unavailable" message={clusters.error.message.replace(/^\d+: /, "")} /> : !clusters.data ? <Skeleton className="h-40" /> : (
           <>
             <p className="text-xs text-muted">
               HDBSCAN on SPECTER2 embeddings (PCA {clusters.data.pca_dims ?? "none"}, min cluster size {clusters.data.min_cluster_size}). {clusters.data.n_noise.toLocaleString()} of {clusters.data.n_papers.toLocaleString()} papers belong to no cluster.
             </p>
-            <div data-lenis-prevent className="overflow-x-auto rounded-2xl border border-border">
+            <div data-lenis-prevent className="glass overflow-x-auto rounded-2xl">
               <table className="w-full min-w-[520px] text-sm">
                 <thead className="bg-hover text-left text-xs text-muted uppercase"><tr><th className="px-3 py-2">Cluster</th><th className="px-3 py-2">Papers</th><th className="px-3 py-2">Years</th><th className="px-3 py-2">Most frequent elements</th></tr></thead>
                 <tbody>
@@ -97,16 +96,16 @@ export function LandscapeView({ state, onOpenGraph }: { state: AsyncState<Landsc
             </div>
           </>
         )}
-      </motion.section>
+      </Reveal>
 
       {land.weakly_connected_cluster_pairs.length > 0 ? (
-        <motion.section variants={fadeUp} className="space-y-3" aria-label="Weakly connected cluster pairs">
-          <h3 className="text-sm font-semibold tracking-wide text-muted uppercase">Weakly connected cluster pairs</h3>
+        <Reveal as="section" self className="space-y-3" aria-label="Weakly connected cluster pairs">
+          <h3 className="mono-label">Weakly connected cluster pairs</h3>
           <p className="text-xs text-muted">
             Clusters that are close in meaning but whose papers rarely cite each other. A signal for human review, not proof that the
             two areas are unconnected: the corpus is small and citations outside it are not counted.
           </p>
-          <div data-lenis-prevent className="overflow-x-auto rounded-2xl border border-border">
+          <div data-lenis-prevent className="glass overflow-x-auto rounded-2xl">
             <table className="w-full min-w-[440px] text-sm">
               <thead className="bg-hover text-left text-xs text-muted uppercase">
                 <tr><th className="px-3 py-2">Clusters</th><th className="px-3 py-2">Similarity</th><th className="px-3 py-2">Cross-citations</th></tr>
@@ -122,12 +121,12 @@ export function LandscapeView({ state, onOpenGraph }: { state: AsyncState<Landsc
               </tbody>
             </table>
           </div>
-        </motion.section>
+        </Reveal>
       ) : null}
 
-      <motion.section variants={fadeUp} className="space-y-3">
+      <Reveal as="section" self className="space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <h3 className="text-sm font-semibold tracking-wide text-muted uppercase">Temporal evolution</h3>
+          <h3 className="mono-label">Temporal evolution</h3>
           <label className="flex items-center gap-3 text-xs text-muted">
             Hide elements with fewer than <Mono className="text-foreground">{minPapers}</Mono> papers
             <Slider className="w-32" min={1} max={30} step={1} value={[minPapers]} onValueChange={([v]) => setMinPapers(v ?? 1)} aria-label="Minimum papers" />
@@ -148,20 +147,20 @@ export function LandscapeView({ state, onOpenGraph }: { state: AsyncState<Landsc
             </TabsContent>
           ))}
         </Tabs>
-      </motion.section>
+      </Reveal>
 
-      <motion.section variants={fadeUp} className="space-y-3">
-        <h3 className="text-sm font-semibold tracking-wide text-muted uppercase">Bridge papers</h3>
+      <Reveal as="section" self className="space-y-3">
+        <h3 className="mono-label">Bridge papers</h3>
         <p className="text-xs text-muted">Papers whose citation links reach several clusters. Many are foundational papers that clustering left in no cluster.</p>
         <ul className="space-y-1.5 p-0">
           {land.bridge_papers.slice(0, 10).map((b) => (
-            <li key={b.paper_id} className="flex list-none items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm">
+            <li key={b.paper_id} className="flex list-none items-center justify-between gap-3 glass rounded-lg px-3 py-2 text-sm">
               <span className="flex items-center gap-2"><IdBadge id={b.paper_id} /><span className="text-xs text-muted">{b.own_cluster === -1 ? "no cluster" : `cluster ${b.own_cluster}`} → clusters {b.linked_clusters.join(", ")}</span></span>
               <Button size="sm" variant="ghost" onClick={() => onOpenGraph(b.paper_id)}><Network className="size-3.5" /> Graph</Button>
             </li>
           ))}
         </ul>
-      </motion.section>
-    </motion.section>
+      </Reveal>
+    </section>
   );
 }

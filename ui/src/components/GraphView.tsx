@@ -10,6 +10,7 @@ import { useAsync, useElementSize, type Theme } from "@/lib/hooks";
 import { nodePaperId, normalizePaperId } from "@/lib/ids";
 import { cn } from "@/lib/utils";
 import { Badge, Button, ErrorNote, IdBadge, Mono, Skeleton, TagBadge, Tip } from "@/components/ui/primitives";
+import { Reveal } from "@/components/Reveal";
 
 type Kind = GraphLabel | "Bridge";
 const LEGEND_ORDER: Kind[] = ["Paper", "Bridge", "Method", "Task", "Dataset", "Setting", "Author", "Venue", "Topic", "Institution"];
@@ -99,9 +100,9 @@ export function GraphView({
 
   return (
     <section aria-label="Research graph" className="flex min-h-0 flex-1 flex-col gap-3">
-      <header className="flex flex-wrap items-end justify-between gap-3">
+      <Reveal as="header" self trigger="mount" className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">Research graph</h2>
+          <h2 className="display-heading mb-1">Research <span className="accent-word">graph</span></h2>
           <p className="text-sm text-muted">The neighbourhood of one paper in the Neo4j projection: authors, venue, extracted elements and citations.</p>
         </div>
         <form
@@ -115,7 +116,7 @@ export function GraphView({
           />
           <Button type="submit" disabled={!normalizePaperId(draft)}>Show</Button>
         </form>
-      </header>
+      </Reveal>
 
       {id === "" ? (
         <div className="grid min-h-64 flex-1 place-items-center rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted">
@@ -160,7 +161,7 @@ export function GraphView({
 
           {note ? <p role="note" className="rounded-lg border border-border bg-hover px-3 py-1.5 text-xs text-muted">{note}</p> : null}
 
-          <div ref={boxRef} data-lenis-prevent className="relative min-h-[420px] flex-1 overflow-hidden rounded-2xl border border-border bg-card" data-testid="graph-canvas">
+          <div ref={boxRef} data-lenis-prevent className="glass relative min-h-[420px] flex-1 overflow-hidden rounded-2xl" data-testid="graph-canvas">
             {graph.loading && !view ? <Skeleton className="absolute inset-0 rounded-none" /> : null}
             {view && size.width > 0 ? (
               <ForceGraph2D
@@ -211,7 +212,7 @@ function NodeOverlay({
       data-lenis-prevent
       initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 24 }}
       transition={{ type: "spring", damping: 25, stiffness: 180 }}
-      className="absolute top-3 right-3 z-10 max-h-[calc(100%-1.5rem)] w-80 max-w-[calc(100%-1.5rem)] overflow-y-auto rounded-xl border border-border bg-card/95 p-4 shadow-xl backdrop-blur scroll-thin"
+      className="absolute top-3 right-3 z-10 max-h-[calc(100%-1.5rem)] w-80 max-w-[calc(100%-1.5rem)] glass overflow-y-auto rounded-xl bg-card/90 p-4 scroll-thin"
       aria-label="Node details"
     >
       <button type="button" aria-label="Close details" onClick={onClose} className="absolute top-2 right-2 cursor-pointer rounded p-1 text-muted hover:bg-hover hover:text-foreground"><X className="size-4" /></button>

@@ -4,7 +4,8 @@ import type { Opportunity } from "@/api/types";
 import { scoreStrength } from "@/lib/colors";
 import { opportunityTitle, SIGNAL_KEYS, SIGNAL_LABELS, type SignalKey } from "@/lib/opportunities";
 import { Badge, Mono, TagBadge, Tip } from "@/components/ui/primitives";
-import { SignalMeter, SpringNumber, fadeUp } from "@/components/motion";
+import { SignalMeter } from "@/components/motion";
+import { CountUp } from "@/components/CountUp";
 import { KIND_TEXT } from "@/lib/colors";
 import { cn, formatNumber } from "@/lib/utils";
 
@@ -72,13 +73,10 @@ export function CandidateCard({
   const tone = scoreStrength(score);
   const kinds = (["method", "dataset", "task", "setting"] as const).filter((k) => o.elements[k]);
   return (
-    <motion.article
-      variants={fadeUp}
-      whileHover={{ scale: 1.01 }}
-      transition={{ type: "spring", stiffness: 300, damping: 24 }}
+    <article
       className={cn(
         // the title button's ::after covers the whole card, so the card is one click target and one tab stop
-        "defer-paint group relative cursor-pointer rounded-2xl border bg-card p-4 shadow-sm transition-colors",
+        "glass defer-paint group relative cursor-pointer rounded-2xl p-4 transition-[translate,border-color,box-shadow] duration-300 hover:-translate-y-0.5",
         "hover:border-primary/60 has-[:focus-visible]:border-primary",
         selected ? "border-primary" : "border-border",
       )}
@@ -86,10 +84,10 @@ export function CandidateCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="mb-1 font-mono text-[11px] text-muted">
+          <p className="mono-label mb-1">
             #{rank} · opportunity {o.opportunity_id}
           </p>
-          <motion.h3 layoutId={`title-${o.opportunity_id}`} className="text-lg leading-snug font-semibold tracking-tight">
+          <motion.h3 layoutId={`title-${o.opportunity_id}`} className="display-heading display-sm">
             <button
               type="button"
               aria-label={`Open evidence for ${opportunityTitle(o.elements)}`}
@@ -112,8 +110,8 @@ export function CandidateCard({
             style={{ borderColor: `color-mix(in srgb, ${tone.color} 55%, transparent)`, background: `color-mix(in srgb, ${tone.color} 14%, transparent)`, color: tone.text }}
             data-testid="score-badge"
           >
-            <div className="text-[10px] font-semibold uppercase tracking-wider">Score</div>
-            <SpringNumber value={score} className="font-mono text-2xl leading-none font-bold tabular-nums" />
+            <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em]">Score</div>
+            <CountUp value={score} className="mono-figure text-3xl" />
           </div>
         </Tip>
       </div>
@@ -137,6 +135,6 @@ export function CandidateCard({
       <div className="mt-3 flex items-center justify-end text-xs text-muted transition-colors group-hover:text-foreground">
         Evidence &amp; explanation <ChevronRight className="size-3.5" />
       </div>
-    </motion.article>
+    </article>
   );
 }

@@ -10,6 +10,7 @@ import { EMPTY_FILTERS, isMockData, type CandidateFilters } from "@/lib/opportun
 import { cn } from "@/lib/utils";
 import { Button, Mono, Skeleton, Tip, TooltipProvider } from "@/components/ui/primitives";
 import { SmoothScrollProvider, useRegisterScroller } from "@/components/SmoothScroll";
+import { Reveal } from "@/components/Reveal";
 import { Sidebar, type FilterOptions, type SearchForm } from "@/components/Sidebar";
 import { CandidatesView } from "@/components/CandidatesView";
 import { EvidenceDrawer } from "@/components/EvidenceDrawer";
@@ -31,7 +32,7 @@ const DEFAULT_YEARS: [number, number] = [1951, 2026];
 /** Corpus size, publication years, cutoff and extraction method: always on screen (project plan section 14.1). */
 function CorpusStats({ papers, years, cutoff, className }: { papers: number; years: [number, number]; cutoff: number; className?: string }) {
   return (
-    <p className={cn("items-center gap-x-4 gap-y-0.5 text-xs text-muted", className)} aria-label="Corpus">
+    <p className={cn("mono-label items-center gap-x-4 gap-y-0.5", className)} aria-label="Corpus">
       <span><Mono className="text-foreground">{papers.toLocaleString()}</Mono> papers</span>
       <span><Mono className="text-foreground">{years[0]}–{years[1]}</Mono></span>
       <span>cutoff <Mono className="text-foreground">{cutoff}</Mono></span>
@@ -142,11 +143,11 @@ function AppShell() {
   return (
     <TooltipProvider delayDuration={150} skipDelayDuration={300}>
       <div className="flex h-full flex-col">
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-card px-4">
+        <Reveal as="header" self trigger="mount" y={-10} className="glass relative z-20 flex h-14 shrink-0 items-center gap-3 rounded-none border-0 border-b px-4">
           <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Toggle search and filters" onClick={() => setSidebarOpen((o) => !o)}>
             <PanelLeft className="size-5" />
           </Button>
-          <h1 className="flex shrink-0 items-center gap-2 text-base font-semibold tracking-tight whitespace-nowrap">
+          <h1 className="flex shrink-0 items-center gap-2 font-display text-2xl leading-none tracking-tight whitespace-nowrap">
             <Compass className="size-5 text-primary" aria-hidden />
             <span className="sr-only sm:not-sr-only">Paper Compass</span>
           </h1>
@@ -158,8 +159,8 @@ function AppShell() {
                 aria-current={view === v.id ? "page" : undefined}
                 onClick={() => setView(v.id)}
                 className={cn(
-                  "cursor-pointer rounded-lg px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors",
-                  view === v.id ? "bg-hover text-foreground" : "text-muted hover:text-foreground",
+                  "cursor-pointer rounded-lg border border-transparent px-3 py-1.5 font-mono text-[11px] font-medium tracking-[0.14em] whitespace-nowrap uppercase transition-colors",
+                  view === v.id ? "border-[var(--glass-border)] bg-hover text-foreground" : "text-muted hover:text-foreground",
                 )}
               >
                 {v.label}
@@ -174,9 +175,9 @@ function AppShell() {
               </Button>
             </Tip>
           </div>
-        </header>
+        </Reveal>
 
-        {stats ? <CorpusStats papers={stats.corpus.papers} years={yearBounds} cutoff={stats.corpus.cutoff_year} className="flex shrink-0 flex-wrap justify-center border-b border-border bg-card px-4 py-1.5 xl:hidden" /> : null}
+        {stats ? <CorpusStats papers={stats.corpus.papers} years={yearBounds} cutoff={stats.corpus.cutoff_year} className="glass flex shrink-0 flex-wrap justify-center rounded-none border-0 border-b px-4 py-1.5 xl:hidden" /> : null}
 
         {mock ? (
           <div role="status" data-testid="mock-banner" className="flex shrink-0 items-center justify-center gap-2 border-b border-warning/60 bg-warning-soft px-4 py-1.5 text-sm font-semibold text-warning">
@@ -216,7 +217,7 @@ function AppShell() {
           </main>
         </div>
 
-        <footer className="shrink-0 border-t border-border bg-card px-4 py-2 text-center text-[11px] leading-snug text-muted">
+        <footer className="glass shrink-0 rounded-none border-0 border-t px-4 py-2 text-center text-[11px] leading-snug text-muted">
           Evidence-grounded analysis of a curated corpus. Candidate opportunities are potentially underexplored combinations: signals for human review, not proof of a research gap.
         </footer>
       </div>
