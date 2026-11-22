@@ -8,6 +8,8 @@ import { useEffect, useRef } from "react";
 
 export const MAX_NODES = 300;
 export const MAX_DPR = 2;
+/** how many links are drawn between different clusters (a handful: they are context, the highlighted pair is the point) */
+export const MAX_CROSS_LINKS = 8;
 
 /** The look of the canvas. Each story step has one (see canvasStateForStep). */
 export type CanvasState = "scattered" | "time" | "clusters" | "lines" | "pair" | "pulse";
@@ -120,10 +122,15 @@ export function buildScene(counts: readonly number[], w: number, h: number): Sce
     for (let k = 0; k < Math.floor(n / 6); k += 1) edges.push([offset + Math.floor(rand() * n), offset + Math.floor(rand() * n)]);
     offset += n;
   });
-  for (let k = 0; k < Math.min(60, nodes.length / 4) && groups > 1; k += 1) {
+  // only a few links between clusters, so the highlighted pair is easy to see among them
+  let between = 0;
+  for (let tries = 0; tries < 400 && between < MAX_CROSS_LINKS && groups > 1; tries += 1) {
     const a = Math.floor(rand() * nodes.length);
     const b = Math.floor(rand() * nodes.length);
-    if (nodes[a]!.group !== nodes[b]!.group) edges.push([a, b]);
+    if (nodes[a]!.group !== nodes[b]!.group) {
+      edges.push([a, b]);
+      between += 1;
+    }
   }
   const pair: [number, number] | null = groups >= 2 ? [0, Math.min(groups - 1, Math.ceil(groups / 2))] : null;
   return { nodes, centers, edges, pair, axisY, left, right };
@@ -205,7 +212,8 @@ export default function NetworkCanvas({ step, groupSizes }: NetworkCanvasProps) 
       const ease = (target: number, rate: number, v: number) => v + (target - v) * (1 - Math.exp(-dt * rate));
       k.color = ease(state === "scattered" || state === "time" ? 0 : 1, 3, k.color);
       k.lines = ease(state === "lines" || state === "pair" || state === "pulse" ? 1 : 0, 3, k.lines);
-      k.dim = ease(state === "pair" || state === "pulse" ? 1 : 0, 3, k.dim);
+      // the pair is already half emphasised on the "lines" step, fully on "pair" and "pulse"
+      k.dim = ease(state === "pair" || state === "pulse" ? 1 : state === "lines" ? 0.55 : 0, 3, k.dim);
       k.pulse = ease(state === "pulse" ? 1 : 0, 3, k.pulse);
       k.time = ease(state === "time" ? 1 : 0, 3, k.time);
 
@@ -239,7 +247,7 @@ export default function NetworkCanvas({ step, groupSizes }: NetworkCanvasProps) 
       if (k.lines > 0.01) {
         ctx.lineWidth = 0.8;
         ctx.strokeStyle = colors.muted;
-        ctx.globalAlpha = 0.16 * k.lines * (1 - 0.7 * k.dim);
+        ctx.globalAlpha = 0.13 * k.lines * (1 - 0.6 * k.dim);
         ctx.beginPath();
         for (const [a, b] of scene.edges) {
           const na = scene.nodes[a]!;
@@ -273,7 +281,7 @@ export default function NetworkCanvas({ step, groupSizes }: NetworkCanvasProps) 
         const beat = 0.5 + 0.5 * Math.sin(t * 3.2);
         ctx.strokeStyle = colors.accent;
         ctx.lineCap = "round";
-        ctx.globalAlpha = k.dim * (0.35 + 0.5 * k.pulse * beat);
+        ctx.globalAlpha = Math.min(1, 0.2 + 0.55 * k.dim + 0.3 * k.pulse * beat);
         ctx.lineWidth = 1.4 + 2.6 * k.pulse * beat;
         ctx.setLineDash(k.pulse > 0.5 ? [] : [6, 6]);
         ctx.beginPath();

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import NetworkCanvas, { allocateNodes, buildScene, canvasStateForStep, MAX_DPR, MAX_NODES, mulberry32 } from "@/components/story/NetworkCanvas";
+import NetworkCanvas, { allocateNodes, buildScene, canvasStateForStep, MAX_CROSS_LINKS, MAX_DPR, MAX_NODES, mulberry32 } from "@/components/story/NetworkCanvas";
 
 const REAL_SIZES = [420, 398, 135, 69, 38, 37, 19];
 
@@ -56,6 +56,14 @@ describe("buildScene", () => {
     }
     expect(a.pair).not.toBeNull();
     expect(a.pair![0]).not.toBe(a.pair![1]);
+  });
+
+  it("draws only a few links between clusters, so the highlighted pair stands out", () => {
+    const scene = buildScene(allocateNodes(REAL_SIZES), 1200, 800);
+    const between = scene.edges.filter(([a, b]) => scene.nodes[a]!.group !== scene.nodes[b]!.group);
+    expect(between.length).toBeGreaterThan(0);
+    expect(between.length).toBeLessThanOrEqual(MAX_CROSS_LINKS);
+    expect(MAX_CROSS_LINKS).toBeLessThanOrEqual(10);
   });
 
   it("has no highlighted pair when there is only one group, and does not fail", () => {

@@ -173,3 +173,15 @@
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* the tooltip react-force-graph shows next to the pointer (it carries the kind, name and year of a node): the glass look */
+.graph-tooltip {
+  padding: 4px 8px !important;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background: rgba(8, 12, 22, 0.92) !important;
+  color: #e6edf7 !important;
+  font: 500 11px/1.4 var(--font-mono);
+  letter-spacing: 0.02em;
+  box-shadow: 0 8px 24px -10px rgba(0, 0, 0, 0.8);
+}

@@ -6,19 +6,46 @@ import { api } from "@/api/client";
 import type { GraphLabel } from "@/api/types";
 import { GRAPH_COLORS } from "@/lib/colors";
 import { buildViewGraph, graphNote, type ViewNode } from "@/lib/graph";
+import { capDevicePixelRatio, drawLink, drawNode, nodeRadius, type PaintLink, type PaintNode } from "@/lib/graph-paint";
+import { usePrefersReducedMotion } from "@/lib/reduced-motion";
 import { useAsync, useElementSize, type Theme } from "@/lib/hooks";
 import { nodePaperId, normalizePaperId } from "@/lib/ids";
 import { cn } from "@/lib/utils";
 import { Badge, Button, ErrorNote, IdBadge, Mono, Skeleton, TagBadge, Tip } from "@/components/ui/primitives";
 import { Reveal } from "@/components/Reveal";
+import { useGraphMotion } from "@/components/useGraphMotion";
 
 type Kind = GraphLabel | "Bridge";
 const LEGEND_ORDER: Kind[] = ["Paper", "Bridge", "Method", "Task", "Dataset", "Setting", "Author", "Venue", "Topic", "Institution"];
 const EXAMPLE_ID = "W3028876793";
 
-function cssVar(name: string, fallback: string): string {
-  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  return v || fallback;
+// the graph is drawn on a dark glass surface in both themes (the glowing orbs need a dark ground)
+const GLASS_BACKGROUND = {
+  backgroundColor: "rgba(5, 8, 16, 0.8)",
+  backgroundImage:
+    "radial-gradient(ellipse 62% 52% at 50% 47%, rgba(56, 189, 248, 0.14), transparent 70%), radial-gradient(ellipse 38% 38% at 88% 92%, rgba(139, 92, 246, 0.08), transparent 70%)",
+} as const;
+const LINK_ARROW_COLOR = "rgba(148, 163, 184, 0.55)";
+// links drawn with a gradient each (one gradient object per link per frame) only while there are not too many
+const GRADIENT_LINKS_MAX = 450;
+// above this many nodes the particles along citation links are left out (the links still draw)
+const LARGE_GRAPH = 400;
+
+/**
+ * The canvas is never sharper than 2 device pixels per css pixel. force-graph reads window.devicePixelRatio itself and has
+ * no option for it, so the property is capped while the graph is mounted. This runs before the canvas is created
+ * (children are created after the parent's render), and is undone when the graph unmounts.
+ */
+function useCappedPixelRatio() {
+  const restore = useRef<(() => void) | null>(null);
+  if (restore.current === null) restore.current = capDevicePixelRatio();
+  useEffect(() => {
+    if (restore.current === null) restore.current = capDevicePixelRatio(); // React re-runs effects after a simulated unmount in development
+    return () => {
+      restore.current?.();
+      restore.current = null;
+    };
+  }, []);
 }
 
 export function GraphView({
@@ -43,14 +70,22 @@ export function GraphView({
   const graph = useAsync((s) => api.paperGraph(id, limit, s), [id, limit], id !== "");
   const view = useMemo(() => (graph.data ? buildViewGraph(graph.data, hidden, bridgeIds) : null), [graph.data, hidden, bridgeIds]);
 
-  const [boxRef, size] = useElementSize<HTMLDivElement>();
+  const [sizeRef, size] = useElementSize<HTMLDivElement>();
+  const boxRef = useRef<HTMLDivElement | null>(null); // the same element, for the pointer cursor
+  const setBox = useCallback((el: HTMLDivElement | null) => {
+    boxRef.current = el;
+    sizeRef(el);
+  }, [sizeRef]);
   const fgRef = useRef<ForceGraphMethods | undefined>(undefined);
   const fit = useCallback(() => fgRef.current?.zoomToFit(400, 40), []);
 
-  // colours that follow the theme
-  const linkColor = useMemo(() => cssVar("--border", "#475569"), [theme]);       // eslint-disable-line react-hooks/exhaustive-deps
-  const labelColor = useMemo(() => cssVar("--foreground", "#e5e7eb"), [theme]);  // eslint-disable-line react-hooks/exhaustive-deps
-  const ringColor = labelColor;
+  useCappedPixelRatio();
+  const reduced = usePrefersReducedMotion();
+  const centerId = useMemo(() => view?.nodes.find((n) => n.isCenter)?.id ?? null, [view]);
+  // the entrance, the idle motion, hover highlighting, label fades and the camera glide (see useGraphMotion)
+  const { paint, onRenderFramePre, onNodeHover, glideTo } = useGraphMotion({
+    view, dataKey: graph.data, centerId, selectedId: selected?.id ?? null, fgRef, boxRef, reduced, large: (view?.nodes.length ?? 0) > LARGE_GRAPH,
+  });
 
   // spread the layout out so labels and nodes do not pile up
   useEffect(() => {
@@ -66,35 +101,17 @@ export function GraphView({
   const big = nodeCount > 400;
   const legend = LEGEND_ORDER.filter((k) => (view?.counts[k] ?? 0) > 0);
 
-  const drawNode = useCallback((node: object, ctx: CanvasRenderingContext2D, scale: number) => {
-    const n = node as ViewNode & { x: number; y: number };
-    const r = 2.2 + n.val * 1.1;
-    ctx.beginPath();
-    ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
-    ctx.fillStyle = n.color;
-    ctx.fill();
-    if (n.isCenter || n.kind === "Bridge" || selected?.id === n.id) {
-      ctx.lineWidth = (n.isCenter ? 2 : 1.4) / scale * 1.2;
-      ctx.strokeStyle = n.isCenter ? ringColor : GRAPH_COLORS.Bridge;
-      ctx.stroke();
-    }
-    // labels: the centre always; elements and bridges once zoomed a little; everything when zoomed in
-    const important = n.kind === "Method" || n.kind === "Task" || n.kind === "Dataset" || n.kind === "Setting" || n.kind === "Bridge";
-    if (n.isCenter || (important && scale > 0.8) || scale > 1.9 || selected?.id === n.id) {
-      const text = n.name.length > 38 ? n.name.slice(0, 37) + "…" : n.name;
-      ctx.font = `${Math.max(3, 11 / scale)}px Inter Variable, sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "top";
-      ctx.fillStyle = labelColor;
-      ctx.fillText(text, n.x, n.y + r + 1.5);
-    }
-  }, [labelColor, ringColor, selected]);
+  const paintNode = useCallback((node: object, ctx: CanvasRenderingContext2D, scale: number) => drawNode(ctx, node as PaintNode, scale, paint.current), [paint]);
+  const paintLink = useCallback(
+    (link: object, ctx: CanvasRenderingContext2D, scale: number) => drawLink(ctx, link as PaintLink, scale, paint.current, nodeCount <= GRADIENT_LINKS_MAX),
+    [nodeCount, paint],
+  );
 
   const paintPointer = useCallback((node: object, color: string, ctx: CanvasRenderingContext2D) => {
     const n = node as ViewNode & { x: number; y: number };
     ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.arc(n.x, n.y, 2.2 + n.val * 1.1 + 2, 0, 2 * Math.PI);
+    ctx.arc(n.x, n.y, nodeRadius(n) * 1.6 + 2, 0, 2 * Math.PI);
     ctx.fill();
   }, []);
 
@@ -161,7 +178,7 @@ export function GraphView({
 
           {note ? <p role="note" className="rounded-lg border border-border bg-hover px-3 py-1.5 text-xs text-muted">{note}</p> : null}
 
-          <div ref={boxRef} data-lenis-prevent className="glass relative min-h-[420px] flex-1 overflow-hidden rounded-2xl" data-testid="graph-canvas">
+          <div ref={setBox} data-lenis-prevent data-theme={theme} style={GLASS_BACKGROUND} className="glass relative min-h-[420px] flex-1 overflow-hidden rounded-2xl" data-testid="graph-canvas">
             {graph.loading && !view ? <Skeleton className="absolute inset-0 rounded-none" /> : null}
             {view && size.width > 0 ? (
               <ForceGraph2D
@@ -172,16 +189,23 @@ export function GraphView({
                 backgroundColor="rgba(0,0,0,0)"
                 nodeId="id"
                 nodeLabel={(n) => { const x = n as ViewNode; return `${x.kind}: ${x.name}${x.year ? " (" + x.year + ")" : ""}`; }}
-                nodeCanvasObject={drawNode}
+                nodeCanvasObject={paintNode}
+                linkCanvasObject={paintLink}
+                linkCanvasObjectMode={() => "replace"}
                 nodePointerAreaPaint={paintPointer}
-                linkColor={() => linkColor}
-                linkWidth={0.6}
-                linkDirectionalArrowLength={big ? 0 : 3}
+                linkColor={() => LINK_ARROW_COLOR}
+                linkDirectionalArrowLength={big || !reduced ? 0 : 3}
                 linkDirectionalArrowRelPos={1}
                 cooldownTicks={big ? 60 : 120}
                 d3AlphaDecay={big ? 0.06 : 0.03}
                 onEngineStop={() => { if (nodeCount > 0 && !selected) fit(); }}
-                onNodeClick={(n) => setSelected(n as ViewNode)}
+                onNodeClick={(n) => {
+                  setSelected(n as ViewNode);
+                  glideTo(n);
+                }}
+                onNodeHover={onNodeHover}
+                onRenderFramePre={onRenderFramePre}
+                autoPauseRedraw={reduced}
                 onBackgroundClick={() => setSelected(null)}
               />
             ) : null}
