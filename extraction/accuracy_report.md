@@ -3,7 +3,7 @@
 **Owner:** Person 1 (Samarth Kulkarni — Data & Extraction)  
 **Corpus Domain:** Natural Language Processing (Machine Translation, Representation Learning, Speech, QA)  
 **Source:** OpenAlex API (Multi-stream concept ingestion, de-duplicated)  
-**Corpus Size:** 1,975 unique papers (after de-duplication of 25 shared DOI and preprint duplicates)  
+**Corpus Size:** 1,975 unique papers (after merging 25 duplicate records: 1 shared DOI and 24 repeated titles; 37 titles still repeat, see `ingest/repeated-titles-review.md`)  
 **Extractor Version:** `rules-v1` (with sentence co-occurrence, abstract-level dataset inheritance, threshold 0.70)  
 
 ---
@@ -27,13 +27,13 @@ This report documents the resolution of all feedback items from the Person 1 rev
    - Still to do: a check set whose labels are written by people (for example 50 to 100 abstracts, two people, disagreements settled by discussion). Until then the report has **no measured extraction accuracy**; the coverage figures in section 2 remain valid.
 
 3. **Dataset Coverage Improvement (Item 5):**
-   - Identified that previous sentence-only extraction missed 70%+ of dataset mentions because authors state methods in early sentences and evaluate on datasets in later sentences.
-   - Implemented abstract-level dataset inheritance for unambiguous datasets, increasing dataset extractions from **39 (3.8%) to 104 (10.1%)** across 623 papers.
+   - Identified that sentence-only extraction named a dataset in only 3.8% of tuples, because authors state methods in early sentences and evaluate on datasets in later sentences (the cause was not measured separately).
+   - Implemented abstract-level dataset inheritance for unambiguous datasets, increasing the share of experiment tuples that name a dataset from 3.8% (40 of 1,055 tuples on the earlier 2,000-paper corpus) to **10.1% (104 of 1,033 tuples** from 63 papers on the 1,975-paper corpus). The two figures come from different corpora and were not measured on the same papers.
    - Formally documented structural dataset sparsity in academic abstracts.
 
 4. **Short-Alias Review & False-Match Audit (Item 6):**
    - Audited all 24 short aliases ($\le 3$ characters).
-   - Discovered that standalone alias `APE` matched "Automatic Prompt Engineer (APE)" in prompt engineering papers (e.g. `W4308244910`). Replaced bare `APE` with `["automatic post-editing", "post-editing", "neural APE"]`.
+   - Discovered that standalone alias `APE` matched "Automatic Prompt Engineer (APE)" in a prompt engineering paper (`W4308244910`, 3 hits). Replaced bare `APE` with `["automatic post-editing", "post-editing", "neural APE"]`.
    - Verified that all remaining 23 acronyms use case-sensitive uppercase word boundaries (`\b[A-Z]{2,3}\b`), preventing lowercase dictionary word collisions.
    - Confirmed `SMT` is strictly classified as a Method.
 
@@ -121,7 +121,7 @@ All 24 short aliases ($\le 3$ characters) were audited across the 1,975-paper co
 | `NMT` | Machine Translation (task) | 449 | 449 | 0 | Retained (clean) |
 | `MMT` | Machine Translation (task) | 5 | 5 | 0 | Retained (clean) |
 | `QE` | Quality Estimation (task) | 27 | 27 | 0 | Retained (clean) |
-| `APE` | Automatic Post-Editing (task) | 0 | 3 | **3** | **Removed bare alias** (collided with Automatic Prompt Engineer) |
+| `APE` | Automatic Post-Editing (task) | 3 | 3 | 0 | **Removed bare alias** (all 3 hits are in one paper, `W4308244910`, where APE means Automatic Prompt Engineer) |
 | `LM` | Language Modeling (task) | 37 | 38 | 1 | Retained (clean) |
 | `NER` | Named Entity Recognition (task) | 36 | 36 | 0 | Retained (clean) |
 | `POS` | Part-of-Speech Tagging (task) | 21 | 21 | 0 | Retained (clean) |

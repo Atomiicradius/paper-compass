@@ -89,7 +89,9 @@ alphabetical), so the output does not depend on Python's randomized set ordering
 with LF line endings. `pytest extraction/tests` runs it in separate processes with different `PYTHONHASHSEED`
 values on a small fixture and checks that the output files are byte-identical.
 
-`extraction/data/extractions_pilot.jsonl` was regenerated with this deterministic version (default command above,
-2,000 papers): 1,055 rows from 634 papers (the earlier non-deterministic file had 1,054 rows and was not reproduced by
-any hash seed). Run with 12 different `PYTHONHASHSEED` values, it gives one identical output. `create_reference_set_v2.py`
-is deterministic too (its sets are sorted before writing).
+`extraction/data/extractions_pilot.jsonl` is the output of the default command above on the deduplicated 1,975-paper corpus:
+1,033 rows from 623 papers. It was re-run on 2026-11-22 with two different `PYTHONHASHSEED` values: both runs gave a file
+byte-identical to the committed one. (An earlier version of this file, made on the 2,000-paper corpus before deduplication, had
+1,055 rows from 634 papers; it was reproduced with 12 hash seeds when it was made.) `create_reference_set_v2.py` is deterministic
+too (its sets are sorted before writing). `sample_and_label_50.py` and `ingest/deduplicate.py` are deterministic as well (see
+`ingest/README.md`).
