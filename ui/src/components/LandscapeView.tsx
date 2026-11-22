@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Network } from "lucide-react";
 import { api } from "@/api/client";
 import type { Landscape, TrendItem } from "@/api/types";
@@ -48,7 +48,7 @@ function TrendList({ items, empty }: { items: TrendItem[]; empty: string }) {
   );
 }
 
-export function LandscapeView({ state, onOpenGraph }: { state: AsyncState<Landscape>; onOpenGraph: (id: string) => void }) {
+export function LandscapeView({ state, onOpenGraph, toolbar }: { state: AsyncState<Landscape>; onOpenGraph: (id: string) => void; toolbar?: ReactNode }) {
   const clusters = useAsync((s) => api.clusters(s), []);
   const [kind, setKind] = useState<"method" | "task" | "dataset">("method");
   const trends = useAsync((s) => api.trends(kind, s), [kind]);
@@ -66,6 +66,7 @@ export function LandscapeView({ state, onOpenGraph }: { state: AsyncState<Landsc
         <h2 className="display-heading mb-1">Landscape</h2>
         <p className="text-sm text-muted">How the analyzed corpus is spread over time, clusters and research elements. Counts are papers in this corpus, not the whole literature.</p>
       </Reveal>
+      {toolbar}
 
       <Reveal as="section" self className="glass rounded-2xl p-4">
         <h3 className="mb-2 mono-label">Papers per year <Mono className="ml-2 text-foreground normal-case">{total.toLocaleString()} with a year</Mono></h3>

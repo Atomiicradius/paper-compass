@@ -1,13 +1,12 @@
 import { useId, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ChevronDown, Search, X } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import type { ElementKind } from "@/api/types";
 import { KIND_COLORS } from "@/lib/colors";
-import { MODE_LABELS, type SearchFormState, type SearchMode } from "@/lib/search";
-import { activeFilterCount, EMPTY_FILTERS, type CandidateFilters } from "@/lib/opportunities";
+import type { SearchFormState, SearchMode } from "@/lib/search";
+import type { CandidateFilters } from "@/lib/opportunities";
 import { cn } from "@/lib/utils";
-import { Badge, Button, Checkbox, Slider, Switch, Tip } from "@/components/ui/primitives";
-import { Reveal } from "@/components/Reveal";
+import { Badge, Checkbox, Slider, Switch, Tip } from "@/components/ui/primitives";
 
 export interface FilterOptions {
   methods: string[];
@@ -87,103 +86,61 @@ function CheckList({ kind, options, selected, onChange }: { kind: ElementKind; o
   );
 }
 
-export function Sidebar({
-  form, onForm, onSearch, searching, filters, onFilters, options, yearBounds, className,
+/**
+ * The filter controls: publication year, methods, tasks, datasets, settings, confidence and the search options. They are
+ * the controls the left sidebar used to hold, unchanged; they now live in the filters panel (FiltersPanel.tsx).
+ */
+export function FilterSections({
+  form, onForm, filters, onFilters, options, yearBounds,
 }: {
-  form: SearchForm; onForm: (f: SearchForm) => void; onSearch: () => void; searching: boolean;
+  form: SearchForm; onForm: (f: SearchForm) => void;
   filters: CandidateFilters; onFilters: (f: CandidateFilters) => void; options: FilterOptions;
-  yearBounds: [number, number]; className?: string;
+  yearBounds: [number, number];
 }) {
   const yearsActive = form.years[0] !== yearBounds[0] || form.years[1] !== yearBounds[1];
-  const total = activeFilterCount(filters) + (yearsActive ? 1 : 0);
   return (
-    <aside aria-label="Search and filters" className={cn("glass flex min-h-0 flex-col rounded-none border-0 border-r", className)}>
-      <Reveal
-        as="form"
-        self
-        trigger="mount"
-        className="space-y-3 border-b border-border p-4"
-        role="search"
-        onSubmit={(e) => { e.preventDefault(); onSearch(); }}
-      >
-        <label htmlFor="q" className="mono-label">Search the corpus</label>
-        <div className="relative">
-          <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted" />
-          <input
-            id="q" value={form.query} onChange={(e) => onForm({ ...form, query: e.target.value })}
-            placeholder="Describe a research idea…"
-            className="h-9 w-full rounded-lg border border-border bg-background pr-8 pl-9 text-sm outline-none focus-visible:border-primary"
-          />
-          {form.query ? (
-            <button type="button" aria-label="Clear search text" onClick={() => onForm({ ...form, query: "" })} className="absolute top-2 right-2 cursor-pointer text-muted hover:text-foreground">
-              <X className="size-4" />
-            </button>
-          ) : null}
-        </div>
-        <div className="flex items-center gap-2">
-          <select
-            aria-label="Search mode" value={form.mode} onChange={(e) => onForm({ ...form, mode: e.target.value as SearchMode })}
-            className="h-9 min-w-0 flex-1 cursor-pointer truncate rounded-lg border border-border bg-background px-2 text-sm outline-none focus-visible:border-primary"
-          >
-            {(Object.keys(MODE_LABELS) as SearchMode[]).map((m) => <option key={m} value={m}>{MODE_LABELS[m]}</option>)}
-          </select>
-          <Button type="submit" className="shrink-0" disabled={searching || !form.query.trim()}>{searching ? "Searching…" : "Search"}</Button>
-        </div>
-      </Reveal>
-
-      <div data-lenis-prevent className="scroll-thin min-h-0 flex-1 overflow-y-auto px-4">
-        <div className="flex items-center justify-between py-3">
-          <span className="mono-label text-foreground">Filters{total ? <span className="ml-1.5 font-mono text-primary">({total})</span> : null}</span>
-          {total ? (
-            <button
-              className="cursor-pointer text-xs text-primary underline"
-              onClick={() => { onFilters(EMPTY_FILTERS); onForm({ ...form, years: yearBounds }); }}
-            >Reset</button>
-          ) : null}
-        </div>
-
-        <Section title="Publication year" count={yearsActive ? 1 : 0} hint="Applies to paper search only; candidate opportunities are scored over one cutoff year.">
-          <div className="space-y-2">
-            <Slider
-              min={yearBounds[0]} max={yearBounds[1]} step={1} minStepsBetweenThumbs={0} value={form.years}
-              onValueChange={(v) => onForm({ ...form, years: [v[0] ?? yearBounds[0], v[1] ?? yearBounds[1]] })}
-              aria-label="Publication year range"
-            />
-            <div className="flex justify-between font-mono text-xs text-muted"><span>{form.years[0]}</span><span>{form.years[1]}</span></div>
-          </div>
-        </Section>
-
-        <Section title="Methods" count={filters.methods.length} hint="Filters candidates and paper search.">
-          <CheckList kind="method" options={options.methods} selected={filters.methods} onChange={(methods) => onFilters({ ...filters, methods })} />
-        </Section>
-        <Section title="Tasks" count={filters.tasks.length} defaultOpen={false}>
-          <CheckList kind="task" options={options.tasks} selected={filters.tasks} onChange={(tasks) => onFilters({ ...filters, tasks })} />
-        </Section>
-        <Section title="Datasets" count={filters.datasets.length} defaultOpen={false}>
-          <CheckList kind="dataset" options={options.datasets} selected={filters.datasets} onChange={(datasets) => onFilters({ ...filters, datasets })} />
-        </Section>
-        <Section title="Settings" count={filters.settings.length} defaultOpen={false} hint={options.settings.length ? undefined : "Settings are listed when a stored candidate combines one. None does yet."}>
-          <CheckList kind="setting" options={options.settings} selected={filters.settings} onChange={(settings) => onFilters({ ...filters, settings })} />
-        </Section>
-
-        <Section title="Confidence" count={filters.minConfidence > 0 ? 1 : 0}>
-          <div className="space-y-2">
-            <Slider min={0} max={1} step={0.05} value={[filters.minConfidence]} onValueChange={([v]) => onFilters({ ...filters, minConfidence: v ?? 0 })} aria-label="Minimum confidence" />
-            <div className="flex justify-between text-xs text-muted">
-              <Tip content="confidence = min(1, expected / 5). A low observed count means little when few papers were expected."><span className="cursor-help underline decoration-dotted">minimum confidence</span></Tip>
-              <span className="font-mono text-foreground">{filters.minConfidence.toFixed(2)}</span>
-            </div>
-          </div>
-        </Section>
-
-        <Section title="Search options" defaultOpen={false}>
-          <div className="flex items-center justify-between gap-3 text-sm">
-            <label htmlFor="collapse-titles" className="cursor-pointer">Hide duplicate records of one title</label>
-            <Switch id="collapse-titles" checked={form.collapse} onCheckedChange={(c) => onForm({ ...form, collapse: c })} />
-          </div>
-          <p className="mt-2 text-[11px] leading-snug text-muted">The pilot corpus contains duplicate OpenAlex records for some papers; this shows one per title.</p>
-        </Section>
+    <div>
+    <Section title="Publication year" count={yearsActive ? 1 : 0} hint="Applies to paper search only; candidate opportunities are scored over one cutoff year.">
+      <div className="space-y-2">
+        <Slider
+          min={yearBounds[0]} max={yearBounds[1]} step={1} minStepsBetweenThumbs={0} value={form.years}
+          onValueChange={(v) => onForm({ ...form, years: [v[0] ?? yearBounds[0], v[1] ?? yearBounds[1]] })}
+          aria-label="Publication year range"
+        />
+        <div className="flex justify-between font-mono text-xs text-muted"><span>{form.years[0]}</span><span>{form.years[1]}</span></div>
       </div>
-    </aside>
+    </Section>
+
+    <Section title="Methods" count={filters.methods.length} hint="Filters candidates and paper search.">
+      <CheckList kind="method" options={options.methods} selected={filters.methods} onChange={(methods) => onFilters({ ...filters, methods })} />
+    </Section>
+    <Section title="Tasks" count={filters.tasks.length} defaultOpen={false}>
+      <CheckList kind="task" options={options.tasks} selected={filters.tasks} onChange={(tasks) => onFilters({ ...filters, tasks })} />
+    </Section>
+    <Section title="Datasets" count={filters.datasets.length} defaultOpen={false}>
+      <CheckList kind="dataset" options={options.datasets} selected={filters.datasets} onChange={(datasets) => onFilters({ ...filters, datasets })} />
+    </Section>
+    <Section title="Settings" count={filters.settings.length} defaultOpen={false} hint={options.settings.length ? undefined : "Settings are listed when a stored candidate combines one. None does yet."}>
+      <CheckList kind="setting" options={options.settings} selected={filters.settings} onChange={(settings) => onFilters({ ...filters, settings })} />
+    </Section>
+
+    <Section title="Confidence" count={filters.minConfidence > 0 ? 1 : 0}>
+      <div className="space-y-2">
+        <Slider min={0} max={1} step={0.05} value={[filters.minConfidence]} onValueChange={([v]) => onFilters({ ...filters, minConfidence: v ?? 0 })} aria-label="Minimum confidence" />
+        <div className="flex justify-between text-xs text-muted">
+          <Tip content="confidence = min(1, expected / 5). A low observed count means little when few papers were expected."><span className="cursor-help underline decoration-dotted">minimum confidence</span></Tip>
+          <span className="font-mono text-foreground">{filters.minConfidence.toFixed(2)}</span>
+        </div>
+      </div>
+    </Section>
+
+    <Section title="Search options" defaultOpen={false}>
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <label htmlFor="collapse-titles" className="cursor-pointer">Hide duplicate records of one title</label>
+        <Switch id="collapse-titles" checked={form.collapse} onCheckedChange={(c) => onForm({ ...form, collapse: c })} />
+      </div>
+      <p className="mt-2 text-[11px] leading-snug text-muted">The pilot corpus contains duplicate OpenAlex records for some papers; this shows one per title.</p>
+    </Section>
+    </div>
   );
 }

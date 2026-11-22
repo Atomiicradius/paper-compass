@@ -34,6 +34,15 @@
   --glass-border: rgba(15, 23, 42, 0.1);
   --glass-shadow: 0 10px 30px -14px rgba(15, 23, 42, 0.22);
   --glass-blur: 12px;
+  /* the hairline border of a glass card (a gradient: bright top-left edge, a faint blue lower-right edge) and the spotlight */
+  --hair-a: rgba(15, 23, 42, 0.16);
+  --hair-b: rgba(15, 23, 42, 0.05);
+  --hair-c: rgba(15, 76, 129, 0.24);
+  --spot-color: rgba(15, 76, 129, 0.07);
+  /* the ambient layer */
+  --glow-opacity: 0.1;
+  --grid-dot: rgba(15, 23, 42, 0.1);
+  --grain-opacity: 0.035;
   /* page backdrop: a faint wash behind the glass */
   --backdrop: radial-gradient(900px 480px at 85% -8%, rgba(15, 76, 129, 0.08), transparent 70%),
     radial-gradient(700px 420px at -5% 105%, rgba(13, 148, 136, 0.06), transparent 70%);
@@ -68,6 +77,13 @@
   --glass-border: rgba(148, 163, 184, 0.14);
   --glass-shadow: 0 14px 40px -16px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.04);
   --glass-blur: 16px;
+  --hair-a: rgba(255, 255, 255, 0.22);
+  --hair-b: rgba(255, 255, 255, 0.05);
+  --hair-c: rgba(56, 189, 248, 0.26);
+  --spot-color: rgba(56, 189, 248, 0.09);
+  --glow-opacity: 0.2;
+  --grid-dot: rgba(148, 163, 184, 0.17);
+  --grain-opacity: 0.05;
   --backdrop: radial-gradient(1000px 520px at 82% -10%, rgba(56, 189, 248, 0.1), transparent 70%),
     radial-gradient(800px 480px at -8% 108%, rgba(56, 189, 248, 0.05), transparent 70%);
 }
@@ -124,12 +140,36 @@
  *   .mono-figure      large mono numeral for a key figure
  * ------------------------------------------------------------------------------------------- */
 @layer components {
+  /* A glass card: a translucent fill with a spotlight that follows the pointer (--mx, --my are set by one shared handler,
+     lib/spotlight.ts), a 1px gradient hairline (the ::before ring below), an inner top highlight and a soft shadow. */
   .glass {
-    background: var(--glass-bg);
+    position: relative;
+    background-color: var(--glass-bg);
+    background-image: var(--spot-image, none);
     border: 1px solid var(--glass-border);
-    box-shadow: var(--glass-shadow);
+    box-shadow: var(--glass-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.05);
     -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%);
     backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  }
+  .glass:hover {
+    --spot-image: radial-gradient(280px circle at var(--mx, 50%) var(--my, 50%), var(--spot-color), transparent 70%);
+  }
+  /* the gradient hairline replaces the plain border on cards with rounded corners (flat bars keep their plain border) */
+  .glass:not(.rounded-none) {
+    border-color: transparent;
+  }
+  .glass:not(.rounded-none)::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    pointer-events: none;
+    background: linear-gradient(145deg, var(--hair-a), var(--hair-b) 38%, var(--hair-c));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
   }
   .mono-label {
     font-family: var(--font-mono);
@@ -170,7 +210,66 @@
 .lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
 .lenis.lenis-stopped { overflow: hidden; }
 
+/* ---------------------------------------------------------------------------------------------
+ * The ambient layer: three very soft glows that drift a few pixels, a faint dot grid and fine grain. Only CSS and an
+ * inline SVG: no request, no image file. It sits behind everything and never takes the pointer.
+ * ------------------------------------------------------------------------------------------- */
+.ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.ambient-glow {
+  position: absolute;
+  border-radius: 50%;
+  opacity: var(--glow-opacity);
+  will-change: transform;
+  animation: ambient-drift 40s ease-in-out infinite alternate;
+}
+.ambient-glow-a {
+  width: 64vmax; height: 64vmax; left: -16vmax; top: -26vmax;
+  background: radial-gradient(circle, rgba(45, 212, 191, 0.95), transparent 62%);
+  --dx: 18px; --dy: 12px;
+}
+.ambient-glow-b {
+  width: 60vmax; height: 60vmax; right: -20vmax; top: 6vh;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.95), transparent 62%);
+  --dx: -16px; --dy: 18px; animation-duration: 52s;
+}
+.ambient-glow-c {
+  width: 54vmax; height: 54vmax; left: 26vw; bottom: -34vmax;
+  background: radial-gradient(circle, rgba(34, 211, 238, 0.85), transparent 62%);
+  --dx: 14px; --dy: -16px; animation-duration: 60s;
+}
+/* a drift of at most 20 px in each direction */
+@keyframes ambient-drift {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(var(--dx, 16px), var(--dy, -14px), 0); }
+}
+.ambient-grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.6;
+  background-image: radial-gradient(var(--grid-dot) 1px, transparent 1.3px);
+  background-size: 26px 26px;
+  -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 28%, #000 0%, transparent 78%);
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 28%, #000 0%, transparent 78%);
+}
+.ambient-grain {
+  position: absolute;
+  inset: 0;
+  opacity: var(--grain-opacity);
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+/* nothing moves with reduced motion (the global rule below would only make an endless animation flicker) */
+.ambient[data-static] .ambient-glow { animation: none; }
+
 @media (prefers-reduced-motion: reduce) {
+  .ambient-glow { animation: none; }
+  .glass:hover { --spot-image: none; }
   *, ::before, ::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 

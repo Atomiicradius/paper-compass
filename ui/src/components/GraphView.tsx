@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import ForceGraph2D, { type ForceGraphMethods } from "react-force-graph-2d";
 import { AnimatePresence, motion } from "motion/react";
 import { Crosshair, Maximize, X } from "lucide-react";
@@ -49,9 +49,11 @@ function useCappedPixelRatio() {
 }
 
 export function GraphView({
-  paperId, onPaperId, bridgeIds, theme, onOpenPaper,
+  paperId, onPaperId, bridgeIds, theme, onOpenPaper, toolbar,
 }: {
   paperId: string; onPaperId: (id: string) => void; bridgeIds: ReadonlySet<string>; theme: Theme; onOpenPaper: (id: string) => void;
+  /** shown under the title (the Filters button and the active filter chips) */
+  toolbar?: ReactNode;
 }) {
   const [draft, setDraft] = useState(paperId);
   const [limit, setLimit] = useState(200);
@@ -134,6 +136,7 @@ export function GraphView({
           <Button type="submit" disabled={!normalizePaperId(draft)}>Show</Button>
         </form>
       </Reveal>
+      {toolbar}
 
       {id === "" ? (
         <div className="grid min-h-64 flex-1 place-items-center rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted">

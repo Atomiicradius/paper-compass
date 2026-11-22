@@ -1,20 +1,29 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { Compass, Moon, PanelLeft, Sun, TriangleAlert } from "lucide-react";
+import { motion } from "motion/react";
+import { Compass, Moon, Search as SearchIcon, Sun, TriangleAlert } from "lucide-react";
 import { api } from "@/api/client";
 import type { Opportunity } from "@/api/types";
 import { buildSearchRequest, type BuiltSearch } from "@/lib/search";
 import { formatRoute, parseRoute, type Route, type View } from "@/lib/route";
 import { useAsync, useTheme } from "@/lib/hooks";
+import { usePrefersReducedMotion } from "@/lib/reduced-motion";
 import { normalizePaperId } from "@/lib/ids";
 import { EMPTY_FILTERS, isMockData, type CandidateFilters } from "@/lib/opportunities";
 import { cn } from "@/lib/utils";
 import { Button, Mono, Skeleton, Tip, TooltipProvider } from "@/components/ui/primitives";
 import { SmoothScrollProvider, useRegisterScroller, useScroller } from "@/components/SmoothScroll";
 import { Reveal } from "@/components/Reveal";
-import { Sidebar, type FilterOptions, type SearchForm } from "@/components/Sidebar";
+import { Ambient } from "@/components/Ambient";
+import { CommandPalette } from "@/components/CommandPalette";
+import { useSpotlight } from "@/lib/spotlight";
+import type { FilterOptions, SearchForm } from "@/components/Sidebar";
+import { FiltersPanel } from "@/components/FiltersPanel";
+import { FilterToolbar } from "@/components/FilterToolbar";
+import { activeFilterChips, activeTotal, clearedFilters, removeFilterChip, type FilterChip } from "@/lib/filter-chips";
 import { CandidatesView } from "@/components/CandidatesView";
 import { EvidenceDrawer } from "@/components/EvidenceDrawer";
 import { PaperDrawer, PapersView } from "@/components/PapersView";
+import { PapersSearchBar } from "@/components/PapersSearchBar";
 import { LandscapeView } from "@/components/LandscapeView";
 
 // the graph library is large and only needed on the Graph tab
@@ -47,11 +56,14 @@ function CorpusStats({ papers, years, cutoff, className }: { papers: number; yea
 function AppShell() {
   const registerScroller = useRegisterScroller();
   const scroller = useScroller();
+  useSpotlight(); // the pointer-following highlight of the glass cards: one listener for all of them
   const [theme, toggleTheme] = useTheme();
   // the address bar remembers the view, the open drawer and the graph paper (see lib/route.ts)
   const [initialRoute] = useState(() => parseRoute(window.location.hash));
   const [view, setView] = useState<View>(initialRoute.view);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const reduced = usePrefersReducedMotion();
 
   const [form, setForm] = useState<SearchForm>({ query: "", mode: "auto", collapse: true, years: DEFAULT_YEARS });
   const [filters, setFilters] = useState<CandidateFilters>(EMPTY_FILTERS);
@@ -131,13 +143,46 @@ function AppShell() {
 
   const search = useAsync((s) => api.search((submitted as BuiltSearch).request, s), [submitted], submitted != null);
 
-  const runSearch = useCallback(() => {
-    if (!form.query.trim()) return;
-    const built = buildSearchRequest(form, filters, yearBounds);
-    setSubmitted(built);
+  // the paper search: the typed text, in the search mode that is chosen now, with the filters that are set now
+  const searchFor = useCallback((text: string) => {
+    const q = text.trim();
+    if (!q) return;
+    const next = { ...form, query: q };
+    setForm(next);
+    setSubmitted(buildSearchRequest(next, filters, yearBounds));
     setView("papers");
-    setSidebarOpen(false);
   }, [form, filters, yearBounds]);
+  const runSearch = useCallback(() => searchFor(form.query), [searchFor, form.query]);
+
+  // Cmd+K / Ctrl+K opens the command palette from anywhere
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // the active filters: a button with their number, one removable chip for each, and "Clear all" (shown under each screen's title)
+  const chips = useMemo(() => activeFilterChips(filters, form.years, yearBounds), [filters, form.years, yearBounds]);
+  const filterCount = activeTotal(filters, form.years, yearBounds);
+  const removeChip = useCallback(
+    (chip: FilterChip) => {
+      const next = removeFilterChip(chip, filters, form.years, yearBounds);
+      setFilters(next.filters);
+      setForm((f) => ({ ...f, years: next.years }));
+    },
+    [filters, form.years, yearBounds],
+  );
+  const clearAllFilters = useCallback(() => {
+    const cleared = clearedFilters(yearBounds);
+    setFilters(cleared.filters);
+    setForm((f) => ({ ...f, years: cleared.years }));
+  }, [yearBounds]);
+  const filterToolbar = <FilterToolbar count={filterCount} chips={chips} onOpen={() => setFiltersOpen(true)} onRemove={removeChip} onClearAll={clearAllFilters} />;
 
   const openGraph = useCallback((id: string) => {
     setGraphId(normalizePaperId(id));
@@ -151,11 +196,9 @@ function AppShell() {
 
   return (
     <TooltipProvider delayDuration={150} skipDelayDuration={300}>
-      <div className="flex h-full flex-col">
-        <Reveal as="header" self trigger="mount" y={-10} className="glass relative z-20 flex h-14 shrink-0 items-center gap-3 rounded-none border-0 border-b px-4">
-          <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Toggle search and filters" onClick={() => setSidebarOpen((o) => !o)}>
-            <PanelLeft className="size-5" />
-          </Button>
+      <Ambient />
+      <div className="relative z-10 flex h-full flex-col">
+        <Reveal as="header" self trigger="mount" y={-10} className="glass sticky top-0 z-20 flex h-14 shrink-0 items-center gap-3 rounded-none border-0 border-b px-4 backdrop-blur-xl">
           <h1 className="flex shrink-0 items-center gap-2 font-display text-2xl leading-none tracking-tight whitespace-nowrap">
             <Compass className="size-5 text-primary" aria-hidden />
             <span className="sr-only sm:not-sr-only">Paper Compass</span>
@@ -168,16 +211,36 @@ function AppShell() {
                 aria-current={view === v.id ? "page" : undefined}
                 onClick={() => setView(v.id)}
                 className={cn(
-                  "cursor-pointer rounded-lg border border-transparent px-3 py-1.5 font-mono text-[11px] font-medium tracking-[0.14em] whitespace-nowrap uppercase transition-colors",
-                  view === v.id ? "border-[var(--glass-border)] bg-hover text-foreground" : "text-muted hover:text-foreground",
+                  "relative cursor-pointer rounded-lg px-3 py-1.5 font-mono text-[11px] font-medium tracking-[0.14em] whitespace-nowrap uppercase transition-colors",
+                  view === v.id ? "text-foreground" : "text-muted hover:text-foreground",
                 )}
               >
-                {v.label}
+                {/* one indicator that slides from the old tab to the new one (it does not slide with reduced motion) */}
+                {view === v.id ? (
+                  <motion.span
+                    layoutId="nav-indicator"
+                    aria-hidden
+                    className="absolute inset-0 rounded-lg border border-[var(--glass-border)] bg-hover"
+                    transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 420, damping: 34 }}
+                  />
+                ) : null}
+                <span className="relative">{v.label}</span>
               </button>
             ))}
           </nav>
-          <div className="ml-auto flex items-center gap-3">
-            {stats ? <CorpusStats papers={stats.corpus.papers} years={yearBounds} cutoff={stats.corpus.cutoff_year} className="hidden xl:flex" /> : null}
+          <button
+            type="button"
+            aria-haspopup="dialog"
+            aria-keyshortcuts="Control+K Meta+K"
+            onClick={() => setPaletteOpen(true)}
+            className="glass group mx-auto flex h-9 w-full max-w-sm min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-xl px-3 text-left text-sm text-muted transition-colors hover:text-foreground"
+          >
+            <SearchIcon className="size-4 shrink-0" aria-hidden />
+            <span className="min-w-0 flex-1 truncate">Search or jump to…</span>
+            <kbd className="mono-label shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px]">⌘K</kbd>
+          </button>
+          <div className="flex items-center gap-3">
+            {stats ? <CorpusStats papers={stats.corpus.papers} years={yearBounds} cutoff={stats.corpus.cutoff_year} className="hidden 2xl:flex" /> : null}
             <Tip content={theme === "dark" ? "Switch to Archival Daylight" : "Switch to Obsidian Observatory"} side="bottom">
               <Button variant="outline" size="icon" aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"} onClick={toggleTheme}>
                 {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
@@ -186,7 +249,7 @@ function AppShell() {
           </div>
         </Reveal>
 
-        {stats ? <CorpusStats papers={stats.corpus.papers} years={yearBounds} cutoff={stats.corpus.cutoff_year} className="glass flex shrink-0 flex-wrap justify-center rounded-none border-0 border-b px-4 py-1.5 xl:hidden" /> : null}
+        {stats ? <CorpusStats papers={stats.corpus.papers} years={yearBounds} cutoff={stats.corpus.cutoff_year} className="glass flex shrink-0 flex-wrap justify-center rounded-none border-0 border-b px-4 py-1.5 2xl:hidden" /> : null}
 
         {mock ? (
           <div role="status" data-testid="mock-banner" className="flex shrink-0 items-center justify-center gap-2 border-b border-warning/60 bg-warning-soft px-4 py-1.5 text-sm font-semibold text-warning">
@@ -195,19 +258,9 @@ function AppShell() {
         ) : null}
 
         <div className="relative flex min-h-0 flex-1">
-          {/* left pane: search and discovery. On small screens it overlays the content. */}
-          <div className={cn("absolute inset-y-0 left-0 z-30 w-80 max-w-[85vw] lg:static lg:z-auto lg:w-80 lg:shrink-0", view === "story" ? "hidden" : sidebarOpen ? "flex" : "hidden lg:flex")}>
-            <Sidebar
-              className="w-full"
-              form={form} onForm={setForm} onSearch={runSearch} searching={search.loading && submitted != null}
-              filters={filters} onFilters={setFilters} options={options} yearBounds={yearBounds}
-            />
-          </div>
-          {sidebarOpen ? <button aria-label="Close filters" className="fixed inset-0 z-20 bg-black/40 lg:hidden" onClick={() => setSidebarOpen(false)} /> : null}
-
-          {/* center pane */}
+          {/* the content: one centred column (the story and the graph use the full width) */}
           <main ref={registerScroller} className={cn("scroll-thin min-w-0 flex-1 overflow-y-auto", view === "story" ? "p-0" : "p-4 sm:p-6", view === "graph" && "flex flex-col")}>
-            <div className={cn("mx-auto w-full", view === "graph" ? "flex min-h-0 max-w-none flex-1 flex-col" : view === "story" ? "max-w-none" : "max-w-4xl")}>
+            <div className={cn("mx-auto w-full", view === "graph" ? "flex min-h-0 max-w-none flex-1 flex-col" : view === "story" ? "max-w-none" : "max-w-6xl")}>
               {view === "story" ? (
                 <Suspense fallback={<Skeleton className="m-6 min-h-[420px]" />}>
                   <StoryView onOpenExplorer={() => setView("candidates")} />
@@ -216,15 +269,21 @@ function AppShell() {
                 <CandidatesView
                   state={opps} filters={filters} selectedId={selectedId}
                   onOpen={(o) => setSelectedId(o.opportunity_id)} onClearFilters={() => setFilters(EMPTY_FILTERS)}
+                  toolbar={<div className="mb-4">{filterToolbar}</div>}
                 />
               ) : view === "papers" ? (
-                <PapersView state={search} submitted={submitted != null} notes={submitted?.notes ?? []} onOpenPaper={setPaperId} />
+                <div className="space-y-6">
+                  <PapersSearchBar form={form} onForm={setForm} onSearch={runSearch} searching={search.loading && submitted != null}>
+                    {filterToolbar}
+                  </PapersSearchBar>
+                  <PapersView state={search} submitted={submitted != null} notes={submitted?.notes ?? []} onOpenPaper={setPaperId} />
+                </div>
               ) : view === "graph" ? (
                 <Suspense fallback={<Skeleton className="min-h-[420px] flex-1" />}>
-                  <GraphView paperId={graphId} onPaperId={setGraphId} bridgeIds={bridgeIds} theme={theme} onOpenPaper={setPaperId} />
+                  <GraphView paperId={graphId} onPaperId={setGraphId} bridgeIds={bridgeIds} theme={theme} onOpenPaper={setPaperId} toolbar={filterToolbar} />
                 </Suspense>
               ) : (
-                <LandscapeView state={landscape} onOpenGraph={openGraph} />
+                <LandscapeView state={landscape} onOpenGraph={openGraph} toolbar={filterToolbar} />
               )}
             </div>
           </main>
@@ -234,6 +293,16 @@ function AppShell() {
           Evidence-grounded analysis of a curated corpus. Candidate opportunities are potentially underexplored combinations: signals for human review, not proof of a research gap.
         </footer>
       </div>
+
+      <FiltersPanel open={filtersOpen} onClose={() => setFiltersOpen(false)} form={form} onForm={setForm} filters={filters} onFilters={setFilters} options={options} yearBounds={yearBounds} />
+      <CommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        views={VIEWS}
+        currentView={view}
+        onGo={setView}
+        onSearch={searchFor}
+      />
 
       {/* right pane: slide-over details */}
       <EvidenceDrawer opportunity={selected} onClose={() => setSelectedId(null)} onOpenGraph={openGraph} />

@@ -9,7 +9,9 @@ import { makeExplanation, makeOpportunities, makeOpportunity } from "@/test/fixt
 import { TooltipProvider } from "@/components/ui/primitives";
 import { CandidateCard } from "@/components/CandidateCard";
 import { CandidatesView } from "@/components/CandidatesView";
-import { Sidebar, type SearchForm } from "@/components/Sidebar";
+import type { SearchForm } from "@/components/Sidebar";
+import { FiltersPanel } from "@/components/FiltersPanel";
+import { PapersSearchBar } from "@/components/PapersSearchBar";
 
 vi.mock("@/api/client", async (orig) => {
   const actual = await orig<typeof import("@/api/client")>();
@@ -224,39 +226,29 @@ describe("EvidenceDrawer", () => {
   });
 });
 
-describe("Sidebar", () => {
+// The sidebar became the filters panel; its search box moved to the Papers screen (see PapersSearchBar.test.tsx).
+describe("FiltersPanel (the controls the sidebar held)", () => {
   const baseForm: SearchForm = { query: "", mode: "auto", collapse: true, years: [1951, 2026] };
   const options = { methods: ["Back-translation", "Transformer"], tasks: ["Machine Translation"], datasets: [], settings: [] };
 
-  function Host({ onSearch = () => {}, onFilters = () => {} }: { onSearch?: () => void; onFilters?: (f: CandidateFilters) => void }) {
+  function Host({ onFilters = () => {} }: { onFilters?: (f: CandidateFilters) => void }) {
     const [form, setForm] = useState(baseForm);
     const [filters, setFilters] = useState(EMPTY_FILTERS);
     return (
-      <Sidebar
-        form={form} onForm={setForm} onSearch={onSearch} searching={false}
+      <FiltersPanel
+        open onClose={() => {}} form={form} onForm={setForm}
         filters={filters} onFilters={(f) => { setFilters(f); onFilters(f); }} options={options} yearBounds={[1951, 2026]}
       />
     );
   }
 
-  it("disables Search for a blank query and submits otherwise", async () => {
-    const user = userEvent.setup();
-    const onSearch = vi.fn();
-    wrap(<Host onSearch={onSearch} />);
-    expect(screen.getByRole("button", { name: "Search" })).toBeDisabled();
-    await user.type(screen.getByPlaceholderText("Describe a research idea…"), "  ");
-    expect(screen.getByRole("button", { name: "Search" })).toBeDisabled();       // whitespace only
-    await user.type(screen.getByPlaceholderText("Describe a research idea…"), "back-translation{Enter}");
-    expect(onSearch).toHaveBeenCalledTimes(1);
-  });
-
-  it("checking a method updates the filters, and Reset clears them", async () => {
+  it("checking a method updates the filters, and Clear all clears them", async () => {
     const user = userEvent.setup();
     const onFilters = vi.fn();
     wrap(<Host onFilters={onFilters} />);
     await user.click(screen.getByRole("checkbox", { name: "Back-translation" }));
     expect(onFilters).toHaveBeenLastCalledWith({ ...EMPTY_FILTERS, methods: ["Back-translation"] });
-    await user.click(screen.getByRole("button", { name: "Reset" }));
+    await user.click(screen.getByRole("button", { name: "Clear all" }));
     expect(onFilters).toHaveBeenLastCalledWith(EMPTY_FILTERS);
   });
 
@@ -299,11 +291,10 @@ describe("PapersView and search modes", () => {
     expect(screen.getByText(/No papers matched/)).toBeInTheDocument();
   });
 
-  it("offers all four search modes", () => {
-    wrap(<Sidebar form={{ query: "", mode: "auto", collapse: true, years: [1951, 2026] }} onForm={() => {}} onSearch={() => {}} searching={false}
-      filters={EMPTY_FILTERS} onFilters={() => {}} options={{ methods: [], tasks: [], datasets: [], settings: [] }} yearBounds={[1951, 2026]} />);
-    const options = within(screen.getByLabelText("Search mode")).getAllByRole("option").map((o) => (o as HTMLOptionElement).value);
-    expect(options).toEqual(["auto", "vector", "keyword", "hybrid"]);
+  it("offers all four search modes (now a segmented control on the Papers screen)", () => {
+    wrap(<PapersSearchBar form={{ query: "", mode: "auto", collapse: true, years: [1951, 2026] }} onForm={() => {}} onSearch={() => {}} searching={false} />);
+    const modes = within(screen.getByRole("radiogroup", { name: "Search mode" })).getAllByRole("radio").map((r) => r.textContent);
+    expect(modes).toEqual(["Auto", "Vector", "Keyword", "Hybrid"]);
   });
 });
 
