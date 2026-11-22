@@ -48,6 +48,19 @@ describe("App: the story is the landing view", () => {
     await waitFor(() => expect(window.location.hash).toBe("#/candidates"));
   });
 
+  it("has no fixed footer bar on any screen", async () => {
+    const user = userEvent.setup();
+    window.history.replaceState(null, "", "#/candidates");
+    render(<App />);
+    await screen.findByRole("heading", { level: 2, name: "Candidate opportunities" });
+    for (const tab of ["Candidates", "Papers", "Graph", "Landscape"]) {
+      await user.click(nav().getByRole("button", { name: tab }));
+      expect(document.querySelector("footer")).toBeNull();
+      expect(screen.queryByRole("contentinfo")).toBeNull();
+      expect(screen.queryByText(/Evidence-grounded analysis of a curated corpus/)).toBeNull();
+    }
+  });
+
   it("a new screen enters with a fade-and-rise: each screen is a fresh element with the screen-enter class", async () => {
     const user = userEvent.setup();
     window.history.replaceState(null, "", "#/candidates");

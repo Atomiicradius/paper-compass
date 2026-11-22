@@ -314,10 +314,6 @@ function AppShell() {
             </div>
           </main>
         </div>
-
-        <footer className="glass shrink-0 rounded-none border-0 border-t px-4 py-2 text-center text-[11px] leading-snug text-muted">
-          Evidence-grounded analysis of a curated corpus. Candidate opportunities are potentially underexplored combinations: signals for human review, not proof of a research gap.
-        </footer>
       </div>
 
       <FiltersPanel open={filtersOpen} onClose={() => setFiltersOpen(false)} form={form} onForm={setForm} filters={filters} onFilters={setFilters} options={options} yearBounds={yearBounds} />
