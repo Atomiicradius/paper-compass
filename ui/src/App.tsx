@@ -32,13 +32,15 @@ const GraphView = lazy(() => import("@/components/GraphView").then((m) => ({ def
 // the story page (and its canvas) is loaded when the story is opened, so it adds nothing to the first bundle
 const StoryView = lazy(() => import("@/components/story/StoryView"));
 
+// the tabs of the header: the story is the home page (the logo links to it), so it is not a tab
 const VIEWS: { id: View; label: string }[] = [
-  { id: "story", label: "Story" },
   { id: "candidates", label: "Candidates" },
   { id: "papers", label: "Papers" },
   { id: "graph", label: "Graph" },
   { id: "landscape", label: "Landscape" },
 ];
+// the command palette's "Go to" list: the story is called Home there
+const PALETTE_VIEWS: { id: View; label: string }[] = [{ id: "story", label: "Home" }, ...VIEWS];
 
 const DEFAULT_YEARS: [number, number] = [1951, 2026];
 
@@ -201,9 +203,24 @@ function AppShell() {
       <Ambient />
       <div className="relative z-10 flex h-full flex-col">
         <Reveal as="header" self trigger="mount" y={-10} className="glass sticky top-0 z-20 flex h-14 shrink-0 items-center gap-3 rounded-none border-0 border-b px-4 backdrop-blur-xl">
-          <h1 className="flex shrink-0 items-center gap-2 font-display text-2xl leading-none tracking-tight whitespace-nowrap">
-            <Compass className="size-5 text-primary" aria-hidden />
-            <span className="sr-only sm:not-sr-only">Paper Compass</span>
+          <h1 className="shrink-0 font-display text-2xl leading-none tracking-tight whitespace-nowrap">
+            {/* the logo and the name are a link to the home page (the story) */}
+            <a
+              href="#/story"
+              aria-label="Paper Compass home"
+              aria-current={view === "story" ? "page" : undefined}
+              onClick={(e) => {
+                e.preventDefault();
+                setView("story");
+              }}
+              className={cn(
+                "group flex items-center gap-2 rounded-lg px-1.5 py-1 transition-colors hover:bg-hover",
+                view === "story" ? "text-foreground" : "text-foreground/85 hover:text-foreground",
+              )}
+            >
+              <Compass className={cn("size-5 transition-transform duration-300 group-hover:rotate-12", view === "story" ? "text-primary drop-shadow-[0_0_6px_var(--primary)]" : "text-primary")} aria-hidden />
+              <span className="sr-only sm:not-sr-only">Paper Compass</span>
+            </a>
           </h1>
           <nav aria-label="Views" data-lenis-prevent className="ml-2 flex gap-1 overflow-x-auto">
             {VIEWS.map((v) => (
@@ -301,7 +318,7 @@ function AppShell() {
       <CommandPalette
         open={paletteOpen}
         onOpenChange={setPaletteOpen}
-        views={VIEWS}
+        views={PALETTE_VIEWS}
         currentView={view}
         onGo={setView}
         onSearch={searchFor}
