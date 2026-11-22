@@ -304,7 +304,8 @@ export function drawNode(ctx: CanvasRenderingContext2D, n: PaintNode, scale: num
     ctx.shadowColor = "rgba(5, 8, 16, 0.9)";
     ctx.shadowBlur = 4;
     ctx.fillStyle = `rgba(${LABEL_RGB}, ${Math.round(la * dim * 1000) / 1000})`;
-    ctx.fillText(text, x, y + r * 1.6 + 2);
+    // the hovered node's label sits a little lower, clear of the library's own tooltip next to the pointer
+    ctx.fillText(text, x, y + r * 1.6 + 2 + (n.id === st.hoverId ? 22 / scale : 0));
     ctx.restore();
   }
 }
