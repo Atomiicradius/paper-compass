@@ -18,13 +18,25 @@ import { usePrefersReducedMotion } from "@/lib/reduced-motion";
 interface ScrollerContext {
   scroller: HTMLElement | null;
   setScroller: (el: HTMLElement | null) => void;
+  hasProvider: boolean;
 }
 
-const Ctx = createContext<ScrollerContext>({ scroller: null, setScroller: () => {} });
+const Ctx = createContext<ScrollerContext>({ scroller: null, setScroller: () => {}, hasProvider: false });
 
 /** The element that scrolls the page content (null before it mounts, or without a provider). */
 export function useScroller(): HTMLElement | null {
   return useContext(Ctx).scroller;
+}
+
+/**
+ * What scroll-triggered motion needs: the scrolling element, and whether it is known yet. Under the provider the pane
+ * registers itself right after the first render, so `ready` is false for that one render and scroll triggers wait for
+ * it (a trigger created against the window would never fire for content that scrolls inside the pane). Without a
+ * provider (tests, or a page that scrolls normally) it is ready at once and ScrollTrigger uses the window.
+ */
+export function useScrollTarget(): { scroller: HTMLElement | null; ready: boolean } {
+  const { scroller, hasProvider } = useContext(Ctx);
+  return { scroller, ready: !hasProvider || scroller !== null };
 }
 
 /** A ref callback for the one scrolling element of the page. */
@@ -52,6 +64,6 @@ export function SmoothScrollProvider({ children }: { children: ReactNode }) {
     };
   }, [scroller, reduced]);
 
-  const value = useMemo(() => ({ scroller, setScroller }), [scroller]);
+  const value = useMemo(() => ({ scroller, setScroller, hasProvider: true }), [scroller]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

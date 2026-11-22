@@ -36,7 +36,15 @@ vi.mock("gsap", () => {
       return { revert: vi.fn(), kill: vi.fn(), add: vi.fn() };
     }),
     set: vi.fn(),
-    to: vi.fn(() => ({ kill: vi.fn() })),
+    // a count-up style tween (a plain object with an onComplete callback) finishes at once, so its final text is in the DOM
+    to: vi.fn((target: unknown, vars?: Record<string, unknown>) => {
+      if (target && !Array.isArray(target) && typeof vars?.onComplete === "function") {
+        (target as Record<string, unknown>).v = vars.v;
+        (vars.onUpdate as (() => void) | undefined)?.();
+        (vars.onComplete as () => void)();
+      }
+      return { kill: vi.fn() };
+    }),
     from: vi.fn(() => ({ kill: vi.fn() })),
     killTweensOf: vi.fn(),
     ticker: { add: vi.fn(), remove: vi.fn(), lagSmoothing: vi.fn() },
