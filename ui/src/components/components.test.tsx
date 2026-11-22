@@ -405,4 +405,31 @@ describe("LandscapeView", () => {
     await none.findByText(/Papers per year/i);
     expect(none.queryByRole("region", { name: "Weakly connected cluster pairs" })).toBeNull();
   });
+
+  it("draws a bar in each cluster row in proportion to its paper count, and the numbers stay", async () => {
+    const { LandscapeView } = await import("@/components/LandscapeView");
+    const { api: realApi } = await import("@/api/client");
+    const c = (id: number, size: number) => ({ cluster_id: id, size, year_min: 2000, year_max: 2020, top_elements: [] });
+    vi.spyOn(realApi, "clusters").mockResolvedValue({ method: "hdbscan", min_cluster_size: 15, min_samples: 5, pca_dims: 20, n_papers: 60, n_noise: 2, clusters: [c(0, 40), c(1, 10)] } as never);
+    vi.spyOn(realApi, "trends").mockResolvedValue([]);
+    wrap(<LandscapeView state={land([])} onOpenGraph={() => {}} />);
+    const bars = await screen.findAllByTestId("cluster-bar");
+    expect(bars.map((b) => b.style.width)).toEqual(["100%", "25%"]);
+    expect(screen.getByText("40")).toBeInTheDocument();
+    expect(screen.getByText("10")).toBeInTheDocument();
+  });
+
+  it("the papers-per-year chart has gradient bars and a hover tooltip with the year and the count", async () => {
+    const { YearBars } = await import("@/components/LandscapeView");
+    const { fireEvent } = await import("@testing-library/react");
+    const { container } = wrap(<YearBars perYear={{ "2020": 10, "2021": 12 }} />);
+    expect(container.querySelector("linearGradient")).not.toBeNull();
+    expect(container.querySelector("rect[fill^='url(#']")).not.toBeNull();
+    expect(screen.queryByTestId("year-tooltip")).toBeNull();
+    const strip = screen.getAllByTestId("year-bar")[1]!.querySelectorAll("rect")[1]!;
+    fireEvent.pointerEnter(strip);
+    expect(screen.getByTestId("year-tooltip")).toHaveTextContent("2021 · 12 papers");
+    fireEvent.pointerLeave(container.querySelector("svg")!);
+    expect(screen.queryByTestId("year-tooltip")).toBeNull();
+  });
 });
