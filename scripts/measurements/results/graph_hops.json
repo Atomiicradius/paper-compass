@@ -1,0 +1,163 @@
+{
+  "database": "pc_demo_opps",
+  "seed": 42,
+  "n_papers": 30,
+  "depths": [
+    1,
+    2
+  ],
+  "warmup_runs": 3,
+  "timed_runs": 10,
+  "machine": {
+    "os": "Windows-11-10.0.26300-SP0",
+    "python": "3.12.3",
+    "cpu": "13th Gen Intel(R) Core(TM) i7-13650HX",
+    "cpu_cores": "14",
+    "cpu_logical": "20",
+    "ram_gb": 23.7,
+    "docker": {
+      "server_version": "29.9.2",
+      "os": "Docker Desktop",
+      "kernel": "6.18.58.1-microsoft-standard-WSL2",
+      "cpus_for_docker": 20,
+      "memory_for_docker_gb": 11.5,
+      "containers": [
+        "pc-postgres|e691c4878e8e",
+        "pc-neo4j|neo4j:5.26.32-community"
+      ]
+    }
+  },
+  "copy_check": {
+    "postgres": {
+      "papers": 1999,
+      "citation_rows": 11542,
+      "papers_with_an_outgoing_citation": 1391,
+      "papers_with_any_citation_edge": 1646
+    },
+    "neo4j": {
+      "papers": 1999,
+      "cites_relationships": 11542,
+      "version": "Neo4j Kernel 5.26.32"
+    },
+    "same_edge_set": true,
+    "edges_only_in_postgres": 0,
+    "edges_only_in_neo4j": 0
+  },
+  "sample": [
+    "W4415368442",
+    "W2122585011",
+    "W1880262756",
+    "W2956020289",
+    "W2805790316",
+    "W2612675303",
+    "W2139126750",
+    "W2114524997",
+    "W7208826806",
+    "W4385473486",
+    "W2099509424",
+    "W4392781393",
+    "W3160722609",
+    "W1947251450",
+    "W1933349210",
+    "W2103308415",
+    "W2597655663",
+    "W2767982226",
+    "W4309591663",
+    "W4401043142",
+    "W1903029394",
+    "W4386576685",
+    "W2338012267",
+    "W639708223",
+    "W3156470785",
+    "W2606974598",
+    "W3204096139",
+    "W4392623252",
+    "W2962858109",
+    "W1535015163"
+  ],
+  "result_sizes": {
+    "1": {
+      "median": 5.0,
+      "min": 1,
+      "max": 26,
+      "total": 223
+    },
+    "2": {
+      "median": 23.5,
+      "min": 1,
+      "max": 163,
+      "total": 1233
+    }
+  },
+  "mismatches": [],
+  "latency": {
+    "1": {
+      "postgres_cte_python_ms": {
+        "median": 0.6274500010476913,
+        "p95": 0.8842000024742447,
+        "min": 0.5061999981990084,
+        "max": 1.5035999967949465,
+        "n": 300
+      },
+      "postgres_cte_server_ms": {
+        "median": 0.054,
+        "p95": 0.082,
+        "min": 0.033,
+        "max": 0.125,
+        "n": 300
+      },
+      "neo4j_cypher_python_ms": {
+        "median": 2.400050001597265,
+        "p95": 4.045500005304348,
+        "min": 1.411900004313793,
+        "max": 19.223700001020916,
+        "n": 300
+      },
+      "neo4j_cypher_server_ms": {
+        "median": 1.0,
+        "p95": 2,
+        "min": 0,
+        "max": 15,
+        "n": 300
+      }
+    },
+    "2": {
+      "postgres_cte_python_ms": {
+        "median": 0.7097499983501621,
+        "p95": 1.0602000038488768,
+        "min": 0.46949999523349106,
+        "max": 1.5621000056853518,
+        "n": 300
+      },
+      "postgres_cte_server_ms": {
+        "median": 0.104,
+        "p95": 0.357,
+        "min": 0.036,
+        "max": 0.412,
+        "n": 300
+      },
+      "neo4j_cypher_python_ms": {
+        "median": 2.5161500052490737,
+        "p95": 4.511600003752392,
+        "min": 1.368700002785772,
+        "max": 7.630000000062864,
+        "n": 300
+      },
+      "neo4j_cypher_server_ms": {
+        "median": 1.0,
+        "p95": 2,
+        "min": 0,
+        "max": 2,
+        "n": 300
+      }
+    },
+    "graph_screen_paper_neighborhood_cypher_python_ms": {
+      "median": 2.2321000033116434,
+      "p95": 3.285900005721487,
+      "min": 1.2188000036985613,
+      "max": 4.993099995772354,
+      "n": 300
+    }
+  },
+  "latency_method": "nearest-rank percentile over all (paper x run) samples; 3 warm-up runs per paper/depth/engine discarded; python = perf_counter around execute + fetch of all rows; server = Cypher result_available_after + result_consumed_after, CTE = EXPLAIN (ANALYZE) Execution Time"
+}

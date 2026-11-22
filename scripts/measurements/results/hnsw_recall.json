@@ -1,0 +1,171 @@
+{
+  "database": "pc_demo_opps",
+  "seed": 42,
+  "n_queries": 200,
+  "top_k": 10,
+  "postgres": "PostgreSQL 16.15 (Debian 16.15-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
+  "pgvector": "0.8.7",
+  "papers": 1999,
+  "papers_with_embedding": 1999,
+  "hnsw_indexes": [
+    {
+      "name": "idx_paper_embedding_hnsw",
+      "definition": "CREATE INDEX idx_paper_embedding_hnsw ON public.paper USING hnsw (embedding vector_cosine_ops)"
+    }
+  ],
+  "hnsw_reloptions": null,
+  "hnsw_index_size_bytes": 8183808,
+  "table_size_bytes": 11231232,
+  "server_defaults": {
+    "hnsw.ef_search": "40",
+    "hnsw.iterative_scan": "off",
+    "hnsw.max_scan_tuples": "20000"
+  },
+  "shared_buffers": "128MB",
+  "machine": {
+    "os": "Windows-11-10.0.26300-SP0",
+    "python": "3.12.3",
+    "cpu": "13th Gen Intel(R) Core(TM) i7-13650HX",
+    "cpu_cores": "14",
+    "cpu_logical": "20",
+    "ram_gb": 23.7,
+    "docker": {
+      "server_version": "29.9.2",
+      "os": "Docker Desktop",
+      "kernel": "6.18.58.1-microsoft-standard-WSL2",
+      "cpus_for_docker": 20,
+      "memory_for_docker_gb": 11.5,
+      "containers": [
+        "pc-postgres|e691c4878e8e",
+        "pc-neo4j|neo4j:5.26.32-community"
+      ]
+    }
+  },
+  "sample_first_ids": [
+    "W3201959471",
+    "W2010595692",
+    "W1554944419",
+    "W4323572061",
+    "W2140679639"
+  ],
+  "explain_first_query": {
+    "A_default_ef_planner": "Limit  (cost=438.98..439.00 rows=10 width=136)\n  ->  Sort  (cost=438.98..443.97 rows=1998 width=136)\n        Sort Key: ((p.embedding <=> '[...768 numbers...]'::vector))\n        ->  Hash Left Join  (cost=18.04..395.80 rows=1998 width=136)\n              Hash Cond: (p.venue_id = v.venue_id)\n              ->  Seq Scan on paper p  (cost=0.00..367.49 rows=1998 width=106)\n                    Filter: ((embedding IS NOT NULL) AND (paper_id <> ALL ('{W3201959471}'::text[])))\n              ->  Hash  (cost=11.35..11.35 rows=535 width=48)\n                    ->  Seq Scan on venue v  (cost=0.00..11.35 rows=535 width=48)",
+    "B_default_ef_forced_index": "Limit  (cost=890.33..914.08 rows=10 width=136)\n  ->  Nested Loop Left Join  (cost=890.33..5635.77 rows=1998 width=136)\n        ->  Index Scan using idx_paper_embedding_hnsw on paper p  (cost=890.04..5413.48 rows=1998 width=106)\n              Order By: (embedding <=> '[...768 numbers...]'::vector)\n              Filter: ((embedding IS NOT NULL) AND (paper_id <> ALL ('{W3201959471}'::text[])))\n        ->  Memoize  (cost=0.29..0.32 rows=1 width=48)\n              Cache Key: p.venue_id\n              Cache Mode: logical\n              ->  Index Scan using venue_pkey on venue v  (cost=0.28..0.31 rows=1 width=48)\n                    Index Cond: (venue_id = p.venue_id)",
+    "C_ef100_planner": "Limit  (cost=351.98..378.43 rows=10 width=136)\n  ->  Nested Loop Left Join  (cost=351.98..5635.77 rows=1998 width=136)\n        ->  Index Scan using idx_paper_embedding_hnsw on paper p  (cost=351.70..5413.48 rows=1998 width=106)\n              Order By: (embedding <=> '[...768 numbers...]'::vector)\n              Filter: ((embedding IS NOT NULL) AND (paper_id <> ALL ('{W3201959471}'::text[])))\n        ->  Memoize  (cost=0.29..0.32 rows=1 width=48)\n              Cache Key: p.venue_id\n              Cache Mode: logical\n              ->  Index Scan using venue_pkey on venue v  (cost=0.28..0.31 rows=1 width=48)\n                    Index Cond: (venue_id = p.venue_id)",
+    "exact": "Limit  (cost=438.98..439.00 rows=10 width=136)\n  ->  Sort  (cost=438.98..443.97 rows=1998 width=136)\n        Sort Key: ((p.embedding <=> '[...768 numbers...]'::vector))\n        ->  Hash Left Join  (cost=18.04..395.80 rows=1998 width=136)\n              Hash Cond: (p.venue_id = v.venue_id)\n              ->  Seq Scan on paper p  (cost=0.00..367.49 rows=1998 width=106)\n                    Filter: ((embedding IS NOT NULL) AND (paper_id <> ALL ('{W3201959471}'::text[])))\n              ->  Hash  (cost=11.35..11.35 rows=535 width=48)\n                    ->  Seq Scan on venue v  (cost=0.00..11.35 rows=535 width=48)"
+  },
+  "queries_with_equal_distances_inside_the_exact_top10": 7,
+  "index": {
+    "A_default_ef_planner": {
+      "label": "ef_search = 40 (server default), planner's choice",
+      "ef_search": 40,
+      "mode": "planner",
+      "recall_mean": 1.0,
+      "recall_min": 1.0,
+      "queries_below_1.0": 0,
+      "queries_below_1.0_detail": {},
+      "recall_histogram": {
+        "1.0": 200
+      },
+      "queries_returning_fewer_than_10": 0,
+      "queries_whose_plan_used_the_hnsw_index": 0,
+      "python_ms": {
+        "median": 6.696600001305342,
+        "p95": 7.717000000411645,
+        "min": 5.599600001005456,
+        "max": 12.137000005168375,
+        "n": 200
+      },
+      "db_ms": {
+        "median": 4.5825,
+        "p95": 5.055,
+        "min": 4.096,
+        "max": 6.046,
+        "n": 200
+      },
+      "replica_sql_differs_from_search_function": 0
+    },
+    "B_default_ef_forced_index": {
+      "label": "ef_search = 40 (server default), HNSW index forced (enable_seqscan = off)",
+      "ef_search": 40,
+      "mode": "forced_index",
+      "recall_mean": 0.9995,
+      "recall_min": 0.9,
+      "queries_below_1.0": 1,
+      "queries_below_1.0_detail": {
+        "W4414051084": 0.9
+      },
+      "recall_histogram": {
+        "0.9": 1,
+        "1.0": 199
+      },
+      "queries_returning_fewer_than_10": 0,
+      "queries_whose_plan_used_the_hnsw_index": 200,
+      "python_ms": {
+        "median": 2.415599999949336,
+        "p95": 2.9604999945149757,
+        "min": 2.006700000492856,
+        "max": 7.986100004927721,
+        "n": 200
+      },
+      "db_ms": {
+        "median": 0.297,
+        "p95": 0.435,
+        "min": 0.181,
+        "max": 0.554,
+        "n": 200
+      },
+      "replica_sql_differs_from_search_function": 0
+    },
+    "C_ef100_planner": {
+      "label": "ef_search = 100 (the value search() uses), planner's choice",
+      "ef_search": 100,
+      "mode": "planner",
+      "recall_mean": 0.9995,
+      "recall_min": 0.9,
+      "queries_below_1.0": 1,
+      "queries_below_1.0_detail": {
+        "W4414051084": 0.9
+      },
+      "recall_histogram": {
+        "0.9": 1,
+        "1.0": 199
+      },
+      "queries_returning_fewer_than_10": 0,
+      "queries_whose_plan_used_the_hnsw_index": 200,
+      "python_ms": {
+        "median": 2.4750500051595736,
+        "p95": 3.18140000308631,
+        "min": 1.9836999999824911,
+        "max": 8.994800002255943,
+        "n": 200
+      },
+      "db_ms": {
+        "median": 0.4955,
+        "p95": 0.744,
+        "min": 0.288,
+        "max": 1.17,
+        "n": 200
+      },
+      "replica_sql_differs_from_search_function": 0
+    }
+  },
+  "exact": {
+    "python_ms": {
+      "median": 7.042450004519196,
+      "p95": 9.506900001724716,
+      "min": 5.815900003653951,
+      "max": 15.66599999932805,
+      "n": 200
+    },
+    "db_ms": {
+      "median": 4.6615,
+      "p95": 5.38,
+      "min": 4.091,
+      "max": 6.181,
+      "n": 200
+    },
+    "queries_whose_plan_used_the_hnsw_index": 0
+  },
+  "latency_method": "nearest-rank percentile; python = perf_counter around the call incl. transaction + set_config + fetch; db = EXPLAIN (ANALYZE) Execution Time; first 10 queries of each pass discarded as warm-up; everything is warm (the data fits in shared_buffers)"
+}
